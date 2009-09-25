@@ -414,7 +414,6 @@
 		1DEB91DB08733DB10010E9CD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_PREPROCESSOR_DEFINITIONS = "";
 				INFOPLIST_FILE = "Info-FB.plist";
 				INFOPLIST_PREPROCESS = YES;
 				MODULE_NAME = net.osx86.driver.VMsvga2;
@@ -448,7 +447,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GCC_PREPROCESSOR_DEFINITIONS = (
-					"LOGGING_LEVEL=2",
+					"LOGGING_LEVEL=1",
 					FRAGILE,
 				);
 				INFOPLIST_FILE = "Info-AC.plist";
@@ -463,7 +462,7 @@
 		79C4C559102F03CC00EF589E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=2";
+				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=1";
 				INFOPLIST_FILE = "Info-GA.plist";
 				INFOPLIST_PREPROCESS = YES;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
