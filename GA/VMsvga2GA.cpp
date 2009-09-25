@@ -294,6 +294,11 @@ static IOReturn vmStop(void* myInstance)
 #pragma mark IOGraphicsAccelerator
 #pragma mark -
 
+/*
+ * Note: All reference to GeForceGA.plugin are for version
+ *   GeForceGA 1.5.48.6 (17.5.7f10) from OS 10.5.8
+ */
+
 static IOReturn vmReset(void* myInstance, IOOptionBits options)
 {
 	GAType* me = static_cast<GAType*>(myInstance);
@@ -306,7 +311,7 @@ static IOReturn vmReset(void* myInstance, IOOptionBits options)
 		return kIOReturnNotReady;
 	useAccelUpdates(me->_context, 1);
 	/*
-	 * TBD complete the rest
+	 * TBD GeForceGA 0x1920 - 0x1B07
 	 */
 	return kIOReturnSuccess;
 }
@@ -364,13 +369,13 @@ static IOReturn vmFlush(void* myInstance, IOOptionBits options)
 		return kIOReturnSuccess;
 	if ((options & kIOBlitFlushWithSwap) != 0 &&
 		me->_surface != 0) {
-		// TBD 0x2C19 - 2C34
+		// TBD GeForceGA 0x2C19 - 0x2C34
 	}
-	// [ebp-0x20] = edx
+	// dword ptr [ebp-0x20] = edx
 	if (_config_val_2 <= 63) {
-		// TBD 0x2CD0 - 0x2CE2
+		// TBD GeForceGA 0x2CD0 - 0x2CE2
 	} else {
-		// TBD 0x2C44 - 0x2C79
+		// TBD GeForceGA 0x2C44 - 0x2C79
 	}
 	rc = IOConnectMapMemory(me->_context, 0,
 							mach_task_self(), &ebp_less_0x20,
@@ -380,7 +385,7 @@ static IOReturn vmFlush(void* myInstance, IOOptionBits options)
 		me->offset0x74 = 0;
 		me->offset0x78 = 0;
 	} else {
-		// TBD: 0x2CF0 - 0x2D78
+		// TBD GeForceGA 0x2CF0 - 0x2D78
 	}
 #endif
 
@@ -477,7 +482,7 @@ static IOReturn vmAllocateSurface(void* myInstance, IOOptionBits options, IOBlit
 	si = static_cast<SurfaceInfo*>(malloc(sizeof *si));
 	if (!si)
 		return kIOReturnNoMemory;
-	bzero(si, sizeof *si);	// si in edi
+	bzero(si, sizeof *si);
 	if (options & kIOBlitHasCGSSurface) {
 		si->cgsSurfaceID = reinterpret_cast<SInt32>(cgsSurfaceID);
 		surface->interfaceRef = reinterpret_cast<IOBlitMemoryRef>(si);
@@ -487,7 +492,7 @@ static IOReturn vmAllocateSurface(void* myInstance, IOOptionBits options, IOBlit
 		if (flag) {
 			uint64_t input[3];
 			input[0] = options;
-			input[1] = surface->size.width;		// Note: source sign extends;
+			input[1] = surface->size.width;		// Note: source sign extends
 			input[2] = surface->size.height;	// Note: source sign extends
 			// Note: sets dword ptr [ebp-0xC] to 0
 			rc = IOConnectCallMethod(me->_context, kIOVM2DScaleSurface,
@@ -501,35 +506,33 @@ static IOReturn vmAllocateSurface(void* myInstance, IOOptionBits options, IOBlit
 #if 0
 		if ((options & 0x10U) != 0 &&
 			(me->_config_val_1 & 0x42U) != 0) {
-			// TBD @ 24C6
 			if (!vmDecodePixelFormat(surface->pixelFormat,
 									 &si->d2[5] /* ecx */,
 									 &si->d2[10] /* edx */,
 									 0,
 									 &si->d2[6],
-									 &tmp /* ebp-0x10 */)) {
+									 &tmp /* [ebp-0x10] */)) {
 				rc = kIOReturnSuccess;
 				goto set_si_and_exit;
 			}
-			// TBD 24F4
+			// TBD GeForceGA 0x24F4 - 0x25E6
 		}
 #endif
 		rc = kIOReturnSuccess;
 		goto set_si_and_exit;
 	}
 	if (!(options & kIOBlitReferenceSource)) {
-		// TBD @ 2370
 		vmDecodePixelFormat(surface->pixelFormat /* eax */,
 							&si->d2[5] /* ecx */,
 							&si->d2[10] /* edx */,
-							&tmp,	// ebp-0x18
+							&tmp,	/* [ebp-0x18] */
 							&si->d2[6],
 							0);
 		rc = kIOReturnUnsupported;
 		goto free_si_and_exit;
 	}
 	if (me->_config_val_1 & 0x42U) {
-		// TBD @ 23A0
+		// TBD GeForceGA 0x23A0 - 0x249E
 	}
 	rc = kIOReturnUnsupported;
 free_si_and_exit:
@@ -670,7 +673,7 @@ static IOReturn vmSwapSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 			case kIOUYVY422PixelFormat:
 			case kIO2vuyPixelFormat:
 			case kIOYUVSPixelFormat:
-				// TBD 0x2F60 - 0x351F (!)
+				// TBD GeForceGA 0x2F60 - 0x351F (!)
 				break;
 		}
 	}

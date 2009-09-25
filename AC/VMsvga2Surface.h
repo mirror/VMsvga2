@@ -136,6 +136,9 @@ private:
 										  size_t rgnSize,
 										  size_t backingLength);
 	void Init();
+	void Cleanup();
+	void Start3D();
+	void Cleanup3D();
 	void clearLastShape();
 	bool createAuxSurface(UInt32 sid, UInt32 cid, SVGA3dSurfaceFormat format, UInt32 width, UInt32 height);
 	bool isBackingValid() const;

@@ -174,6 +174,7 @@ public:
 	void cacheBlitBugResult(IOReturn r) { m_blitbug_result = r; }
 	void lockAccel();
 	void unlockAccel();
+	bool Have3D() const { return bHaveSVGA3D != 0; }
 
 	/*
 	 * Video Support

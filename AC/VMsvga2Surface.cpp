@@ -133,17 +133,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 IOReturn CLASS::clientClose()
 {
 	SFLog(2, "%s\n", __FUNCTION__);
-	if (m_provider) {
-		if (bHaveSVGA3D) {
-			m_provider->releaseMasterSurface();
-			m_provider->FreeSurfaceID(m_aux_surface_id[0]);
-			m_provider->FreeSurfaceID(m_aux_surface_id[1]);
-			m_provider->FreeContextID(m_aux_context_id);
-		}
-		surface_video_off();
-	}
-	releaseBacking();
-	clearLastShape();
+	Cleanup();
 	if (!terminate(0))
 		IOLog("%s: terminate failed\n", __FUNCTION__);
 	m_owning_task = 0;
@@ -168,7 +158,7 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 		return kIOReturnBadArgument;
 	if (!bHaveID)
 		return kIOReturnNotReady;
-	fs = reinterpret_cast<VMsvga2Accel::FindSurface*>(argument);
+	fs = static_cast<VMsvga2Accel::FindSurface*>(argument);
 	if (fs->cgsSurfaceID == m_wID)
 		fs->client = this;
 	return kIOReturnSuccess;
@@ -180,29 +170,9 @@ bool CLASS::start(IOService* provider)
 	if (!m_provider)
 		return false;
 	m_log_level = m_provider->getLogLevelAC();
-	/*
-	 * TBD: need to be notified of resolution changes
-	 */
 	if (m_provider->getScreenInfo(&screenInfo) != kIOReturnSuccess)
 		return false /* kIOReturnNoDevice */;
-	bHaveSVGA3D = m_provider->retainMasterSurface();
-	if (bHaveSVGA3D) {
-		m_aux_surface_id[0] = m_provider->AllocSurfaceID();
-		m_aux_surface_id[1] = m_provider->AllocSurfaceID();
-		m_aux_context_id = m_provider->AllocContextID();
-		if (checkOptionAC(VMW_OPTION_AC_DIRECT_BLIT))
-			bDirectBlit = true;
-		else {
-			IOReturn rc = m_provider->getBlitBugResult();
-			if (rc == kIOReturnNotFound) {
-				rc = detectBlitBug();
-				m_provider->cacheBlitBugResult(rc);
-				if (rc != kIOReturnSuccess)
-					SFLog(1, "Blit Bug: Yes\n");
-			}
-			bDirectBlit = (rc == kIOReturnSuccess);
-		}
-	}
+	Start3D();
 	return super::start(provider);
 }
 
@@ -266,6 +236,49 @@ void CLASS::Init()
 #endif
 
 	m_video.stream_id = static_cast<UInt32>(-1);
+}
+
+void CLASS::Cleanup()
+{
+	if (m_provider) {
+		Cleanup3D();
+		surface_video_off();
+	}
+	releaseBacking();
+	clearLastShape();
+}
+
+void CLASS::Start3D()
+{
+	bHaveSVGA3D = m_provider->retainMasterSurface();
+	if (!bHaveSVGA3D)
+		return;
+	m_aux_surface_id[0] = m_provider->AllocSurfaceID();
+	m_aux_surface_id[1] = m_provider->AllocSurfaceID();
+	m_aux_context_id = m_provider->AllocContextID();
+	if (checkOptionAC(VMW_OPTION_AC_DIRECT_BLIT))
+		bDirectBlit = true;
+	else {
+		IOReturn rc = m_provider->getBlitBugResult();
+		if (rc == kIOReturnNotFound) {
+			rc = detectBlitBug();
+			m_provider->cacheBlitBugResult(rc);
+			if (rc != kIOReturnSuccess)
+				SFLog(1, "Blit Bug: Yes\n");
+		}
+		bDirectBlit = (rc == kIOReturnSuccess);
+	}
+}
+
+void CLASS::Cleanup3D()
+{
+	if (!m_provider || !bHaveSVGA3D)
+		return;
+	m_provider->releaseMasterSurface();
+	m_provider->FreeSurfaceID(m_aux_surface_id[0]);
+	m_provider->FreeSurfaceID(m_aux_surface_id[1]);
+	m_provider->FreeContextID(m_aux_context_id);
+	bHaveSVGA3D = false;
 }
 
 void CLASS::clearLastShape()
@@ -649,7 +662,7 @@ void CLASS::clear_yuv_to_black(void* buffer, vm_size_t size)
 	UInt32 pixval = 0;
 
 	/*
-	 * Make a superfast XMM version of this
+	 * TBD Make a superfast XMM version of this
 	 */
 	switch (m_video.vmware_pixel_format) {
 		case VMWARE_FOURCC_UYVY:
@@ -772,7 +785,7 @@ void CLASS::videoReshape()
 
 IOReturn CLASS::surface_read_lock_options(eIOAccelSurfaceLockBits options, IOAccelSurfaceInformation* info, size_t* infoSize)
 {
-	SFLog(2, "%s(0x%x, %p, %u)\n", __FUNCTION__, options, info, infoSize ? static_cast<unsigned>(*infoSize) : 0);
+	SFLog(3, "%s(0x%x, %p, %u)\n", __FUNCTION__, options, info, infoSize ? static_cast<unsigned>(*infoSize) : 0);
 
 	if (!info || !infoSize || *infoSize != sizeof *info)
 		return kIOReturnBadArgument;
@@ -792,7 +805,7 @@ IOReturn CLASS::surface_read_lock_options(eIOAccelSurfaceLockBits options, IOAcc
 
 IOReturn CLASS::surface_read_unlock_options(eIOAccelSurfaceLockBits options)
 {
-	SFLog(2, "%s(0x%x)\n", __FUNCTION__, options);
+	SFLog(3, "%s(0x%x)\n", __FUNCTION__, options);
 
 	OSTestAndClear(vmSurfaceLockRead, &bIsLocked);
 	return kIOReturnSuccess;
@@ -969,9 +982,6 @@ IOReturn CLASS::surface_flush(size_t framebufferMask, IOOptionBits options)
 			rc = DMAOutWithCopy(withFence);
 			break;
 	}
-#if 0
-	releaseBacking();
-#endif
 	if (rc != kIOReturnSuccess)
 		return rc;
 	return doPresent();
@@ -1110,11 +1120,6 @@ IOReturn CLASS::context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pix
 {
 	SFLog(2, "%s(0x%x, 0x%x)\n", __FUNCTION__, vmware_pixel_format, apple_pixel_format);
 
-#if 0
-	IOReturn rc = surface_query_lock();
-	if (rc != kIOReturnSuccess)
-		return rc;
-#endif
 	if (!vmware_pixel_format) {
 		surface_video_off();
 		bVideoMode = false;
@@ -1123,6 +1128,8 @@ IOReturn CLASS::context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pix
 			m_bytes_per_pixel = sizeof(UInt32);
 			m_pixel_format = apple_pixel_format;
 		}
+		if (!bHaveSVGA3D)
+			Start3D();
 		return kIOReturnSuccess;
 	}
 	if (checkOptionAC(VMW_OPTION_AC_NO_YUV))
@@ -1132,6 +1139,7 @@ IOReturn CLASS::context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pix
 	m_video.vmware_pixel_format = vmware_pixel_format;
 	m_pixel_format = apple_pixel_format;
 	m_bytes_per_pixel = sizeof(UInt16);
+	Cleanup3D();		// Note: release the master surface so that a YUV surface doesn't thwart resolution changes
 	return kIOReturnSuccess;
 }
 
@@ -1166,7 +1174,7 @@ IOReturn CLASS::context_lock_memory(task_t context_owning_task, vm_address_t* ad
 		OSTestAndClear(vmSurfaceLockContext, &bIsLocked);
 		return kIOReturnNoMemory;
 	}
-	if (bVideoMode && !bHaveSVGA3D)
+	if (bVideoMode && !m_provider->Have3D())
 		setup_trick_buffer();	// Note: error ignored
 	*address = m_backing.map[1]->getVirtualAddress();
 	*rowBytes = m_scale.reserved[1];
@@ -1279,7 +1287,7 @@ void CLASS::runTest()
 	UInt32 const depth_sid = 12346;
 #endif
 	UInt32 const cid = 12347;
-	UInt32 const pixval_green = 0xFF00U, pixval_red = 0xFF0000U, pixval_random = 0x5A0086U;
+	UInt32 const pixval_green = 0xFF00U, pixval_random = 0x5A0086U;
 	UInt32 i, w, h, pixels;
 	UInt32 offset, bytes_per_pixel;
 	UInt32 rect[4];

@@ -909,7 +909,7 @@ IOReturn CLASS::getScreenInfo(IOAccelSurfaceReadData* info)
 	info->client_addr = reinterpret_cast<void*>(m_framebuffer->getVRAMPtr());
 	info->client_row_bytes = m_svga->getCurrentPitch();
 	m_framebuffer->unlockDevice();
-	ACLog(3, "%s: width == %d, height == %d\n", __FUNCTION__, info->w, info->h);
+	ACLog(2, "%s: width == %d, height == %d\n", __FUNCTION__, info->w, info->h);
 	return kIOReturnSuccess;
 }
 
@@ -925,7 +925,7 @@ bool CLASS::retainMasterSurface()
 		width = m_svga->getCurrentWidth();
 		height = m_svga->getCurrentHeight();
 		m_framebuffer->unlockDevice();
-		ACLog(3, "%s: Master Surface width == %u, height == %u\n", __FUNCTION__, width, height);
+		ACLog(2, "%s: Master Surface width == %u, height == %u\n", __FUNCTION__, width, height);
 		rc = createMasterSurface(width, height);
 		if (!rc)
 			m_master_surface_retain_count = 0;
