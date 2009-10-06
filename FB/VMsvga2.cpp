@@ -47,7 +47,7 @@
 OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 
 #define LOGPRINTF_PREFIX_STR "log IOFB: "
-#define LOGPRINTF_PREFIX_LEN (sizeof(LOGPRINTF_PREFIX_STR) - 1)
+#define LOGPRINTF_PREFIX_LEN (sizeof LOGPRINTF_PREFIX_STR - 1)
 #define LOGPRINTF_PREFIX_SKIP 4				// past "log "
 #define LOGPRINTF_BUF_SIZE 256
 
@@ -135,8 +135,8 @@ void CLASS::LogPrintf(VMFBIOLog log_level, char const* fmt, ...)
 	if (log_level > m_log_level)
 		return;
 	va_start(ap, fmt);
-	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof(print_buf));
-	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof(print_buf) - LOGPRINTF_PREFIX_LEN, fmt, ap);
+	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof print_buf);
+	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof print_buf - LOGPRINTF_PREFIX_LEN, fmt, ap);
 	va_end(ap);
 	IOLog("%s", &print_buf[LOGPRINTF_PREFIX_SKIP]);
 	if (!VMLog_SendString(&print_buf[0]))
@@ -208,7 +208,7 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	harware_cursor = svga.BeginDefineAlphaCursor(64, 64, 4);
 	m_hotspot_x = 0;
 	m_hotspot_y = 0;
-	memset(&curd, 0, sizeof(curd));
+	bzero(&curd, sizeof curd);
 	curd.majorVersion = kHardwareCursorDescriptorMajorVersion;
 	curd.minorVersion = kHardwareCursorDescriptorMinorVersion;
 	curd.width = 64;
@@ -216,7 +216,7 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	curd.bitDepth = 32;
 	curd.supportedSpecialEncodings = kInvertingEncodedPixel;
 	curd.specialEncodings[kInvertingEncoding] = 0xFF000000U;
-	memset(&curi, 0, sizeof(curi));
+	bzero(&curi, sizeof curi);
 	curi.majorVersion = kHardwareCursorInfoMajorVersion;
 	curi.minorVersion = kHardwareCursorInfoMinorVersion;
 	curi.hardwareCursorData = static_cast<UInt8*>(harware_cursor);
@@ -241,16 +241,16 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 		}
 	}
 #endif
-	LogPrintf(5, "%s: cursor %p: desc %dx%d @ %d\n", __FUNCTION__,
+	LogPrintf(5, "%s: cursor %p: desc %ux%u @ %u\n", __FUNCTION__,
 			  curi.hardwareCursorData, curd.width, curd.height, curd.bitDepth);
 	if (!convertCursorImage(cursorImage, &curd, &curi)) {
 		svga.FIFOCommit(0);
 		IOLockUnlock(m_iolock);
-		LogPrintf(1, "%s: convertCursorImage() failed %dx%d\n", __FUNCTION__,
+		LogPrintf(1, "%s: convertCursorImage() failed %ux%u\n", __FUNCTION__,
 				  curi.cursorWidth, curi.cursorHeight);
 		return kIOReturnUnsupported;
 	}
-	LogPrintf(5, "%s: cursor %p: info %dx%d\n", __FUNCTION__,
+	LogPrintf(5, "%s: cursor %p: info %ux%u\n", __FUNCTION__,
 			  curi.hardwareCursorData, curi.cursorWidth, curi.cursorHeight);
 #ifdef HAVE_CURSOR_HOTSPOT
 	LogPrintf(5, "%s: hotspots: %d vs %d (x), %d vs %d (y)\n", __FUNCTION__,			// Added
@@ -290,7 +290,7 @@ IOReturn CLASS::unregisterInterrupt(void* interruptRef)
 	LogPrintf(4, "%s\n", __FUNCTION__);
 	if (interruptRef != &m_intr)
 		return kIOReturnBadArgument;
-	memset(interruptRef, 0, sizeof(m_intr));
+	bzero(interruptRef, sizeof m_intr);
 	m_intr_enabled = false;
 	return kIOReturnSuccess;
 }
@@ -339,7 +339,7 @@ IOReturn CLASS::getDisplayModes(IODisplayModeID* allDisplayModes)
 		*allDisplayModes = CUSTOM_MODE_ID;
 		return kIOReturnSuccess;
 	}
-	memcpy(allDisplayModes, &m_modes[0], sizeof(m_modes));
+	memcpy(allDisplayModes, &m_modes[0], sizeof m_modes);
 	return kIOReturnSuccess;
 }
 
@@ -347,7 +347,7 @@ IOItemCount CLASS::getDisplayModeCount()
 {
 	IOItemCount r;
 	r = m_custom_switch ? 1 : NUM_DISPLAY_MODES;
-	LogPrintf(4, "%s: mode count=%d\n", __FUNCTION__, r);
+	LogPrintf(4, "%s: mode count=%u\n", __FUNCTION__, r);
 	return r;
 }
 
@@ -394,7 +394,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 	if (!m_bar1)
 		return 0;
 	fb_size = getCurrentApertureSize() /* getApertureSize(m_display_mode, m_depth_mode) */;
-	LogPrintf(4, "%s: aperture=%d, fb size=%d\n", __FUNCTION__, aperture, fb_size);
+	LogPrintf(4, "%s: aperture=%d, fb size=%u\n", __FUNCTION__, aperture, fb_size);
 	mem = IODeviceMemory::withSubRange(m_bar1, m_fb_offset, fb_size);
 	if (!mem)
 		LogPrintf(1, "%s: failed to create IODeviceMemory, aperture=%d\n", __FUNCTION__, kIOFBSystemAperture);
@@ -529,24 +529,24 @@ bool CLASS::start(IOService* provider)
 	IOLog("IOFB: start\n");
 	VMLog_SendString("log IOFB: start\n");
 	m_log_level = 1;
-	if (PE_parse_boot_arg("vmw_log_fb", &boot_arg))
+	if (PE_parse_boot_argn("vmw_log_fb", &boot_arg, sizeof boot_arg))
 		m_log_level = static_cast<VMFBIOLog>(boot_arg);
 	/*
 	 * Begin Added
 	 */
 	setProperty("VMwareSVGAFBLogLevel", static_cast<UInt64>(m_log_level), 32U);
 	vmw_options_fb = VMW_OPTION_FB_FIFO_INIT | VMW_OPTION_FB_REFRESH_TIMER | VMW_OPTION_FB_ACCEL;
-	if (PE_parse_boot_arg("vmw_options_fb", &boot_arg))
+	if (PE_parse_boot_argn("vmw_options_fb", &boot_arg, sizeof boot_arg))
 		vmw_options_fb = boot_arg;
 	setProperty("VMwareSVGAFBOptions", static_cast<UInt64>(vmw_options_fb), 32U);
 	m_refresh_quantum_ms = 50U;
-	if (PE_parse_boot_arg("vmw_fps", &boot_arg) &&
+	if (PE_parse_boot_argn("vmw_fps", &boot_arg, sizeof boot_arg) &&
 		boot_arg > 0 && boot_arg <= 100U)
 		m_refresh_quantum_ms = 1000U / boot_arg;
 	setProperty("VMwareSVGARefreshQuantumMS", static_cast<UInt64>(m_refresh_quantum_ms), 32U);
 	o_edid = OSDynamicCast(OSData, getProperty("EDID"));
-	if (o_edid && o_edid->getLength() <= sizeof(edid)) {
-		memset(&edid, 0, sizeof(edid));
+	if (o_edid && o_edid->getLength() <= sizeof edid) {
+		bzero(&edid, sizeof edid);
 		memcpy(&edid, o_edid->getBytesNoCopy(), o_edid->getLength());
 		have_edid = true;
 	}
@@ -601,11 +601,11 @@ bool CLASS::start(IOService* provider)
 #endif
 	svga.WriteReg(SVGA_REG_ID, SVGA_ID_2);
 	if (svga.ReadReg(SVGA_REG_ID) != SVGA_ID_2) {
-		LogPrintf(1, "%s: REG ID=0x%08x is wrong version\n", __FUNCTION__, SVGA_ID_2);
+		LogPrintf(1, "%s: REG ID=0x%08lx is wrong version\n", __FUNCTION__, SVGA_ID_2);
 		Cleanup();
 		return false;
 	}
-	LogPrintf(3, "%s: REG ID=0x%08x\n", __FUNCTION__, SVGA_ID_2);
+	LogPrintf(3, "%s: REG ID=0x%08lx\n", __FUNCTION__, SVGA_ID_2);
 	/*
 	 * Begin Added
 	 */
@@ -666,7 +666,7 @@ void CLASS::stop(IOService* provider)
 #pragma mark IOFramebuffer Methods
 #pragma mark -
 
-IOReturn CLASS::getAttribute(IOSelect attribute, UInt32* value)
+IOReturn CLASS::getAttribute(IOSelect attribute, uintptr_t* value)
 {
 	IOReturn r;
 	char attr[5];
@@ -680,14 +680,14 @@ IOReturn CLASS::getAttribute(IOSelect attribute, UInt32* value)
 	if (m_log_level >= 4) {
 		IOSelectToString(attribute, &attr[0]);
 		if (value)
-			LogPrintf(4, "%s: attr=%s *value=0x%08x ret=0x%08x\n", __FUNCTION__, &attr[0], *value, r);
+			LogPrintf(4, "%s: attr=%s *value=0x%08lx ret=0x%08x\n", __FUNCTION__, &attr[0], *value, r);
 		else
 			LogPrintf(4, "%s: attr=%s ret=0x%08x\n", __FUNCTION__, &attr[0], r);
 	}
 	return r;
 }
 
-IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribute, UInt32* value)
+IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribute, uintptr_t* value)
 {
 	IOReturn r;
 	char attr[5];
@@ -716,6 +716,8 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 			break;
 		case kConnectionFlags:
 			LogPrintf(4, "%s: kConnectionFlags\n", __FUNCTION__);
+			if (value)
+				*value = 0;
 			r = kIOReturnSuccess;
 			break;
 		case kConnectionSupportsHLDDCSense:
@@ -728,7 +730,7 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	if (m_log_level >= 4) {
 		IOSelectToString(attribute, &attr[0]);
 		if (value)
-			LogPrintf(4, "%s: index=%d, attr=%s *value=0x%08x ret=0x%08x\n", __FUNCTION__,
+			LogPrintf(4, "%s: index=%d, attr=%s *value=0x%08lx ret=0x%08x\n", __FUNCTION__,
 					  connectIndex, &attr[0], *value, r);
 		else
 			LogPrintf(4, "%s: index=%d, attr=%s ret=0x%08x\n", __FUNCTION__,
@@ -737,7 +739,7 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	return r;
 }
 
-IOReturn CLASS::setAttribute(IOSelect attribute, UInt32 value)
+IOReturn CLASS::setAttribute(IOSelect attribute, uintptr_t value)
 {
 	IOReturn r;
 	char attr[5];
@@ -745,7 +747,7 @@ IOReturn CLASS::setAttribute(IOSelect attribute, UInt32 value)
 	r = super::setAttribute(attribute, value);
 	if (m_log_level >= 4) {
 		IOSelectToString(attribute, &attr[0]);
-		LogPrintf(4, "%s: attr=%s value=0x%08x ret=0x%08x\n",
+		LogPrintf(4, "%s: attr=%s value=0x%08lx ret=0x%08x\n",
 				  __FUNCTION__, &attr[0], value, r);
 	}
 	if (attribute == kIOCapturedAttribute &&
@@ -757,18 +759,18 @@ IOReturn CLASS::setAttribute(IOSelect attribute, UInt32 value)
 	return r;
 }
 
-IOReturn CLASS::setAttributeForConnection(IOIndex connectIndex, IOSelect attribute, UInt32 value)
+IOReturn CLASS::setAttributeForConnection(IOIndex connectIndex, IOSelect attribute, uintptr_t value)
 {
 	IOReturn r;
 	char attr[5];
 
 	switch (attribute) {
 		case kConnectionFlags:
-			LogPrintf(4, "%s: kConnectionFlags %d\n", __FUNCTION__, value);
+			LogPrintf(4, "%s: kConnectionFlags %lu\n", __FUNCTION__, value);
 			r = kIOReturnSuccess;
 			break;
 		case kConnectionProbe:
-			LogPrintf(4, "%s: kConnectionProbe %d\n", __FUNCTION__, value);
+			LogPrintf(4, "%s: kConnectionProbe %lu\n", __FUNCTION__, value);
 			r = kIOReturnSuccess;
 			break;
 		default:
@@ -777,7 +779,7 @@ IOReturn CLASS::setAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	}
 	if (m_log_level >= 4) {
 		IOSelectToString(attribute, &attr[0]);
-		LogPrintf(4, "%s: index=%d, attr=%s value=0x%08x ret=0x%08x\n", __FUNCTION__,
+		LogPrintf(4, "%s: index=%d, attr=%s value=0x%08lx ret=0x%08x\n", __FUNCTION__,
 				  connectIndex, &attr[0], value, r);
 	}
 	return r;
@@ -793,7 +795,7 @@ IOReturn CLASS::registerForInterruptType(IOSelect interruptType, IOFBInterruptPr
 	}
 	if (interruptType != kIOFBConnectInterruptType)
 		return kIOReturnUnsupported;
-	memset(&m_intr, 0, sizeof(m_intr));
+	bzero(&m_intr, sizeof m_intr);
 	m_intr.target = target;
 	m_intr.ref = ref;
 	m_intr.proc = proc;
@@ -842,7 +844,7 @@ void CLASS::_RestoreAllModes(thread_call_param_t param0, thread_call_param_t par
 	static_cast<CLASS*>(param0)->RestoreAllModes();
 }
 
-IOReturn CLASS::CustomMode(CustomModeData* inData, CustomModeData* outData, size_t inSize, size_t* outSize)
+IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData, size_t inSize, size_t* outSize)
 {
 	DisplayModeEntry const* dme1;
 	DisplayModeEntry* dme2;
@@ -851,13 +853,13 @@ IOReturn CLASS::CustomMode(CustomModeData* inData, CustomModeData* outData, size
 
 	if (!m_restore_call)
 		return kIOReturnUnsupported;
-	LogPrintf(4, "%s: inData=%p outData=%p inSize=%u outSize=%u.\n", __FUNCTION__,
-			  inData, outData, static_cast<unsigned>(inSize), outSize ? static_cast<unsigned>(*outSize) : 0);
+	LogPrintf(4, "%s: inData=%p outData=%p inSize=%lu outSize=%lu.\n", __FUNCTION__,
+			  inData, outData, inSize, outSize ? *outSize : 0UL);
 	if (!inData) {
 		LogPrintf(1, "%s: inData NULL\n", __FUNCTION__);
 		return kIOReturnBadArgument;
 	}
-	if (inSize != sizeof(CustomModeData)) {
+	if (inSize < sizeof(CustomModeData)) {
 		LogPrintf(1, "%s: inSize bad\n", __FUNCTION__);
 		return kIOReturnBadArgument;
 	}
@@ -865,7 +867,7 @@ IOReturn CLASS::CustomMode(CustomModeData* inData, CustomModeData* outData, size
 		LogPrintf(1, "%s: outData NULL\n", __FUNCTION__);
 		return kIOReturnBadArgument;
 	}
-	if (!outSize || *outSize != sizeof(CustomModeData)) {
+	if (!outSize || *outSize < sizeof(CustomModeData)) {
 		LogPrintf(1, "%s: *outSize bad\n", __FUNCTION__);
 		return kIOReturnBadArgument;
 	}
@@ -873,7 +875,8 @@ IOReturn CLASS::CustomMode(CustomModeData* inData, CustomModeData* outData, size
 	if (!dme1)
 		return kIOReturnUnsupported;
 	if (inData->flags & 1) {
-		LogPrintf(4, "%s: Set resolution to %ux%u.\n", __FUNCTION__, inData->width, inData->height);
+		LogPrintf(4, "%s: Set resolution to %ux%u.\n", __FUNCTION__,
+				  static_cast<unsigned>(inData->width), static_cast<unsigned>(inData->height));
 		w = inData->width;
 		if (w < 800)
 			w = 800;
@@ -918,13 +921,13 @@ IOReturn CLASS::getInformationForDisplayMode(IODisplayModeID displayMode, IODisp
 		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, displayMode);
 		return kIOReturnBadArgument;
 	}
-	memset(info, 0, sizeof(IODisplayModeInformation));
+	bzero(info, sizeof(IODisplayModeInformation));
 	info->maxDepthIndex = 0;
 	info->nominalWidth = dme->width;
 	info->nominalHeight = dme->height;
 	info->refreshRate = 60U << 16;
 	info->flags = dme->flags;
-	LogPrintf(4, "%s: mode ID=%d, max depth=%d, wxh=%dx%d, flags=0x%x\n", __FUNCTION__,
+	LogPrintf(4, "%s: mode ID=%d, max depth=%d, wxh=%ux%u, flags=0x%x\n", __FUNCTION__,
 			  displayMode, 0, info->nominalWidth, info->nominalHeight, info->flags);
 	return kIOReturnSuccess;
 }
@@ -949,8 +952,8 @@ IOReturn CLASS::getPixelInformation(IODisplayModeID displayMode, IOIndex depth, 
 		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, displayMode);
 		return kIOReturnBadArgument;
 	}
-	LogPrintf(4, "%s: mode ID=%d, wxh=%ux%u\n", __FUNCTION__, displayMode, dme->width, dme->height);
-	memset(pixelInfo, 0, sizeof(IOPixelInformation));
+	LogPrintf(4, "%s: mode ID=%d, wxh=%ux%u\n", __FUNCTION__, displayMode, static_cast<unsigned>(dme->width), static_cast<unsigned>(dme->height));
+	bzero(pixelInfo, sizeof(IOPixelInformation));
 	pixelInfo->activeWidth = dme->width;
 	pixelInfo->activeHeight = dme->height;
 	pixelInfo->flags = dme->flags;
@@ -963,7 +966,7 @@ IOReturn CLASS::getPixelInformation(IODisplayModeID displayMode, IOIndex depth, 
 	pixelInfo->componentCount = 3;
 	pixelInfo->bitsPerComponent = 8;
 	pixelInfo->bytesPerRow = ((pixelInfo->activeWidth + 7U) & (~7U)) << 2;
-	LogPrintf(4, "%s: bytesPerRow=%d\n", __FUNCTION__, pixelInfo->bytesPerRow);
+	LogPrintf(4, "%s: bytesPerRow=%u\n", __FUNCTION__, pixelInfo->bytesPerRow);
 	return kIOReturnSuccess;
 }
 
@@ -985,7 +988,7 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
 	if (m_custom_switch == 1)
-		memset(reinterpret_cast<void*>(m_bar1_ptr), 0, m_aperture_size);
+		bzero(reinterpret_cast<void*>(m_bar1_ptr), m_aperture_size);
 	svga.SetMode(dme->width, dme->height, 32);
 	m_display_mode = displayMode;
 	m_depth_mode = 0;
@@ -1011,9 +1014,9 @@ IOReturn CLASS::getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect b
 		blockType == kIODDCBlockTypeEDID &&
 		data &&
 		length &&
-		*length >= sizeof(edid)) {
-		memcpy(data, &edid[0], sizeof(edid));
-		*length = sizeof(edid);
+		*length >= sizeof edid) {
+		memcpy(data, &edid[0], sizeof edid);
+		*length = sizeof edid;
 		return kIOReturnSuccess;
 	}
 	return super::getDDCBlock(connectIndex, blockNumber, blockType, options, data, length);

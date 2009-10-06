@@ -140,12 +140,12 @@ public:
 	IOReturn setupForCurrentConfig();
 	bool start(IOService* provider);
 	void stop(IOService* provider);
-	IOReturn getAttribute(IOSelect attribute, UInt32* value);
-	IOReturn getAttributeForConnection(IOIndex connectIndex, IOSelect attribute, UInt32* value);
-	IOReturn setAttribute(IOSelect attribute, UInt32 value);
-	IOReturn setAttributeForConnection(IOIndex connectIndex, IOSelect attribute, UInt32 value);
+	IOReturn getAttribute(IOSelect attribute, uintptr_t* value);
+	IOReturn getAttributeForConnection(IOIndex connectIndex, IOSelect attribute, uintptr_t* value);
+	IOReturn setAttribute(IOSelect attribute, uintptr_t value);
+	IOReturn setAttributeForConnection(IOIndex connectIndex, IOSelect attribute, uintptr_t value);
 	IOReturn registerForInterruptType(IOSelect interruptType, IOFBInterruptProc proc, OSObject* target, void* ref, void** interruptRef);
-	IOReturn CustomMode(CustomModeData* inData, CustomModeData* outData, size_t inSize, size_t* outSize);
+	IOReturn CustomMode(CustomModeData const* inData, CustomModeData* outData, size_t inSize, size_t* outSize);
 	IOReturn getInformationForDisplayMode(IODisplayModeID displayMode, IODisplayModeInformation* info);
 	IOReturn getPixelInformation(IODisplayModeID displayMode, IOIndex depth, IOPixelAperture aperture, IOPixelInformation* pixelInfo);
 	IOReturn setDisplayMode(IODisplayModeID displayMode, IOIndex depth);

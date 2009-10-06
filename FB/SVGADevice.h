@@ -53,7 +53,7 @@ private:
 	UInt32 m_fifo_size;			// offset 20
 	UInt8* m_bounce_buffer;		// offset 24
 	bool m_using_bounce_buffer;	// offset 28
-	UInt32 m_reserved_size;		// offset 32
+	size_t m_reserved_size;		// offset 32
 	UInt32 m_next_fence;		// offset 36
 	VMFBIOLog m_log_level;		// offset 40
 
@@ -91,10 +91,10 @@ public:
 	bool IsFIFORegValid(UInt32 reg) const;	// Added
 	bool HasFIFOCap(UInt32 mask) const;
 	bool FIFOInit();
-	void* FIFOReserve(UInt32 bytes);
-	void* FIFOReserveCmd(UInt32 type, UInt32 bytes);
-	void* FIFOReserveEscape(UInt32 nsid, UInt32 bytes);		// Added
-	void FIFOCommit(UInt32 bytes);
+	void* FIFOReserve(size_t bytes);
+	void* FIFOReserveCmd(UInt32 type, size_t bytes);
+	void* FIFOReserveEscape(UInt32 nsid, size_t bytes);		// Added
+	void FIFOCommit(size_t bytes);
 	void FIFOCommitAll();
 
 	/*
@@ -121,7 +121,7 @@ public:
 	/*
 	 * Video Stuff (Added)
 	 */
-	bool BeginVideoSetRegs(UInt32 streamId, UInt32 numItems, struct SVGAEscapeVideoSetRegs **setRegs);
+	bool BeginVideoSetRegs(UInt32 streamId, size_t numItems, struct SVGAEscapeVideoSetRegs **setRegs);
 	bool VideoSetRegsInRange(UInt32 streamId, struct SVGAOverlayUnit const* regs, UInt32 minReg, UInt32 maxReg);
 	bool VideoSetRegsWithMash(UInt32 streamId, struct SVGAOverlayUnit const* regs, UInt32 regMask);
 	bool VideoSetReg(UInt32 streamId, UInt32 registerId, UInt32 value);

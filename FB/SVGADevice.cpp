@@ -52,7 +52,7 @@
 #endif
 
 #define LOGPRINTF_PREFIX_STR "log SVGADev: "
-#define LOGPRINTF_PREFIX_LEN (sizeof(LOGPRINTF_PREFIX_STR) - 1)
+#define LOGPRINTF_PREFIX_LEN (sizeof LOGPRINTF_PREFIX_STR - 1)
 #define LOGPRINTF_PREFIX_SKIP 4				// past "log "
 #define LOGPRINTF_BUF_SIZE 256
 
@@ -125,8 +125,8 @@ void SVGADevice::LogPrintf(VMFBIOLog log_level, char const* fmt, ...)
 	if (log_level > m_log_level)
 		return;
 	va_start(ap, fmt);
-	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof(print_buf));
-	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof(print_buf) - LOGPRINTF_PREFIX_LEN, fmt, ap);
+	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof print_buf);
+	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof print_buf - LOGPRINTF_PREFIX_LEN, fmt, ap);
 	va_end(ap);
 	IOLog("%s", &print_buf[LOGPRINTF_PREFIX_SKIP]);
 	if (!VMLog_SendString(&print_buf[0]))
@@ -211,12 +211,12 @@ bool SVGADevice::FIFOInit()
 	UInt32 fifo_capabilities;
 
 	LogPrintf(4, "%s: FIFO: min=%u, size=%u\n", __FUNCTION__,
-		SVGA_FIFO_NUM_REGS * sizeof(UInt32), m_fifo_size);
+			  static_cast<unsigned>(SVGA_FIFO_NUM_REGS * sizeof(UInt32)), m_fifo_size);
 	if (!HasCapability(SVGA_CAP_EXTENDED_FIFO)) {
 		LogPrintf(1, "%s: SVGA_CAP_EXTENDED_FIFO failed\n", __FUNCTION__);
 		return false;
 	}
-	m_fifo_ptr[SVGA_FIFO_MIN] = SVGA_FIFO_NUM_REGS * sizeof(UInt32);
+	m_fifo_ptr[SVGA_FIFO_MIN] = static_cast<UInt32>(SVGA_FIFO_NUM_REGS * sizeof(UInt32));
 	m_fifo_ptr[SVGA_FIFO_MAX] = m_fifo_size;
 	m_fifo_ptr[SVGA_FIFO_NEXT_CMD] = m_fifo_ptr[SVGA_FIFO_MIN];
 	m_fifo_ptr[SVGA_FIFO_STOP] = m_fifo_ptr[SVGA_FIFO_MIN];
@@ -236,7 +236,7 @@ bool SVGADevice::FIFOInit()
 	return true;
 }
 
-void* SVGADevice::FIFOReserve(UInt32 bytes)
+void* SVGADevice::FIFOReserve(size_t bytes)
 {
 	UInt32 volatile* fifo = m_fifo_ptr;
 	UInt32 max = fifo[SVGA_FIFO_MAX];
@@ -246,16 +246,16 @@ void* SVGADevice::FIFOReserve(UInt32 bytes)
 
 	if (bytes > BOUNCE_BUFFER_SIZE ||
 		bytes > (max - min)) {
-		LogPrintf(1, "FIFO command too large %u > %u or (%u - %u)\n",
+		LogPrintf(1, "FIFO command too large %lu > %u or (%u - %u)\n",
 			bytes, BOUNCE_BUFFER_SIZE, max, min);
 		return 0;
 	}
 	if (bytes % sizeof(UInt32)) {
-		LogPrintf(1, "FIFO command length not 32-bit aligned %u\n", bytes);
+		LogPrintf(1, "FIFO command length not 32-bit aligned %lu\n", bytes);
 		return 0;
 	}
 	if (m_reserved_size) {
-		LogPrintf(1, "FIFOReserve before FIFOCommit, reservedSize=%u\n", m_reserved_size);
+		LogPrintf(1, "FIFOReserve before FIFOCommit, reservedSize=%lu\n", m_reserved_size);
 		return 0;
 	}
 	m_reserved_size = bytes;
@@ -283,7 +283,7 @@ void* SVGADevice::FIFOReserve(UInt32 bytes)
 			if (reservable || bytes <= sizeof(UInt32)) {
 				m_using_bounce_buffer = false;
 				if (reservable) {
-					fifo[SVGA_FIFO_RESERVED] = bytes;
+					fifo[SVGA_FIFO_RESERVED] = static_cast<UInt32>(bytes);
 				}
 				return TO_BYTE_PTR(fifo) + next_cmd;
 			} else {
@@ -297,7 +297,7 @@ void* SVGADevice::FIFOReserve(UInt32 bytes)
 	}
 }
 
-void* SVGADevice::FIFOReserveCmd(UInt32 type, UInt32 bytes)
+void* SVGADevice::FIFOReserveCmd(UInt32 type, size_t bytes)
 {
 	UInt32* cmd = static_cast<UInt32*>(FIFOReserve(bytes + sizeof type));
 	if (!cmd)
@@ -306,7 +306,7 @@ void* SVGADevice::FIFOReserveCmd(UInt32 type, UInt32 bytes)
 	return cmd;
 }
 
-void SVGADevice::FIFOCommit(UInt32 bytes)
+void SVGADevice::FIFOCommit(size_t bytes)
 {
 	UInt32 volatile* fifo = m_fifo_ptr;
 	UInt32 next_cmd = fifo[SVGA_FIFO_NEXT_CMD];
@@ -315,7 +315,7 @@ void SVGADevice::FIFOCommit(UInt32 bytes)
 	bool reservable = HasFIFOCap(SVGA_FIFO_CAP_RESERVE);
 
 	if (bytes % sizeof(UInt32)) {
-		LogPrintf(1, "FIFO command length not 32-bit aligned %u\n", bytes);
+		LogPrintf(1, "FIFO command length not 32-bit aligned %lu\n", bytes);
 		return;
 	}
 	if (!m_reserved_size) {
@@ -328,15 +328,15 @@ void SVGADevice::FIFOCommit(UInt32 bytes)
 		if (reservable) {
 			UInt32 chunk_size = max - next_cmd;
 			if (bytes < chunk_size)
-				chunk_size = bytes;
-			fifo[SVGA_FIFO_RESERVED] = bytes;
+				chunk_size = static_cast<UInt32>(bytes);
+			fifo[SVGA_FIFO_RESERVED] = static_cast<UInt32>(bytes);
 			memcpy(TO_BYTE_PTR(fifo) + next_cmd, buffer, chunk_size);
 			memcpy(TO_BYTE_PTR(fifo) + min, buffer + chunk_size, bytes - chunk_size);
 		} else {
 			UInt32* dword = reinterpret_cast<UInt32*>(buffer);
 			while (bytes) {
-				fifo[next_cmd / sizeof *dword] = *dword++;
-				next_cmd += sizeof *dword;
+				fifo[next_cmd / static_cast<UInt32>(sizeof *dword)] = *dword++;
+				next_cmd += static_cast<UInt32>(sizeof *dword);
 				if (next_cmd == max)
 					next_cmd = min;
 				fifo[SVGA_FIFO_NEXT_CMD] = next_cmd;
@@ -345,7 +345,7 @@ void SVGADevice::FIFOCommit(UInt32 bytes)
 		}
 	}
 	if (!m_using_bounce_buffer || reservable) {
-		next_cmd += bytes;
+		next_cmd += static_cast<UInt32>(bytes);
 		if (next_cmd >= max)
 			next_cmd -= (max - min);
 		fifo[SVGA_FIFO_NEXT_CMD] = next_cmd;
@@ -356,7 +356,7 @@ void SVGADevice::FIFOCommit(UInt32 bytes)
 
 void SVGADevice::FIFOCommitAll()
 {
-	LogPrintf(5, "%s: reservedSize=%u\n", __FUNCTION__, m_reserved_size);
+	LogPrintf(5, "%s: reservedSize=%lu\n", __FUNCTION__, m_reserved_size);
 	FIFOCommit(m_reserved_size);
 }
 
@@ -370,7 +370,7 @@ UInt32 SVGADevice::InsertFence()
 	if (!m_next_fence)
 		m_next_fence = 1;
 	fence = m_next_fence++;
-	cmd = static_cast<UInt32*>(FIFOReserve(2 * sizeof(UInt32)));
+	cmd = static_cast<UInt32*>(FIFOReserve(2U * sizeof(UInt32)));
 	if (!cmd)
 		return 0;
 	*cmd = SVGA_CMD_FENCE;
@@ -439,7 +439,7 @@ void SVGADevice::setCursorState(UInt32 x, UInt32 y, bool visible)
 
 void* SVGADevice::BeginDefineAlphaCursor(UInt32 width, UInt32 height, UInt32 bytespp)
 {
-	UInt32 cmd_len;
+	size_t cmd_len;
 	SVGAFifoCmdDefineAlphaCursor* cmd;
 
 	LogPrintf(4, "%s: %ux%u @ %u\n", __FUNCTION__, width, height, bytespp);
@@ -448,14 +448,14 @@ void* SVGADevice::BeginDefineAlphaCursor(UInt32 width, UInt32 height, UInt32 byt
 	if (!cmd)
 		return 0;
 	m_cursor_ptr = cmd;
-	LogPrintf(5, "%s: cmdLen=%u cmd=%p fifo=%p\n",
+	LogPrintf(5, "%s: cmdLen=%lu cmd=%p fifo=%p\n",
 		__FUNCTION__, cmd_len, cmd, cmd + 1);
 	return cmd + 1;
 }
 
 bool SVGADevice::EndDefineAlphaCursor(UInt32 width, UInt32 height, UInt32 bytespp, UInt32 hotspot_x, UInt32 hotspot_y)
 {
-	UInt32 cmd_len;
+	size_t cmd_len;
 	SVGAFifoCmdDefineAlphaCursor* cmd = static_cast<SVGAFifoCmdDefineAlphaCursor*>(m_cursor_ptr);
 
 	LogPrintf(4, "%s: %ux%u+%u+%u @ %u\n",
@@ -468,7 +468,7 @@ bool SVGADevice::EndDefineAlphaCursor(UInt32 width, UInt32 height, UInt32 bytesp
 	cmd->width = width;
 	cmd->height = height;
 	cmd_len = sizeof(UInt32) + sizeof *cmd + width * height * bytespp;
-	LogPrintf(5, "%s: cmdLen=%u cmd=%p\n", __FUNCTION__, cmd_len, cmd);
+	LogPrintf(5, "%s: cmdLen=%lu cmd=%p\n", __FUNCTION__, cmd_len, cmd);
 	FIFOCommit(cmd_len);
 	m_cursor_ptr = 0;
 	return true;
@@ -514,15 +514,15 @@ bool SVGADevice::IsFIFORegValid(UInt32 reg) const
 	return m_fifo_ptr[SVGA_FIFO_MIN] > (reg << 2);
 }
 
-void* SVGADevice::FIFOReserveEscape(UInt32 nsid, UInt32 bytes)
+void* SVGADevice::FIFOReserveEscape(UInt32 nsid, size_t bytes)
 {
-	UInt32 padded_bytes = (bytes + 3) & ~3UL;
-	UInt32* header = static_cast<UInt32*>(FIFOReserve(padded_bytes + 3 * sizeof(UInt32)));
+	size_t padded_bytes = (bytes + 3UL) & ~3UL;
+	UInt32* header = static_cast<UInt32*>(FIFOReserve(padded_bytes + 3U * sizeof(UInt32)));
 	if (!header)
 		return 0;
 	*header = SVGA_CMD_ESCAPE;
 	header[1] = nsid;
-	header[2] = bytes;
+	header[2] = static_cast<UInt32>(bytes);
 	return header + 3;
 }
 
@@ -538,10 +538,10 @@ void SVGADevice::RingDoorBell()
 	}
 }
 
-bool SVGADevice::BeginVideoSetRegs(UInt32 streamId, UInt32 numItems, struct SVGAEscapeVideoSetRegs **setRegs)
+bool SVGADevice::BeginVideoSetRegs(UInt32 streamId, size_t numItems, struct SVGAEscapeVideoSetRegs **setRegs)
 {
 	SVGAEscapeVideoSetRegs* cmd;
-	UInt32 cmd_size = (sizeof *cmd - sizeof cmd->items + numItems * sizeof cmd->items[0]);
+	size_t cmd_size = sizeof *cmd - sizeof cmd->items + numItems * sizeof cmd->items[0];
 	cmd = static_cast<SVGAEscapeVideoSetRegs*>(FIFOReserveEscape(SVGA_ESCAPE_NSID_VMWARE, cmd_size));
 	if (!cmd)
 		return false;
@@ -626,7 +626,7 @@ void SVGADevice::RegDump()
 
 	for (UInt32 i = SVGA_REG_ID; i < SVGA_REG_TOP; ++i)
 		regs[i] = ReadReg(i);
-	m_provider->setProperty("VMwareSVGADump", static_cast<void*>(&regs[0]), sizeof(regs));
+	m_provider->setProperty("VMwareSVGADump", static_cast<void*>(&regs[0]), static_cast<unsigned>(sizeof regs));
 }
 
 bool SVGADevice::RectCopy(UInt32 const* copyRect)
@@ -634,7 +634,7 @@ bool SVGADevice::RectCopy(UInt32 const* copyRect)
 	SVGAFifoCmdRectCopy* cmd = static_cast<SVGAFifoCmdRectCopy*>(FIFOReserveCmd(SVGA_CMD_RECT_COPY, sizeof *cmd));
 	if (!cmd)
 		return false;
-	memcpy(&cmd->srcX, copyRect, 6 * sizeof(UInt32));
+	memcpy(&cmd->srcX, copyRect, 6U * sizeof(UInt32));
 	FIFOCommitAll();
 	return true;
 }
@@ -645,7 +645,7 @@ bool SVGADevice::RectFill(UInt32 color, UInt32 const* rect)
 	if (!cmd)
 		return false;
 	cmd->color = color;
-	memcpy(&cmd->x, rect, 4 * sizeof(UInt32));
+	memcpy(&cmd->x, rect, 4U * sizeof(UInt32));
 	cmd->rop = SVGA_ROP_COPY;
 	FIFOCommitAll();
 	return true;
@@ -656,7 +656,7 @@ bool SVGADevice::UpdateFramebuffer2(UInt32 const* rect)
 	SVGAFifoCmdUpdate* cmd = static_cast<SVGAFifoCmdUpdate*>(FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd));
 	if (!cmd)
 		return false;
-	memcpy(&cmd->x, rect, 4 * sizeof(UInt32));
+	memcpy(&cmd->x, rect, 4U * sizeof(UInt32));
 	FIFOCommitAll();
 	return true;
 }

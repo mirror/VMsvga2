@@ -40,7 +40,7 @@
 OSDefineMetaClassAndStructors(VMsvga2Client, IOUserClient);
 
 #define LOGPRINTF_PREFIX_STR "log IOFBClient: "
-#define LOGPRINTF_PREFIX_LEN (sizeof(LOGPRINTF_PREFIX_STR) - 1)
+#define LOGPRINTF_PREFIX_LEN (sizeof LOGPRINTF_PREFIX_STR - 1)
 #define LOGPRINTF_PREFIX_SKIP 4				// past "log "
 #define LOGPRINTF_BUF_SIZE 256
 
@@ -59,8 +59,8 @@ void VMsvga2Client::LogPrintf(VMFBIOLog log_level, char const* fmt, ...)
 	if (log_level > m_log_level)
 		return;
 	va_start(ap, fmt);
-	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof(print_buf));
-	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof(print_buf) - LOGPRINTF_PREFIX_LEN, fmt, ap);
+	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof print_buf);
+	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof print_buf - LOGPRINTF_PREFIX_LEN, fmt, ap);
 	va_end(ap);
 	IOLog("%s", &print_buf[LOGPRINTF_PREFIX_SKIP]);
 	if (!VMLog_SendString(&print_buf[0]))

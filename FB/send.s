@@ -34,6 +34,7 @@
 	.text
 .globl _VMLog_SendString
 
+#ifdef __i386__
 _VMLog_SendString:
 	pushl	%ebp
 	movl	%esp, %ebp
@@ -59,8 +60,8 @@ loop_start:
 loop_skip:
 	movl	-28(%ebp), %edx
 	movl	8(%ebp), %ecx
-	cmpb	$0, (%edx,%ecx)
-	jne		loop_start	// TBD: short
+	cmpb	$0, (%edx, %ecx)
+	jne		loop_start
 	shll	$16, %eax
 	movl	%eax, -24(%ebp)
 	orl		$0x5658, %eax
@@ -105,3 +106,73 @@ epilog:
 	popl	%edi
 	popl	%ebp
 	ret
+#endif
+
+#ifdef __x86_64__
+_VMLog_SendString:
+	pushq	%rbp
+	movq	%rsp, %rbp
+	pushq	%rbx
+	movq	%rdi, %r10
+	movl	$0x564d5868, %eax
+	movl	$0x49435052, %ebx
+	movl	$0x1e, %ecx
+	movl	$0x5658, %edx
+	xorl	%edi, %edi
+	movq	%rdi, %rsi
+	inl		%dx, %eax
+	testl	$0x10000, %ecx
+	je		exit_fail
+	movq	%rdx, %rax
+	shrq	$16, %rax
+	xorl	%edx, %edx
+	jmp		loop_skip
+loop_start:
+	incq	%rdx
+loop_skip:
+	cmpb	$0, (%rdx, %r10)
+	jne		loop_start
+	movl	%edx, %r8d
+	shll	$16, %eax
+	movq	%rax, %r11
+	andl	$0xFFFF0000, %r11d
+	movq	%r11, %r9
+	orq		$0x5658, %r9
+	movl	$0x564d5868, %eax
+	movl	$0x1001e, %ecx
+	xorl	%edi, %edi
+	movq	%r8, %rbx
+	movq	%r9, %rdx
+	movq	%rdi, %rsi
+	inl		%dx, %eax
+	shrq	$16, %rcx
+	andl	$0x81, %ecx
+	cmpq	$0x81, %rcx
+	jne		exit_fail
+	movq	%r11, %rdx
+	orq		$0x5659, %rdx
+	movl	$0x564d5868, %eax
+	movl	$0x10000, %ebx
+	movq	%r8, %rcx
+	movq	%r10, %rsi
+	cld
+	rep/outsb
+	testl	$0x10000, %ebx
+	jne		exit_ok
+exit_fail:
+	xorl	%eax, %eax
+	jmp		epilog
+exit_ok:
+	movl	$0x564d5868, %eax
+	xorl	%edi, %edi
+	movl	$0x6001e, %ecx
+	movq	%rdi, %rbx
+	movq	%r9, %rdx
+	movq	%rdi, %rsi
+	inl		%dx, %eax
+	movl	$1, %eax
+epilog:
+	pop		%rbx
+	leave
+	ret
+#endif
