@@ -43,7 +43,7 @@ IOReturn useAccelUpdates(io_connect_t context, int state)
 							   0, 0);
 }
 
-IOReturn RectCopy(io_connect_t context, void const* copyRects, UInt32 copyRectsSize)
+IOReturn RectCopy(io_connect_t context, void const* copyRects, size_t copyRectsSize)
 {
 	return IOConnectCallMethod(context,
 							   kIOVM2DRectCopy,
@@ -53,7 +53,7 @@ IOReturn RectCopy(io_connect_t context, void const* copyRects, UInt32 copyRectsS
 							   0, 0);
 }
 
-IOReturn RectFill(io_connect_t context, UInt32 color, void const* rects, UInt32 rectsSize)
+IOReturn RectFill(io_connect_t context, uintptr_t color, void const* rects, size_t rectsSize)
 {
 	uint64_t input;
 
@@ -71,18 +71,18 @@ IOReturn UpdateFramebuffer(io_connect_t context, UInt32 const* rect)
 	return IOConnectCallMethod(context,
 							   kIOVM2DUpdateFramebuffer,
 							   0, 0,
-							   rect, 4 * sizeof(UInt32),
+							   rect, 4U * sizeof(UInt32),
 							   0, 0,
 							   0, 0);
 }
 
-IOReturn CopyRegion(io_connect_t context, UInt32 source_surface_id, UInt32 destX, UInt32 destY, void const* region, UInt32 regionSize)
+IOReturn CopyRegion(io_connect_t context, uintptr_t source_surface_id, intptr_t destX, intptr_t destY, void const* region, size_t regionSize)
 {
 	uint64_t input[3];
 
 	input[0] = source_surface_id;
-	input[1] = destX;
-	input[2] = destY;
+	input[1] = (uint64_t) destX;
+	input[2] = (uint64_t) destY;
 	return IOConnectCallMethod(context,
 							   kIOVM2DCopyRegion,
 							   &input[0], 3,

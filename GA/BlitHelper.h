@@ -34,10 +34,10 @@ extern "C" {
 #endif
 
 IOReturn useAccelUpdates(io_connect_t context, int state);
-IOReturn RectCopy(io_connect_t context, void const* copyRects, UInt32 copyRectsSize);
-IOReturn RectFill(io_connect_t context, UInt32 color, void const* rects, UInt32 rectsSize);
+IOReturn RectCopy(io_connect_t context, void const* copyRects, size_t copyRectsSize);
+IOReturn RectFill(io_connect_t context, uintptr_t color, void const* rects, size_t rectsSize);
 IOReturn UpdateFramebuffer(io_connect_t context, UInt32 const* rect);
-IOReturn CopyRegion(io_connect_t context, UInt32 source_surface_id, UInt32 destX, UInt32 destY, void const* region, UInt32 regionSize);
+IOReturn CopyRegion(io_connect_t context, uintptr_t source_surface_id, intptr_t destX, intptr_t destY, void const* region, size_t regionSize);
 
 #ifdef __cplusplus
 }

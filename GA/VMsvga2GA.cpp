@@ -58,7 +58,7 @@ extern "C" {
 	(CFUUIDGetConstantUUIDWithBytes(NULL, 0x03, 0x46, 0x3B, 0x45, 0x6F, 0xDD, 0x47, 0x49, 0xB6, 0xB7, 0x15, 0xEB, 0x76, 0xBA, 0xA2, 0x2F))
 
 #define VLOG_PREFIX_STR "log IOGA: "
-#define VLOG_PREFIX_LEN (sizeof(VLOG_PREFIX_STR) - 1)
+#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
 #define VLOG_BUF_SIZE 256
 
 #if LOGGING_LEVEL >= 1
@@ -78,7 +78,7 @@ static int m_log_level = LOGGING_LEVEL;
 typedef struct _GAType {	// GeForceGA size 176
 	IOGraphicsAcceleratorInterface* _interface;
 	CFUUIDRef _factoryID;
-	UInt32 _refCount;
+	ULONG _refCount;
 	io_connect_t _context;			// offset 0xC
 	io_service_t _accelerator;		// offset 0x10
 									// offset 0x14 - 0x44
@@ -96,7 +96,7 @@ typedef struct _GAType {	// GeForceGA size 176
 typedef struct _SurfaceInfo {
 	UInt32* d0;
 	vm_address_t addr;
-	SInt32 cgsSurfaceID;
+	uintptr_t cgsSurfaceID;
 	UInt32 d2[11];
 } SurfaceInfo;
 
@@ -105,7 +105,7 @@ extern "C" {
 #endif
 
 char VMLog_SendString(char const* str);
-static void VLog(char const* fmt, ...);
+static void VLog(char const* fmt, ...) /* __printflike(1, 2) */;
 #if LOGGING_LEVEL >= 1
 static void printSurface(int log_level, IOBlitSurface const* surface);
 #endif
@@ -125,8 +125,8 @@ static void VLog(char const* fmt, ...)
 	char print_buf[VLOG_BUF_SIZE];
 
 	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof(print_buf));
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof(print_buf) - VLOG_PREFIX_LEN, fmt, ap);
+	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
+	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
 	va_end(ap);
 	VMLog_SendString(&print_buf[0]);
 }
@@ -134,13 +134,14 @@ static void VLog(char const* fmt, ...)
 #if LOGGING_LEVEL >= 1
 static void printSurface(int log_level, IOBlitSurface const* surface)
 {
-	UInt32 i, v;
+	size_t i;
+	unsigned v;
 
 	if (!surface || m_log_level < log_level)
 		return;
 	for (i = 0; i < sizeof(IOBlitSurface) / sizeof(UInt32); ++i) {
 		v = reinterpret_cast<UInt32 const*>(surface)[i];
-		GALog(log_level, "%s:   surface[%d] == 0x%x\n", __FUNCTION__, i, v);
+		GALog(log_level, "%s:   surface[%lu] == 0x%x\n", __FUNCTION__, i, v);
 	}
 }
 #endif
@@ -247,11 +248,11 @@ static IOReturn vmStart(void* myInstance, CFDictionaryRef propertyTable, io_serv
 		m_log_level = static_cast<int>(output[1]);
 #endif
 	input_struct = 2;
-	output_struct_cnt = sizeof(output_struct);
+	output_struct_cnt = sizeof output_struct;
 	rc = IOConnectCallMethod(context,
 							 kIOVM2DReadConfigs,
 							 0, 0,
-							 &input_struct, sizeof(input_struct),
+							 &input_struct, sizeof input_struct,
 							 0, 0,
 							 &output_struct, &output_struct_cnt);
 	if (rc != kIOReturnSuccess)
@@ -350,7 +351,7 @@ static IOReturn vmFlush(void* myInstance, IOOptionBits options)
 	GALog(3, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, options);
 
 	/*
-	 * TBD call useAccelUpdates(false) ? (only when called from vmStop())
+	 * TBD call useAccelUpdates(0) ? (only when called from vmStop())
 	 */
 
 #if 0
@@ -440,13 +441,13 @@ static IOReturn vmGetBeamPosition(void* myInstance, IOOptionBits options, SInt32
 		return kIOReturnBadArgument;
 	if (me->_context)
 		return kIOReturnNotReady;
-	struct_out_cnt = sizeof(struct_out);
+	struct_out_cnt = sizeof struct_out;
 	struct_in[0] = 144;
 	struct_in[1] = me->_framebufferIndex;
 	rc = IOConnectCallMethod(me->_context,
 							 kIOVM2DReadConfigEx,
 							 0, 0,
-							 &struct_in[0], sizeof(struct_in),
+							 &struct_in[0], sizeof struct_in,
 							 0, 0,
 							 &struct_out[0], &struct_out_cnt);
 	if (position)
@@ -458,7 +459,7 @@ static IOReturn vmGetBeamPosition(void* myInstance, IOOptionBits options, SInt32
 static IOReturn vmAllocateSurface(void* myInstance, IOOptionBits options, IOBlitSurface* surface, void* cgsSurfaceID)
 {
 	GAType* me = static_cast<GAType*>(myInstance);
-	UInt32 max_w = 4096, max_h = 4096;
+	SInt32 max_w = 4096, max_h = 4096;
 	bool flag;
 	SurfaceInfo* si;
 	IOReturn rc;
@@ -484,7 +485,7 @@ static IOReturn vmAllocateSurface(void* myInstance, IOOptionBits options, IOBlit
 		return kIOReturnNoMemory;
 	bzero(si, sizeof *si);
 	if (options & kIOBlitHasCGSSurface) {
-		si->cgsSurfaceID = reinterpret_cast<SInt32>(cgsSurfaceID);
+		si->cgsSurfaceID = reinterpret_cast<uintptr_t>(cgsSurfaceID);
 		surface->interfaceRef = reinterpret_cast<IOBlitMemoryRef>(si);
 		rc = vmSetSurface(myInstance, 0x800U, surface);
 		if (rc != kIOReturnSuccess)
@@ -627,7 +628,7 @@ static IOReturn vmUnlockSurface(void* myInstance, IOOptionBits options, IOBlitSu
 	uint64_t output;
 	uint32_t output_cnt;
 
-	GALog(2, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__, myInstance, options, surface, swapFlags ? *swapFlags : 0);
+	GALog(2, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__, myInstance, options, surface, static_cast<unsigned>(swapFlags ? *swapFlags : 0));
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
@@ -658,7 +659,7 @@ static IOReturn vmSwapSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	uint64_t input, output;
 	uint32_t output_cnt;
 
-	GALog(3, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__, myInstance, options, surface, swapFlags ? *swapFlags : 0);
+	GALog(3, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__, myInstance, options, surface, static_cast<unsigned>(swapFlags ? *swapFlags : 0));
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
@@ -668,7 +669,7 @@ static IOReturn vmSwapSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	si = reinterpret_cast<SurfaceInfo*>(surface->interfaceRef);
 	if (!si)
 		return kIOReturnNotReady;
-	if (si->d0 && si->cgsSurfaceID) {
+	if (si->d0 && si->cgsSurfaceID != 0) {
 		switch (surface->pixelFormat) {
 			case kIOUYVY422PixelFormat:
 			case kIO2vuyPixelFormat:
@@ -843,7 +844,7 @@ static IOReturn vmSetSurface(void* myInstance, IOOptionBits options, IOBlitSurfa
 		input[0] = me->_framebufferIndex;
 		input[1] = 0;
 	}
-	output_struct_cnt = 11 * sizeof(UInt32);
+	output_struct_cnt = 11U * sizeof(UInt32);
 	rc = IOConnectCallMethod(me->_context, kIOVM2DSetSurface,
 							 &input[0], 2,
 							 0, 0,
@@ -855,11 +856,11 @@ static IOReturn vmSetSurface(void* myInstance, IOOptionBits options, IOBlitSurfa
 		me->_surface = surface;
 	else
 		me->_surface = 0;
-	output_struct_cnt = sizeof(output_struct);
+	output_struct_cnt = sizeof output_struct;
 	input_struct[0] = 288;
 	rc = IOConnectCallMethod(me->_context, kIOVM2DReadConfigEx,
 							 0, 0,
-							 &input_struct[0], sizeof(input_struct),
+							 &input_struct[0], sizeof input_struct,
 							 0, 0,
 							 &output_struct[0], &output_struct_cnt);
 	if (rc == kIOReturnSuccess) {
@@ -900,7 +901,7 @@ static IOReturn vmCopy(void* myInstance, IOOptionBits options, IOBlitType type, 
 	if (m_log_level >= 3)
 		for (IOItemCount i = 0; i < copy_rects->count; ++i) {
 			IOBlitCopyRectangle* copy_rect = &copy_rects->rects[i];
-			GALog(3, "%s:   Copy Rect %u == [%u, %u, %u, %u, %u, %u]\n",
+			GALog(3, "%s:   Copy Rect %u == [%d, %d, %d, %d, %d, %d]\n",
 				  __FUNCTION__,
 				  i,
 				  copy_rect->sourceX,
@@ -948,7 +949,7 @@ static IOReturn vmFill(void* myInstance, IOOptionBits options, IOBlitType type, 
 	if (m_log_level >= 3)
 		for (IOItemCount i = 0; i < rects->count; ++i) {
 			IOBlitRectangle* rect = &rects->rects[i];
-			GALog(3, "%s:   Fill Rect %u == [%u, %u, %u, %u]\n",
+			GALog(3, "%s:   Fill Rect %u == [%d, %d, %d, %d]\n",
 				  __FUNCTION__,
 				  i,
 				  rect->x,
@@ -958,7 +959,7 @@ static IOReturn vmFill(void* myInstance, IOOptionBits options, IOBlitType type, 
 		}
 #endif
 
-	rc = RectFill(me->_context, reinterpret_cast<UInt32>(source), &rects->rects[0], rects->count * sizeof(IOBlitRectangle));
+	rc = RectFill(me->_context, reinterpret_cast<uintptr_t>(source), &rects->rects[0], rects->count * sizeof(IOBlitRectangle));
 
 	GALog(3, "%s:   Fill returns 0x%x\n", __FUNCTION__, rc);
 
@@ -995,11 +996,11 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 		return kIOReturnBadArgument;
 	rgn = copy_region->region;
 
-	GALog(3, "%s:   CopyRegion deltaX == %d, deltaY == %d, region->num_rects == %d\n",
+	GALog(3, "%s:   CopyRegion deltaX == %d, deltaY == %d, region->num_rects == %u\n",
 		  __FUNCTION__,
 		  copy_region->deltaX,
 		  copy_region->deltaY,
-		  rgn ? rgn->num_rects : -1);
+		  rgn ? rgn->num_rects : static_cast<UInt32>(-1));
 
 	if (!rgn)
 		return kIOReturnBadArgument;
@@ -1010,13 +1011,13 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 		GALog(3, "%s:   CopyRegion bounds == [%d, %d, %d, %d]\n", __FUNCTION__, rect->x, rect->y, rect->w, rect->h);
 		for (UInt32 i = 0; i < rgn->num_rects; ++i) {
 			rect = &rgn->rect[i];
-			GALog(3, "%s:   CopyRegion rect %d == [%d, %d, %d, %d]\n", __FUNCTION__, i, rect->x, rect->y, rect->w, rect->h);
+			GALog(3, "%s:   CopyRegion rect %u == [%d, %d, %d, %d]\n", __FUNCTION__, i, rect->x, rect->y, rect->w, rect->h);
 		}
 	}
 #endif
 
 	rc = CopyRegion(me->_context,
-					reinterpret_cast<UInt32>(source),
+					reinterpret_cast<uintptr_t>(source),
 					copy_region->deltaX,
 					copy_region->deltaY,
 					rgn,
@@ -1057,7 +1058,7 @@ static GAType* _allocGAType(CFUUIDRef factoryID)
 	if (!newOne)
 		return 0;
 
-	memset(newOne, 0, sizeof(GAType));
+	bzero(newOne, sizeof(GAType));
 	_buildGAFTbl();
     newOne->_interface = &ga;
 
@@ -1087,7 +1088,7 @@ static void _buildGAFTbl()
 {
 	if (ga_initialized)
 		return;
-	memset(&ga, 0, sizeof(ga));
+	bzero(&ga, sizeof ga);
 	ga.QueryInterface = vmQueryInterface;
 	ga.AddRef = vmAddRef;
 	ga.Release = vmRelease;
