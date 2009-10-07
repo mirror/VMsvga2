@@ -524,7 +524,7 @@ IOReturn CLASS::Init(void* startAddress, size_t bytes)
 		return kIOReturnBadArgument /* "startAddress not on block boundary" */;
 	poolStart = static_cast<UInt8*>(startAddress);
 	setBits = bytes >> minBits;
-	poolBlocks = setBits;
+	poolBlocks = static_cast<int>(setBits);
 	this->minBits = minBits;
 	this->numSizes = numSizes;
 	map = static_cast<UInt8*>(IOMalloc((setBits + 7U) >> 3));

@@ -122,12 +122,12 @@ public:
 	/*
 	 * Methods for supporting VMsvga22DContext
 	 */
-	IOReturn useAccelUpdates(size_t state);
+	IOReturn useAccelUpdates(uintptr_t state);
 	IOReturn RectCopy(struct IOBlitCopyRectangleStruct const* copyRects, size_t copyRectsSize);
-	IOReturn RectFill(size_t color, struct IOBlitRectangleStruct const* rects, size_t rectsSize);
+	IOReturn RectFill(uintptr_t color, struct IOBlitRectangleStruct const* rects, size_t rectsSize);
 	IOReturn UpdateFramebuffer(UInt32 const* rect);	// rect is an array of 4 UInt32 - x, y, width, height
 	IOReturn UpdateFramebufferAutoRing(UInt32 const* rect);	// rect same as above
-	IOReturn CopyRegion(size_t destX, size_t destY, void /* IOAccelDeviceRegion */ const* region, size_t regionSize);
+	IOReturn CopyRegion(intptr_t destX, intptr_t destY, void /* IOAccelDeviceRegion */ const* region, size_t regionSize);
 	struct FindSurface {
 		UInt32 cgsSurfaceID;
 		OSObject* client;

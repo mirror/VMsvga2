@@ -129,7 +129,7 @@ private:
 	 * Private support methods
 	 */
 	IOReturn set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
-										  size_t framebufferIndex,
+										  uintptr_t framebufferIndex,
 										  IOVirtualAddress backing,
 										  size_t rowbytes,
 										  IOAccelDeviceRegion const* rgn,
@@ -188,9 +188,9 @@ public:
 	 */
 	IOReturn context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pixel_format);
 	IOReturn context_scale_surface(IOOptionBits options, UInt32 width, UInt32 height);
-	IOReturn context_lock_memory(task_t context_owning_task, vm_address_t* address, vm_size_t* rowBytes);
+	IOReturn context_lock_memory(task_t context_owning_task, mach_vm_address_t* address, mach_vm_size_t* rowBytes);
 	IOReturn context_unlock_memory();
-	IOReturn context_copy_region(size_t destX, size_t destY, IOAccelDeviceRegion const* region, size_t regionSize);
+	IOReturn context_copy_region(intptr_t destX, intptr_t destY, IOAccelDeviceRegion const* region, size_t regionSize);
 	IOReturn surface_video_off();
 	IOReturn surface_flush_video();
 
@@ -204,23 +204,23 @@ public:
 	IOReturn surface_write_unlock_options(eIOAccelSurfaceLockBits options);
 	IOReturn surface_read(IOAccelSurfaceReadData const* parameters, size_t parametersSize);
 	IOReturn set_shape_backing(eIOAccelSurfaceShapeBits options,
-							   size_t framebufferIndex,
+							   uintptr_t framebufferIndex,
 							   IOVirtualAddress backing,
 							   size_t rowbytes,
 							   IOAccelDeviceRegion const* rgn,
 							   size_t rgnSize);	// not called
-	IOReturn set_id_mode(UInt32 wID, eIOAccelSurfaceModeBits modebits);
+	IOReturn set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits);
 	IOReturn set_scale(eIOAccelSurfaceScaleBits options, IOAccelSurfaceScaling const* scaling, size_t scalingSize);
-	IOReturn set_shape(eIOAccelSurfaceShapeBits options, size_t framebufferIndex, IOAccelDeviceRegion const* rgn, size_t rgnSize);
-	IOReturn surface_flush(size_t framebufferMask, IOOptionBits options);
+	IOReturn set_shape(eIOAccelSurfaceShapeBits options, uintptr_t framebufferIndex, IOAccelDeviceRegion const* rgn, size_t rgnSize);
+	IOReturn surface_flush(uintptr_t framebufferMask, IOOptionBits options);
 	IOReturn surface_query_lock();
 	IOReturn surface_read_lock(IOAccelSurfaceInformation* info, size_t* infoSize);
 	IOReturn surface_read_unlock();
 	IOReturn surface_write_lock(IOAccelSurfaceInformation* info, size_t* infoSize);
 	IOReturn surface_write_unlock();
-	IOReturn surface_control(size_t selector, size_t arg, size_t* result);
+	IOReturn surface_control(uintptr_t selector, uintptr_t arg, io_user_scalar_t* result);
 	IOReturn set_shape_backing_length(eIOAccelSurfaceShapeBits options,
-									  size_t framebufferIndex,
+									  uintptr_t framebufferIndex,
 									  IOVirtualAddress backing,
 									  size_t rowbytes,
 									  size_t backingLength,

@@ -47,7 +47,7 @@ class SVGA3D
 private:
 	SVGADevice* m_svga;
 
-	void* FIFOReserve(UInt32 cmd, UInt32 cmdSize);
+	void* FIFOReserve(UInt32 cmd, size_t cmdSize);
 
 public:
 	/*
@@ -55,8 +55,8 @@ public:
 	 */
 
 	bool Init(SVGADevice*);
-	bool BeginPresent(UInt32 sid, SVGA3dCopyRect **rects, UInt32 numRects);
-	bool BeginPresentReadback(SVGA3dRect **rects, UInt32 numRects);
+	bool BeginPresent(UInt32 sid, SVGA3dCopyRect **rects, size_t numRects);
+	bool BeginPresentReadback(SVGA3dRect **rects, size_t numRects);
 
 	/*
 	 * Surface Management
@@ -67,13 +67,13 @@ public:
 							SVGA3dSurfaceFormat format,
 							SVGA3dSurfaceFace **faces,
 							SVGA3dSize **mipSizes,
-							UInt32 numMipSizes);
+							size_t numMipSizes);
 	bool DestroySurface(UInt32 sid);
 	bool BeginSurfaceDMA(SVGA3dGuestImage const *guestImage,
 						 SVGA3dSurfaceImageId const *hostImage,
 						 SVGA3dTransferType transfer,
 						 SVGA3dCopyBox **boxes,
-						 UInt32 numBoxes);
+						 size_t numBoxes);
 
 	/*
 	 * Context Management
@@ -88,12 +88,12 @@ public:
 
 	bool BeginClear(UInt32 cid, SVGA3dClearFlag flags,
 					UInt32 color, float depth, UInt32 stencil,
-					SVGA3dRect **rects, UInt32 numRects);
+					SVGA3dRect **rects, size_t numRects);
 	bool BeginDrawPrimitives(UInt32 cid,
 							 SVGA3dVertexDecl **decls,
-							 UInt32 numVertexDecls,
+							 size_t numVertexDecls,
 							 SVGA3dPrimitiveRange **ranges,
-							 UInt32 numRanges);
+							 size_t numRanges);
 
 	/*
 	 * Blits
@@ -101,7 +101,7 @@ public:
 
 	bool BeginSurfaceCopy(SVGA3dSurfaceImageId const* src,
 						  SVGA3dSurfaceImageId const* dest,
-						  SVGA3dCopyBox **boxes, UInt32 numBoxes);
+						  SVGA3dCopyBox **boxes, size_t numBoxes);
 
 	bool SurfaceStretchBlt(SVGA3dSurfaceImageId const* src,
 						   SVGA3dSurfaceImageId const* dest,
@@ -117,8 +117,8 @@ public:
 	bool SetViewport(UInt32 cid, SVGA3dRect const* rect);
 	bool SetScissorRect(UInt32 cid, SVGA3dRect const* rect);
 	bool SetClipPlane(UInt32 cid, UInt32 index, float const* plane);
-	bool BeginSetTextureState(UInt32 cid, SVGA3dTextureState **states, UInt32 numStates);
-	bool BeginSetRenderState(UInt32 cid, SVGA3dRenderState **states, UInt32 numStates);
+	bool BeginSetTextureState(UInt32 cid, SVGA3dTextureState **states, size_t numStates);
+	bool BeginSetRenderState(UInt32 cid, SVGA3dRenderState **states, size_t numStates);
 
 	/*
 	 * Fixed-function Render State
@@ -133,7 +133,7 @@ public:
 	 * Shaders
 	 */
 
-	IOReturn DefineShader(UInt32 cid, UInt32 shid, SVGA3dShaderType type, UInt32 const* bytecode, UInt32 bytecodeLen);
+	IOReturn DefineShader(UInt32 cid, UInt32 shid, SVGA3dShaderType type, UInt32 const* bytecode, size_t bytecodeLen);
 	bool DestroyShader(UInt32 cid, UInt32 shid, SVGA3dShaderType type);
 	IOReturn SetShaderConst(UInt32 cid, UInt32 reg, SVGA3dShaderType type, SVGA3dShaderConstType ctype, void const* value);
 	bool SetShader(UInt32 cid, SVGA3dShaderType type, UInt32 shid);

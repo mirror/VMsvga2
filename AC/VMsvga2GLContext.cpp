@@ -172,37 +172,37 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
 #pragma mark IONVGLContext Methods
 #pragma mark -
 
-IOReturn CLASS::set_surface(UInt32, eIOGLContextModeBits, UInt32, UInt32)
+IOReturn CLASS::set_surface(uintptr_t, eIOGLContextModeBits, uintptr_t, uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::set_swap_rect(SInt32, SInt32, SInt32, SInt32)
+IOReturn CLASS::set_swap_rect(intptr_t, intptr_t, intptr_t, intptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::set_swap_interval(SInt32, SInt32)
+IOReturn CLASS::set_swap_interval(intptr_t, intptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_config(UInt32*, UInt32*, UInt32*)
+IOReturn CLASS::get_config(io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_surface_size(SInt32*, SInt32*, SInt32*, SInt32*)
+IOReturn CLASS::get_surface_size(io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_surface_info(UInt32, SInt32*, SInt32*, SInt32*)
+IOReturn CLASS::get_surface_info(uintptr_t, io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::read_buffer(struct sIOGLContextReadBufferData const*)
+IOReturn CLASS::read_buffer(struct sIOGLContextReadBufferData const*, size_t struct_in_size)
 {
 	return kIOReturnUnsupported;
 }
@@ -212,7 +212,7 @@ IOReturn CLASS::finish()
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::wait_for_stamp(UInt32)
+IOReturn CLASS::wait_for_stamp(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
@@ -222,27 +222,27 @@ IOReturn CLASS::new_texture(struct sIOGLNewTextureData const*, struct sIOGLNewTe
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::delete_texture(UInt32)
+IOReturn CLASS::delete_texture(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::become_global_shared(UInt32)
+IOReturn CLASS::become_global_shared(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::page_off_texture(struct sIOGLContextPageoffTexture const*)
+IOReturn CLASS::page_off_texture(struct sIOGLContextPageoffTexture const*, size_t struct_in_size)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::purge_texture(UInt32)
+IOReturn CLASS::purge_texture(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::set_surface_volatile_state(UInt32)
+IOReturn CLASS::set_surface_volatile_state(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
@@ -257,17 +257,17 @@ IOReturn CLASS::reclaim_resources()
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::TBD_0x14E0000(UInt32, UInt32)
+IOReturn CLASS::TBD_0x14E0000(uintptr_t, uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::set_stereo(UInt32, UInt32)
+IOReturn CLASS::set_stereo(uintptr_t, uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::purge_accelerator(UInt32)
+IOReturn CLASS::purge_accelerator(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }
@@ -281,12 +281,12 @@ IOReturn CLASS::get_channel_memory(struct sIOGLChannelMemoryData*, size_t* struc
 #pragma mark NVGLContext Methods
 #pragma mark -
 
-IOReturn CLASS::get_query_buffer(UInt32, struct sIOGLGetQueryBuffer*)
+IOReturn CLASS::get_query_buffer(uintptr_t, struct sIOGLGetQueryBuffer*, size_t* struct_out_size)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_notifiers(UInt32*, UInt32*)
+IOReturn CLASS::get_notifiers(io_user_scalar_t*, io_user_scalar_t*)
 {
 	return kIOReturnUnsupported;
 }
@@ -316,12 +316,12 @@ IOReturn CLASS::nv_client_request(void const* struct_in, void* struct_out, size_
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const*)
+IOReturn CLASS::pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const*, size_t struct_in_size)
 {
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer*)
+IOReturn CLASS::get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer*, size_t* struct_out_size)
 {
 	return kIOReturnUnsupported;
 }
@@ -331,7 +331,7 @@ IOReturn CLASS::nv_rm_control(UInt32 const* struct_in, UInt32* struct_out, size_
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_power_state(unsigned long *, unsigned long *)
+IOReturn CLASS::get_power_state(io_user_scalar_t*, io_user_scalar_t*)
 {
 	return kIOReturnUnsupported;
 }

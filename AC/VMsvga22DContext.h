@@ -32,7 +32,7 @@
 
 #include <IOKit/IOUserClient.h>
 
-typedef IOOptionBits eIOContextModeBits;
+typedef uintptr_t eIOContextModeBits;
 struct IOSurfacePagingControlInfoStruct;
 struct IOSurfaceVsyncControlInfoStruct;
 
@@ -67,7 +67,7 @@ public:
 	/*
 	 * GA Support Methods
 	 */
-	IOReturn CopyRegion(UInt32 source_surface_id, UInt32 destX, UInt32 destY, IOAccelDeviceRegion const* region, size_t regionSize);
+	IOReturn CopyRegion(uintptr_t source_surface_id, intptr_t destX, intptr_t destY, IOAccelDeviceRegion const* region, size_t regionSize);
 
 	/*
 	 * Methods corresponding to Apple's GeForce.kext 2D Context User Client
@@ -75,22 +75,22 @@ public:
 	/*
 	 * IONV2DContext
 	 */
-	IOReturn set_surface(UInt32 surface_id, eIOContextModeBits options, void* output_struct, size_t* output_struct_size);
-	IOReturn get_config(IOOptionBits* config_1, IOOptionBits* config_2);
-	IOReturn get_surface_info1(UInt32, eIOContextModeBits, void *, size_t*);
-	IOReturn swap_surface(IOOptionBits options, IOOptionBits* swapFlags);
-	IOReturn scale_surface(IOOptionBits options, UInt32 width, UInt32 height);
-	IOReturn lock_memory(IOOptionBits options, vm_address_t* address, vm_size_t* rowBytes);
-	IOReturn unlock_memory(IOOptionBits options, IOOptionBits* swapFlags);
-	IOReturn finish(IOOptionBits options);
-	IOReturn declare_image(UInt32, UInt32, UInt32, UInt32*);
-	IOReturn create_image(UInt32, UInt32, UInt32*, UInt32*);
-	IOReturn create_transfer(UInt32, UInt32, UInt32*, UInt32*);
-	IOReturn delete_image(UInt32 image_id);
-	IOReturn wait_image(UInt32 image_id);
+	IOReturn set_surface(uintptr_t surface_id, eIOContextModeBits options, void* output_struct, size_t* output_struct_size);
+	IOReturn get_config(io_user_scalar_t* config_1, io_user_scalar_t* config_2);
+	IOReturn get_surface_info1(uintptr_t, eIOContextModeBits, void *, size_t*);
+	IOReturn swap_surface(uintptr_t options, io_user_scalar_t* swapFlags);
+	IOReturn scale_surface(uintptr_t options, uintptr_t width, uintptr_t height);
+	IOReturn lock_memory(uintptr_t options, mach_vm_address_t* address, mach_vm_size_t* rowBytes);
+	IOReturn unlock_memory(uintptr_t options, io_user_scalar_t* swapFlags);
+	IOReturn finish(uintptr_t options);
+	IOReturn declare_image(uintptr_t, uintptr_t, uintptr_t, io_user_scalar_t*);
+	IOReturn create_image(uintptr_t, uintptr_t, io_user_scalar_t*, io_user_scalar_t*);
+	IOReturn create_transfer(uintptr_t, uintptr_t, io_user_scalar_t*, io_user_scalar_t*);
+	IOReturn delete_image(uintptr_t image_id);
+	IOReturn wait_image(uintptr_t image_id);
 	IOReturn set_surface_paging_options(IOSurfacePagingControlInfoStruct const*, IOSurfacePagingControlInfoStruct*, size_t, size_t*);
 	IOReturn set_surface_vsync_options(IOSurfaceVsyncControlInfoStruct const*, IOSurfaceVsyncControlInfoStruct*, size_t, size_t*);
-	IOReturn set_macrovision(IOOptionBits new_state);
+	IOReturn set_macrovision(uintptr_t new_state);
 
 	/*
 	 * NV2DContext

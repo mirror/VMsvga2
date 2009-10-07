@@ -58,7 +58,7 @@ bool CLASS::Init(SVGADevice* device)
 		return false;
 	}
 	fifo_ptr = device->getFifoPtr();
-	if (fifo_ptr[SVGA_FIFO_MIN] <= sizeof(UInt32) * SVGA_FIFO_GUEST_3D_HWVERSION) {
+	if (fifo_ptr[SVGA_FIFO_MIN] <= static_cast<UInt32>(sizeof(UInt32) * SVGA_FIFO_GUEST_3D_HWVERSION)) {
 		SLog("%s: SVGA3D: GUEST_3D_HWVERSION register not present.\n", __FUNCTION__);
 		return false;
 	}
@@ -78,7 +78,7 @@ bool CLASS::Init(SVGADevice* device)
 	return true;
 }
 
-void* CLASS::FIFOReserve(UInt32 cmd, UInt32 cmdSize)
+void* CLASS::FIFOReserve(UInt32 cmd, size_t cmdSize)
 {
 	SVGA3dCmdHeader* header;
 
@@ -86,7 +86,7 @@ void* CLASS::FIFOReserve(UInt32 cmd, UInt32 cmdSize)
 	if (!header)
 		return 0;
 	header->id = cmd;
-	header->size = cmdSize;
+	header->size = static_cast<UInt32>(cmdSize);
 
 	return &header[1];
 }
@@ -96,7 +96,7 @@ bool CLASS::BeginDefineSurface(UInt32 sid,                  // IN
 							   SVGA3dSurfaceFormat format,  // IN
 							   SVGA3dSurfaceFace **faces,   // OUT
 							   SVGA3dSize **mipSizes,       // OUT
-							   UInt32 numMipSizes)          // IN
+							   size_t numMipSizes)          // IN
 {
 	SVGA3dCmdDefineSurface* cmd;
 
@@ -131,10 +131,10 @@ bool CLASS::BeginSurfaceDMA(SVGA3dGuestImage const* guestImage,     // IN
 							SVGA3dSurfaceImageId const* hostImage,  // IN
 							SVGA3dTransferType transfer,      // IN
 							SVGA3dCopyBox **boxes,            // OUT
-							UInt32 numBoxes)                  // IN
+							size_t numBoxes)                  // IN
 {
 	SVGA3dCmdSurfaceDMA* cmd;
-	UInt32 boxesSize = sizeof **boxes * numBoxes;
+	size_t boxesSize = sizeof **boxes * numBoxes;
 
 	cmd = static_cast<SVGA3dCmdSurfaceDMA*>(FIFOReserve(SVGA_3D_CMD_SURFACE_DMA, sizeof *cmd + boxesSize));
 	if (!cmd)
@@ -196,7 +196,7 @@ bool CLASS::SetTransform(UInt32 cid,                // IN
 		return false;
 	cmd->cid = cid;
 	cmd->type = type;
-	memcpy(&cmd->matrix[0], matrix, sizeof(float) * 16);
+	memcpy(&cmd->matrix[0], matrix, sizeof(float) * 16U);
 	m_svga->FIFOCommitAll();
 	return true;
 }
@@ -250,7 +250,7 @@ IOReturn CLASS::DefineShader(UInt32 cid,                   // IN
 						 UInt32 shid,                  // IN
 						 SVGA3dShaderType type,        // IN
 						 UInt32 const* bytecode,       // IN
-						 UInt32 bytecodeLen)           // IN
+						 size_t bytecodeLen)           // IN
 {
 	SVGA3dCmdDefineShader* cmd;
 
@@ -336,7 +336,7 @@ bool CLASS::SetShader(UInt32 cid,             // IN
 
 bool CLASS::BeginPresent(UInt32 sid,              // IN
 						 SVGA3dCopyRect **rects,  // OUT
-						 UInt32 numRects)         // IN
+						 size_t numRects)         // IN
 {
 	SVGA3dCmdPresent* cmd;
 	cmd = static_cast<SVGA3dCmdPresent*>(FIFOReserve(SVGA_3D_CMD_PRESENT, sizeof *cmd + sizeof **rects * numRects));
@@ -353,7 +353,7 @@ bool CLASS::BeginClear(UInt32 cid,             // IN
 					   float depth,            // IN
 					   UInt32 stencil,         // IN
 					   SVGA3dRect **rects,     // OUT
-					   UInt32 numRects)        // IN
+					   size_t numRects)        // IN
 {
 	SVGA3dCmdClear* cmd;
 	cmd = static_cast<SVGA3dCmdClear*>(FIFOReserve(SVGA_3D_CMD_CLEAR, sizeof *cmd + sizeof **rects * numRects));
@@ -370,23 +370,23 @@ bool CLASS::BeginClear(UInt32 cid,             // IN
 
 bool CLASS::BeginDrawPrimitives(UInt32 cid,                    // IN
 								SVGA3dVertexDecl **decls,      // OUT
-								UInt32 numVertexDecls,         // IN
+								size_t numVertexDecls,         // IN
 								SVGA3dPrimitiveRange **ranges, // OUT
-								UInt32 numRanges)              // IN
+								size_t numRanges)              // IN
 {
 	SVGA3dCmdDrawPrimitives *cmd;
 	SVGA3dVertexDecl *declArray;
 	SVGA3dPrimitiveRange *rangeArray;
-	UInt32 declSize = sizeof **decls * numVertexDecls;
-	UInt32 rangeSize = sizeof **ranges * numRanges;
+	size_t declSize = sizeof **decls * numVertexDecls;
+	size_t rangeSize = sizeof **ranges * numRanges;
 
 	cmd = static_cast<SVGA3dCmdDrawPrimitives*>(FIFOReserve(SVGA_3D_CMD_DRAW_PRIMITIVES, sizeof *cmd + declSize + rangeSize));
 	if (!cmd)
 		return false;
 
 	cmd->cid = cid;
-	cmd->numVertexDecls = numVertexDecls;
-	cmd->numRanges = numRanges;
+	cmd->numVertexDecls = static_cast<UInt32>(numVertexDecls);
+	cmd->numRanges = static_cast<UInt32>(numRanges);
 
 	declArray = reinterpret_cast<SVGA3dVertexDecl*>(&cmd[1]);
 	rangeArray = reinterpret_cast<SVGA3dPrimitiveRange*>(&declArray[numVertexDecls]);
@@ -402,10 +402,10 @@ bool CLASS::BeginDrawPrimitives(UInt32 cid,                    // IN
 bool CLASS::BeginSurfaceCopy(SVGA3dSurfaceImageId const* src,   // IN
 							 SVGA3dSurfaceImageId const* dest,  // IN
 							 SVGA3dCopyBox **boxes,       // OUT
-							 UInt32 numBoxes)             // IN
+							 size_t numBoxes)             // IN
 {
 	SVGA3dCmdSurfaceCopy *cmd;
-	UInt32 boxesSize = sizeof **boxes * numBoxes;
+	size_t boxesSize = sizeof **boxes * numBoxes;
 
 	cmd = static_cast<SVGA3dCmdSurfaceCopy*>(FIFOReserve(SVGA_3D_CMD_SURFACE_COPY, sizeof *cmd + boxesSize));
 	if (!cmd)
@@ -468,7 +468,7 @@ bool CLASS::SetZRange(UInt32 cid,  // IN
 
 bool CLASS::BeginSetTextureState(UInt32 cid,                   // IN
 								 SVGA3dTextureState **states,  // OUT
-								 UInt32 numStates)             // IN
+								 size_t numStates)             // IN
 {
 	SVGA3dCmdSetTextureState *cmd;
 	cmd = static_cast<SVGA3dCmdSetTextureState*>(FIFOReserve(SVGA_3D_CMD_SETTEXTURESTATE, sizeof *cmd + sizeof **states * numStates));
@@ -481,7 +481,7 @@ bool CLASS::BeginSetTextureState(UInt32 cid,                   // IN
 
 bool CLASS::BeginSetRenderState(UInt32 cid,                  // IN
 								SVGA3dRenderState **states,  // OUT
-								UInt32 numStates)            // IN
+								size_t numStates)            // IN
 {
 	SVGA3dCmdSetRenderState *cmd;
 	cmd = static_cast<SVGA3dCmdSetRenderState*>(FIFOReserve(SVGA_3D_CMD_SETRENDERSTATE, sizeof *cmd + sizeof **states * numStates));
@@ -493,7 +493,7 @@ bool CLASS::BeginSetRenderState(UInt32 cid,                  // IN
 }
 
 bool CLASS::BeginPresentReadback(SVGA3dRect **rects,  // OUT
-								 UInt32 numRects)     // IN
+								 size_t numRects)     // IN
 {
 	void *cmd;
 	cmd = FIFOReserve(SVGA_3D_CMD_PRESENT_READBACK, sizeof **rects * numRects);

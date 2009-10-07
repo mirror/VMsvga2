@@ -29,11 +29,11 @@
 #ifndef __FENCETRACKER_H__
 #define __FENCETRACKER_H__
 
-template<unsigned long N>
+template<size_t N>
 struct FenceTracker
 {
-	unsigned long counter;
-	unsigned long fences[N];
+	size_t counter;
+	unsigned fences[N];
 
 	void init()
 	{
@@ -41,12 +41,12 @@ struct FenceTracker
 		bzero(&fences, sizeof fences);
 	}
 
-	unsigned long before()
+	unsigned before()
 	{
 		return fences[counter];
 	}
 
-	void after(unsigned long fence)
+	void after(unsigned fence)
 	{
 		fences[counter] = fence;
 		++counter;

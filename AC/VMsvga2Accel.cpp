@@ -46,7 +46,7 @@ OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
 UInt32 vmw_options_ac = 0;
 
 #define VLOG_PREFIX_STR "log IOAC: "
-#define VLOG_PREFIX_LEN (sizeof(VLOG_PREFIX_STR) - 1)
+#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
 #define VLOG_BUF_SIZE 256
 
 extern "C" char VMLog_SendString(char const* str);
@@ -124,8 +124,8 @@ void CLASS::VLog(char const* fmt, ...)
 	char print_buf[VLOG_BUF_SIZE];
 
 	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof(print_buf));
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof(print_buf) - VLOG_PREFIX_LEN, fmt, ap);
+	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
+	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
 	va_end(ap);
 	VMLog_SendString(&print_buf[0]);
 }
@@ -190,23 +190,23 @@ void CLASS::processOptions()
 	UInt32 boot_arg;
 
 	vmw_options_ac = VMW_OPTION_AC_2D_CONTEXT | VMW_OPTION_AC_SURFACE_CONNECT;
-	if (PE_parse_boot_arg("vmw_options_ac", &boot_arg))
+	if (PE_parse_boot_argn("vmw_options_ac", &boot_arg, sizeof boot_arg))
 		vmw_options_ac = boot_arg;
-	if (PE_parse_boot_arg("-svga3d", &boot_arg))
+	if (PE_parse_boot_argn("-svga3d", &boot_arg, sizeof boot_arg))
 		vmw_options_ac |= VMW_OPTION_AC_SVGA3D;
-	if (PE_parse_boot_arg("-vmw_no_yuv", &boot_arg))
+	if (PE_parse_boot_argn("-vmw_no_yuv", &boot_arg, sizeof boot_arg))
 		vmw_options_ac |= VMW_OPTION_AC_NO_YUV;
-	if (PE_parse_boot_arg("-vmw_direct_blit", &boot_arg))
+	if (PE_parse_boot_argn("-vmw_direct_blit", &boot_arg, sizeof boot_arg))
 		vmw_options_ac |= VMW_OPTION_AC_DIRECT_BLIT;
 	setProperty("VMwareSVGAAccelOptions", static_cast<UInt64>(vmw_options_ac), 32U);
-	if (PE_parse_boot_arg("vmw_options_ga", &boot_arg)) {
+	if (PE_parse_boot_argn("vmw_options_ga", &boot_arg, sizeof boot_arg)) {
 		m_options_ga = boot_arg;
 		setProperty("VMwareSVGAGAOptions", static_cast<UInt64>(m_options_ga), 32U);
 	}
-	if (PE_parse_boot_arg("vmw_log_ac", &boot_arg))
+	if (PE_parse_boot_argn("vmw_log_ac", &boot_arg, sizeof boot_arg))
 		m_log_level_ac = static_cast<SInt32>(boot_arg);
 	setProperty("VMwareSVGAAccelLogLevel", static_cast<UInt64>(m_log_level_ac), 32U);
-	if (PE_parse_boot_arg("vmw_log_ga", &boot_arg)) {
+	if (PE_parse_boot_argn("vmw_log_ga", &boot_arg, sizeof boot_arg)) {
 		m_log_level_ga = static_cast<SInt32>(boot_arg);
 		setProperty("VMwareSVGAGALogLevel", static_cast<UInt64>(m_log_level_ga), 32U);
 	}
@@ -261,7 +261,7 @@ IOReturn CLASS::setupAllocator()
 
 	rc = m_allocator->Init(p, s);
 	if (rc != kIOReturnSuccess) {
-		ACLog(1, "%s: Allocator Init(%p, 0x%x) failed with 0x%x\n", __FUNCTION__, p, s, rc);
+		ACLog(1, "%s: Allocator Init(%p, 0x%lx) failed with 0x%x\n", __FUNCTION__, p, static_cast<size_t>(s), rc);
 		m_bar1->release();
 		m_bar1 = 0;
 		return rc;
@@ -269,7 +269,7 @@ IOReturn CLASS::setupAllocator()
 	bytes_reserve = bHaveSVGA3D ? 0 : SVGA_FB_MAX_TRACEABLE_SIZE;
 	rc = m_allocator->Release(bytes_reserve, s);
 	if (rc != kIOReturnSuccess) {
-		ACLog(1, "%s: Allocator Release(0x%x, 0x%x) failed with 0x%x\n", __FUNCTION__, bytes_reserve, s, rc);
+		ACLog(1, "%s: Allocator Release(0x%lx, 0x%lx) failed with 0x%x\n", __FUNCTION__, static_cast<size_t>(bytes_reserve), static_cast<size_t>(s), rc);
 		m_bar1->release();
 		m_bar1 = 0;
 	}
@@ -345,7 +345,7 @@ bool CLASS::start(IOService* provider)
 	plug = getProperty(kIOCFPlugInTypesKey);
 	if (plug)
 		m_framebuffer->setProperty(kIOCFPlugInTypesKey, plug);
-	len = sizeof(pathbuf);
+	len = sizeof pathbuf;
 	if (getPath(&pathbuf[0], &len, gIOServicePlane)) {
 		m_framebuffer->setProperty(kIOAccelTypesKey, pathbuf);
 		m_framebuffer->setProperty(kIOAccelIndexKey, 0ULL, 32U);
@@ -461,7 +461,7 @@ IOReturn CLASS::SyncToFence(UInt32 fence)
 #pragma mark SVGA FIFO Acceleration Methods for 2D Context
 #pragma mark -
 
-IOReturn CLASS::useAccelUpdates(size_t state)
+IOReturn CLASS::useAccelUpdates(uintptr_t state)
 {
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
@@ -496,7 +496,7 @@ IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects, size
 	return rc ? kIOReturnSuccess : kIOReturnNoMemory;
 }
 
-IOReturn CLASS::RectFill(size_t color, struct IOBlitRectangleStruct const* rects, size_t rectsSize)
+IOReturn CLASS::RectFill(uintptr_t color, struct IOBlitRectangleStruct const* rects, size_t rectsSize)
 {
 	size_t i, count = rectsSize / sizeof(IOBlitRectangle);
 	bool rc;
@@ -547,7 +547,7 @@ IOReturn CLASS::UpdateFramebufferAutoRing(UInt32 const* rect)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::CopyRegion(size_t destX, size_t destY, void /* IOAccelDeviceRegion */ const* region, size_t regionSize)
+IOReturn CLASS::CopyRegion(intptr_t destX, intptr_t destY, void /* IOAccelDeviceRegion */ const* region, size_t regionSize)
 {
 	IOAccelDeviceRegion const* rgn = static_cast<IOAccelDeviceRegion const*>(region);
 	IOAccelBounds const* rect;
@@ -644,8 +644,8 @@ IOReturn CLASS::surfaceDMA2D(UInt32 sid, SVGA3dTransferType transfer, void /* IO
 	hostImage.face = 0;
 	hostImage.mipmap = 0;
 	guestImage.ptr.gmrId = static_cast<UInt32>(-2) /* SVGA_GMR_FRAMEBUFFER */;
-	guestImage.ptr.offset = extra->mem_offset_in_bar1;
-	guestImage.pitch = extra->mem_pitch;
+	guestImage.ptr.offset = static_cast<UInt32>(extra->mem_offset_in_bar1);
+	guestImage.pitch = static_cast<UInt32>(extra->mem_pitch);
 	m_framebuffer->lockDevice();
 	rc = svga3d.BeginSurfaceDMA(&guestImage, &hostImage, transfer, &copyBoxes, numCopyBoxes);
 	if (!rc)
@@ -906,7 +906,11 @@ IOReturn CLASS::getScreenInfo(IOAccelSurfaceReadData* info)
 	m_framebuffer->lockDevice();
 	info->w = m_svga->getCurrentWidth();
 	info->h = m_svga->getCurrentHeight();
+#if IOACCELTYPES_10_5 || (IOACCEL_TYPES_REV < 12 && !defined(kIODescriptionKey))
 	info->client_addr = reinterpret_cast<void*>(m_framebuffer->getVRAMPtr());
+#else
+	info->client_addr = static_cast<mach_vm_address_t>(m_framebuffer->getVRAMPtr());
+#endif
 	info->client_row_bytes = m_svga->getCurrentPitch();
 	m_framebuffer->unlockDevice();
 	ACLog(2, "%s: width == %d, height == %d\n", __FUNCTION__, info->w, info->h);
@@ -1003,14 +1007,14 @@ UInt32 CLASS::AllocSurfaceID()
 	m_surface_id_mask |= x;
 	i = log_2_64(x);
 	if (i < 0)
-		i = static_cast<int>(8 * sizeof(UInt64) + m_surface_ids_unmanaged++);
+		i = static_cast<int>(8U * sizeof(UInt64) + m_surface_ids_unmanaged++);
 	unlockAccel();
 	return static_cast<UInt32>(i);
 }
 
 void CLASS::FreeSurfaceID(UInt32 sid)
 {
-	if (sid >= 8 * sizeof(UInt64))
+	if (sid >= 8U * static_cast<UInt32>(sizeof(UInt64)))
 		return;
 	lockAccel();
 	m_surface_id_mask &= ~(1ULL << sid);
@@ -1027,14 +1031,14 @@ UInt32 CLASS::AllocContextID()
 	m_context_id_mask |= x;
 	i = log_2_64(x);
 	if (i < 0)
-		i = static_cast<int>(8 * sizeof(UInt64) + m_context_ids_unmanaged++);
+		i = static_cast<int>(8U * sizeof(UInt64) + m_context_ids_unmanaged++);
 	unlockAccel();
 	return static_cast<UInt32>(i);
 }
 
 void CLASS::FreeContextID(UInt32 cid)
 {
-	if (cid >= 8 * sizeof(UInt64))
+	if (cid >= 8U * static_cast<UInt32>(sizeof(UInt64)))
 		return;
 	lockAccel();
 	m_context_id_mask &= ~(1ULL << cid);
@@ -1056,7 +1060,7 @@ UInt32 CLASS::AllocStreamID()
 
 void CLASS::FreeStreamID(UInt32 streamId)
 {
-	if (streamId >= 8 * sizeof(UInt32))
+	if (streamId >= 8U * static_cast<UInt32>(sizeof(UInt32)))
 		return;
 	lockAccel();
 	m_stream_id_mask &= ~(1U << streamId);
@@ -1078,7 +1082,7 @@ void* CLASS::VRAMMalloc(size_t bytes)
 	rc = m_allocator->Malloc(bytes, &p);
 	unlockAccel();
 	if (rc != kIOReturnSuccess)
-		ACLog(1, "%s(%u) failed\n", __FUNCTION__, bytes);
+		ACLog(1, "%s(%lu) failed\n", __FUNCTION__, bytes);
 	return p;
 }
 
@@ -1093,7 +1097,7 @@ void* CLASS::VRAMRealloc(void* ptr, size_t bytes)
 	rc = m_allocator->Realloc(ptr, bytes, &newp);
 	unlockAccel();
 	if (rc != kIOReturnSuccess)
-		ACLog(1, "%s(%p, %u) failed\n", __FUNCTION__, ptr, bytes);
+		ACLog(1, "%s(%p, %lu) failed\n", __FUNCTION__, ptr, bytes);
 	return newp;
 }
 
