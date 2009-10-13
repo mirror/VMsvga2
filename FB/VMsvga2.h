@@ -156,6 +156,9 @@ public:
 	IOReturn getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect blockType, IOOptionBits options, UInt8* data, IOByteCount* length);
 	bool hasDDCConnect(IOIndex connectIndex);
 	UInt32 getCurrentApertureSize() const;
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+	bool passiveMatch(OSDictionary* matching, bool changesOK = false);
+#endif
 	/*
 	 * End Added
 	 */

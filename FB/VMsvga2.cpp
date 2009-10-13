@@ -662,6 +662,44 @@ void CLASS::stop(IOService* provider)
 	super::stop(provider);
 }
 
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+/*
+ * Note: this method of impersonating VMware's driver(s)
+ *   doesn't work on OS 10.6, since Apple have made
+ *   passiveMatch() private.  It's virtual only in
+ *   the 32-bit kernel.
+ *
+ * There's an alternative way to impersonate by creating
+ *   a fake meta-class for classnames VMwareIOFramebuffer/VMwareGfx
+ *   but this involves too much messing around with
+ *   IOKit internals.
+ */
+bool CLASS::passiveMatch(OSDictionary* matching, bool changesOK)
+{
+	OSString* str;
+	if (!matching)
+		goto done;
+	str = OSDynamicCast(OSString, matching->getObject(gIOProviderClassKey));
+	if (!str)
+		goto done;
+	if (str->isEqualTo("VMwareIOFramebuffer")
+#if 0
+		|| str->isEqualTo("VMwareGfx")	// Note: uses external method number 0 instead of 3
+#endif
+		) {
+		LogPrintf(4, "%s: matched against VMwareIOFramebuffer/VMwareGfx\n", __FUNCTION__);
+		str = OSString::withCString(getMetaClass()->getClassName());
+		if (!str)
+			goto done;
+		matching->setObject(gIOProviderClassKey, str);
+		str->release();
+		goto done;
+	}
+done:
+	return super::passiveMatch(matching, changesOK);
+}
+#endif
+
 #pragma mark -
 #pragma mark IOFramebuffer Methods
 #pragma mark -
