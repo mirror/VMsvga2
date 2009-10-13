@@ -60,7 +60,6 @@ public:
 	 * Methods overridden from superclass
 	 */
 	bool start(IOService* provider);
-	void stop(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
 	static VMsvga22DContext* withTask(task_t owningTask, void* securityToken, UInt32 type);
 

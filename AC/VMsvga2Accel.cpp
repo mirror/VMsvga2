@@ -32,8 +32,11 @@
 #include "vmw_options_ac.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Surface.h"
-#include "VMsvga22DContext.h"
 #include "VMsvga2GLContext.h"
+#include "VMsvga22DContext.h"
+#include "VMsvga2DVDContext.h"
+#include "VMsvga2Device.h"
+#include "VMsvga2OCDContext.h"
 #include "VMsvga2Allocator.h"
 #include "VMsvga2.h"
 
@@ -189,7 +192,7 @@ void CLASS::processOptions()
 {
 	UInt32 boot_arg;
 
-	vmw_options_ac = VMW_OPTION_AC_2D_CONTEXT | VMW_OPTION_AC_SURFACE_CONNECT;
+	vmw_options_ac = VMW_OPTION_AC_GL_CONTEXT | VMW_OPTION_AC_2D_CONTEXT | VMW_OPTION_AC_SURFACE_CONNECT;
 	if (PE_parse_boot_argn("vmw_options_ac", &boot_arg, sizeof boot_arg))
 		vmw_options_ac = boot_arg;
 	if (PE_parse_boot_argn("-svga3d", &boot_arg, sizeof boot_arg))
@@ -377,7 +380,8 @@ IOReturn CLASS::newUserClient(task_t owningTask, void* securityID, UInt32 type, 
 	 * 1 - GL Context
 	 * 2 - 2D Context
 	 * 3 - DVD Context
-	 * 4 - DVD Context
+	 * 4 - Device (duplicate for DVD Context in OS 10.5)
+	 * 5 - OCD Context
 	 */
 	ACLog(2, "%s: owningTask==%p, securityID==%p, type==%u\n", __FUNCTION__, owningTask, securityID, type);
 	if (!handler)
@@ -405,6 +409,20 @@ IOReturn CLASS::newUserClient(task_t owningTask, void* securityID, UInt32 type, 
 		case 3:
 			if (!checkOptionAC(VMW_OPTION_AC_DVD_CONTEXT))
 				return kIOReturnUnsupported;
+			client = VMsvga2DVDContext::withTask(owningTask, securityID, type);
+			break;
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+		case 4:
+			if (!checkOptionAC(VMW_OPTION_AC_GL_CONTEXT))
+				return kIOReturnUnsupported;
+			client = VMsvga2Device::withTask(owningTask, securityID, type);
+			break;
+		case 5:
+			if (!checkOptionAC(VMW_OPTION_AC_GL_CONTEXT))
+				return kIOReturnUnsupported;
+			client = VMsvga2OCDContext::withTask(owningTask, securityID, type);
+			break;
+#endif
 		default:
 			return kIOReturnUnsupported;
 	}

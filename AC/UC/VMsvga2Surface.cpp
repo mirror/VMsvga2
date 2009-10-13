@@ -154,9 +154,29 @@ IOReturn CLASS::clientClose()
 }
 
 #if 0
+/*
+ * Note: for NVSurface
+ *   In OS 10.5 this method actually does something
+ *   In OS 10.6 it returns an error kIOReturnError
+ */
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
-	return super::clientMemoryForType(type, options, memory);
+	SFLog(3, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
+	return kIOReturnError;
+}
+#endif
+
+#if 0
+/*
+ * Note:
+ *   IONVSurface in OS 10.6 has an override on this method, to
+ *   redirect external methods as follows
+ *     set_shape_backing        --> set_shape_backing_length_ext
+ *     set_shape_backing_length --> set_shape_backing_length_ext
+ */
+IOReturn CLASS::externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch, OSObject* target, void* reference)
+{
+	return super::externalMethod(selector, arguments, dispatch, target, reference);
 }
 #endif
 
@@ -186,11 +206,6 @@ bool CLASS::start(IOService* provider)
 		return false /* kIOReturnNoDevice */;
 	Start3D();
 	return super::start(provider);
-}
-
-void CLASS::stop(IOService* provider)
-{
-	super::stop(provider);
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)

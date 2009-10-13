@@ -35,8 +35,25 @@
 #define super IOUserClient
 OSDefineMetaClassAndStructors(VMsvga2GLContext, IOUserClient);
 
+#define VLOG_PREFIX_STR "log IOGL: "
+#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
+#define VLOG_BUF_SIZE 256
+
+extern "C" char VMLog_SendString(char const* str);
+
+#if LOGGING_LEVEL >= 1
+#define GLLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog(fmt, ##__VA_ARGS__); } while (false)
+#else
+#define GLLog(log_level, fmt, ...)
+#endif
+
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 #define NUM_GL_METHODS 32
 #define VM_METHODS_START 32
+#else
+#define NUM_GL_METHODS 30
+#define VM_METHODS_START 30
+#endif
 
 static IOExternalMethod iofbFuncsCache[NUM_GL_METHODS] =
 {
@@ -44,28 +61,40 @@ static IOExternalMethod iofbFuncsCache[NUM_GL_METHODS] =
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface), kIOUCScalarIScalarO, 4, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::set_swap_rect), kIOUCScalarIScalarO, 4, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::set_swap_interval), kIOUCScalarIScalarO, 2, 0},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 {0, reinterpret_cast<IOMethod>(&CLASS::get_config), kIOUCScalarIScalarO, 0, 3},
+#endif
 {0, reinterpret_cast<IOMethod>(&CLASS::get_surface_size), kIOUCScalarIScalarO, 0, 4},
 {0, reinterpret_cast<IOMethod>(&CLASS::get_surface_info), kIOUCScalarIScalarO, 1, 3},
 {0, reinterpret_cast<IOMethod>(&CLASS::read_buffer), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::finish), kIOUCScalarIScalarO, 0, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::wait_for_stamp), kIOUCScalarIScalarO, 1, 0},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 {0, reinterpret_cast<IOMethod>(&CLASS::new_texture), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::delete_texture), kIOUCScalarIScalarO, 1, 0},
+#endif
 {0, reinterpret_cast<IOMethod>(&CLASS::become_global_shared), kIOUCScalarIScalarO, 1, 0},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 {0, reinterpret_cast<IOMethod>(&CLASS::page_off_texture), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
+#endif
 {0, reinterpret_cast<IOMethod>(&CLASS::purge_texture), kIOUCScalarIScalarO, 1, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface_volatile_state), kIOUCScalarIScalarO, 1, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface_get_config_status), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::reclaim_resources), kIOUCScalarIScalarO, 0, 0},
-{0, reinterpret_cast<IOMethod>(&CLASS::TBD_0x14E0000), kIOUCScalarIScalarO, 2, 0},
+{0, reinterpret_cast<IOMethod>(&CLASS::get_data_buffer), kIOUCScalarIStructO, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::set_stereo), kIOUCScalarIScalarO, 2, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::purge_accelerator), kIOUCScalarIScalarO, 1, 0},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 {0, reinterpret_cast<IOMethod>(&CLASS::get_channel_memory), kIOUCScalarIStructO, 0, kIOUCVariableStructureSize},
+#else
+{0, reinterpret_cast<IOMethod>(&CLASS::submit_command_buffer), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},
+#endif
 // Note: Methods from NVGLContext
 {0, reinterpret_cast<IOMethod>(&CLASS::get_query_buffer), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::get_notifiers), kIOUCScalarIScalarO, 0, 2},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 {0, reinterpret_cast<IOMethod>(&CLASS::new_heap_object), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
+#endif
 {0, reinterpret_cast<IOMethod>(&CLASS::kernel_printf), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::nv_rm_config_get), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::nv_rm_config_get_ex), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
@@ -74,10 +103,25 @@ static IOExternalMethod iofbFuncsCache[NUM_GL_METHODS] =
 {0, reinterpret_cast<IOMethod>(&CLASS::get_data_buffer_with_offset), kIOUCScalarIStructO, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::nv_rm_control), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::get_power_state), kIOUCScalarIScalarO, 0, 2},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+{0, reinterpret_cast<IOMethod>(&CLASS::set_watchdog_timer), kIOUCScalarIScalarO, 1, 0},
+{0, reinterpret_cast<IOMethod>(&CLASS::GetHandleIndex), kIOUCScalarIScalarO, 0, 2},
+{0, reinterpret_cast<IOMethod>(&CLASS::ForceTextureLargePages), kIOUCScalarIScalarO, 1, 0},
+#endif
 // Note: VM Methods
 };
 
-extern "C" char VMLog_SendString(char const* str);
+void CLASS::VLog(char const* fmt, ...)
+{
+	va_list ap;
+	char print_buf[VLOG_BUF_SIZE];
+	
+	va_start(ap, fmt);
+	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
+	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
+	va_end(ap);
+	VMLog_SendString(&print_buf[0]);
+}
 
 #pragma mark -
 #pragma mark IOUserClient Methods
@@ -85,6 +129,7 @@ extern "C" char VMLog_SendString(char const* str);
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
+	GLLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
 	if (!targetP || index >= NUM_GL_METHODS)
 		return 0;
 	if (index >= VM_METHODS_START) {
@@ -99,10 +144,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 
 IOReturn CLASS::clientClose()
 {
-#if LOGGING_LEVEL >= 1
-	if (m_provider->getLogLevelAC() >= 2)
-		VMLog_SendString("log IOGL: clientClose\n");
-#endif
+	GLLog(2, "%s\n", __FUNCTION__);
 	if (!terminate(0))
 		IOLog("%s: terminate failed\n", __FUNCTION__);
 	m_owning_task = 0;
@@ -110,16 +152,23 @@ IOReturn CLASS::clientClose()
 	return kIOReturnSuccess;
 }
 
-#if 0
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
+	GLLog(1, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
 	return super::clientMemoryForType(type, options, memory);
 }
-#endif
+
+IOReturn CLASS::connectClient(IOUserClient* client)
+{
+	GLLog(1, "%s(%p)\n", __FUNCTION__, client);
+	return super::connectClient(client);
+}
 
 #if 0
 /*
- * Note: IONVGLContext has a strange override on this function
+ * Note: IONVGLContext has an override on this method
+ *   In OS 10.5 it redirects function number 17 to get_data_buffer()
+ *   In OS 10.6 it redirects function number 13 to get_data_buffer()
  */
 IOReturn CLASS::externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch, OSObject* target, void* reference)
 {
@@ -130,22 +179,15 @@ IOReturn CLASS::externalMethod(uint32_t selector, IOExternalMethodArguments* arg
 bool CLASS::start(IOService* provider)
 {
 	m_provider = OSDynamicCast(VMsvga2Accel, provider);
-	if (!m_provider) {
+	if (!m_provider)
 		return false;
-	}
+	m_log_level = m_provider->getLogLevelAC();
 	return super::start(provider);
-}
-
-void CLASS::stop(IOService* provider)
-{
-	return super::stop(provider);
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 {
-	m_owning_task = 0;
-	m_provider = 0;
-	m_funcs_cache = 0;
+	m_log_level = 1;
 	if (!super::initWithTask(owningTask, securityToken, type))
 		return false;
 	m_owning_task = owningTask;
@@ -257,7 +299,7 @@ IOReturn CLASS::reclaim_resources()
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::TBD_0x14E0000(uintptr_t, uintptr_t)
+IOReturn CLASS::get_data_buffer(struct sIOGLContextGetDataBuffer*, size_t* struct_out_size)
 {
 	return kIOReturnUnsupported;
 }
@@ -273,6 +315,11 @@ IOReturn CLASS::purge_accelerator(uintptr_t)
 }
 
 IOReturn CLASS::get_channel_memory(struct sIOGLChannelMemoryData*, size_t* struct_out_size)
+{
+	return kIOReturnUnsupported;
+}
+
+IOReturn CLASS::submit_command_buffer(uintptr_t, struct sIOGLGetCommandBuffer*, size_t* struct_out_size)
 {
 	return kIOReturnUnsupported;
 }
@@ -332,6 +379,21 @@ IOReturn CLASS::nv_rm_control(UInt32 const* struct_in, UInt32* struct_out, size_
 }
 
 IOReturn CLASS::get_power_state(io_user_scalar_t*, io_user_scalar_t*)
+{
+	return kIOReturnUnsupported;
+}
+
+IOReturn CLASS::set_watchdog_timer(uintptr_t)
+{
+	return kIOReturnUnsupported;
+}
+
+IOReturn CLASS::GetHandleIndex(io_user_scalar_t*, io_user_scalar_t*)
+{
+	return kIOReturnUnsupported;
+}
+
+IOReturn CLASS::ForceTextureLargePages(uintptr_t)
 {
 	return kIOReturnUnsupported;
 }

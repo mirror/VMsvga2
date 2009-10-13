@@ -117,6 +117,7 @@ IOReturn CLASS::clientClose()
 #if 0
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
+	TDLog(2, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
 	return super::clientMemoryForType(type, options, memory);
 }
 #endif
@@ -124,24 +125,13 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
 bool CLASS::start(IOService* provider)
 {
 	m_provider = OSDynamicCast(VMsvga2Accel, provider);
-	if (!m_provider) {
+	if (!m_provider)
 		return false;
-	}
 	return super::start(provider);
-}
-
-void CLASS::stop(IOService* provider)
-{
-	return super::stop(provider);
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 {
-	m_owning_task = 0;
-	m_provider = 0;
-	m_funcs_cache = 0;
-	bTargetIsCGSSurface = false;
-	surface_client = 0;
 	if (!super::initWithTask(owningTask, securityToken, type))
 		return false;
 	m_owning_task = owningTask;

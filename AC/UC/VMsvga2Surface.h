@@ -176,10 +176,10 @@ public:
 	IOReturn clientClose();
 #if 0
 	IOReturn clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory);
+	IOReturn externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch = 0, OSObject* target = 0, void* reference = 0);
 #endif
 	IOReturn message(UInt32 type, IOService* provider, void* argument = 0);
 	bool start(IOService* provider);
-	void stop(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
 	static VMsvga2Surface* withTask(task_t owningTask, void* securityToken, UInt32 type);
 
