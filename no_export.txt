@@ -1,4 +1,5 @@
 _VMLog_SendString
+_VLog
 _customMode
 _modeList
 _vmw_options_fb
