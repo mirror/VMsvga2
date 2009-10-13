@@ -42,8 +42,6 @@ private:
 	IOExternalMethod* m_funcs_cache;
 	SInt32 m_log_level;
 
-	void VLog(char const* fmt, ...);
-
 public:
 	/*
 	 * Methods overridden from superclass

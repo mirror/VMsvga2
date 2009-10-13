@@ -31,6 +31,7 @@
 #include <IOKit/IOBufferMemoryDescriptor.h>
 
 #include "vmw_options_ac.h"
+#include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Surface.h"
 
@@ -42,14 +43,8 @@
 #define super IOUserClient
 OSDefineMetaClassAndStructors(VMsvga2Surface, IOUserClient);
 
-#define VLOG_PREFIX_STR "log IOSF: "
-#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
-#define VLOG_BUF_SIZE 256
-
-extern "C" char VMLog_SendString(char const* str);
-
 #if LOGGING_LEVEL >= 1
-#define SFLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog(fmt, ##__VA_ARGS__); } while (false)
+#define SFLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IOSF: ", fmt, ##__VA_ARGS__); } while (false)
 #else
 #define SFLog(log_level, fmt, ...)
 #endif
@@ -87,18 +82,6 @@ static IOExternalMethod iofbFuncsCache[kIOAccelNumSurfaceMethods] =
 	{0, reinterpret_cast<IOMethod>(&CLASS::surface_control), kIOUCScalarIScalarO, 2, 1},
 	{0, reinterpret_cast<IOMethod>(&CLASS::set_shape_backing_length), kIOUCScalarIStructI, 5, kIOUCVariableStructureSize}
 };
-
-void CLASS::VLog(char const* fmt, ...)
-{
-	va_list ap;
-	char print_buf[VLOG_BUF_SIZE];
-
-	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
-	va_end(ap);
-	VMLog_SendString(&print_buf[0]);
-}
 
 static inline vm_size_t round_up_to_power2(vm_size_t s, vm_size_t power2)
 {

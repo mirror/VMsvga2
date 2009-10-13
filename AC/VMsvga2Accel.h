@@ -90,7 +90,6 @@ private:
 	 * Private support methods
 	 */
 	void Cleanup();
-	void VLog(char const* fmt, ...);
 #ifdef TIMING
 	void timeSyncs();
 #endif

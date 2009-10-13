@@ -28,6 +28,7 @@
  */
 
 #include <IOKit/IOLib.h>
+#include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2GLContext.h"
 
@@ -35,14 +36,8 @@
 #define super IOUserClient
 OSDefineMetaClassAndStructors(VMsvga2GLContext, IOUserClient);
 
-#define VLOG_PREFIX_STR "log IOGL: "
-#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
-#define VLOG_BUF_SIZE 256
-
-extern "C" char VMLog_SendString(char const* str);
-
 #if LOGGING_LEVEL >= 1
-#define GLLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog(fmt, ##__VA_ARGS__); } while (false)
+#define GLLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IOGL: ", fmt, ##__VA_ARGS__); } while (false)
 #else
 #define GLLog(log_level, fmt, ...)
 #endif
@@ -110,18 +105,6 @@ static IOExternalMethod iofbFuncsCache[NUM_GL_METHODS] =
 #endif
 // Note: VM Methods
 };
-
-void CLASS::VLog(char const* fmt, ...)
-{
-	va_list ap;
-	char print_buf[VLOG_BUF_SIZE];
-	
-	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
-	va_end(ap);
-	VMLog_SendString(&print_buf[0]);
-}
 
 #pragma mark -
 #pragma mark IOUserClient Methods

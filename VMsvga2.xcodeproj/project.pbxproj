@@ -11,6 +11,7 @@
 		7909DAFF10827DF000CFBDBF /* VMsvga2Device.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7909DAFC10827DF000CFBDBF /* VMsvga2Device.cpp */; };
 		7909DB0010827DF000CFBDBF /* VMsvga2DVDContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7909DAFD10827DF000CFBDBF /* VMsvga2DVDContext.cpp */; };
 		7909DB0110827DF000CFBDBF /* VMsvga2OCDContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7909DAFE10827DF000CFBDBF /* VMsvga2OCDContext.cpp */; };
+		790CE2501084E41B004D109E /* VLog.c in Sources */ = {isa = PBXBuildFile; fileRef = 790CE24F1084E41B004D109E /* VLog.c */; };
 		79189F981038633A0065B61F /* send.s in Sources */ = {isa = PBXBuildFile; fileRef = 79BD1DBB1005132C00D12B9A /* send.s */; };
 		7919BDE1102B203500E56229 /* VMsvga2Accel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7919BDE0102B203500E56229 /* VMsvga2Accel.cpp */; };
 		792AA6B70FFF858500B0B5B1 /* VMsvga2Client.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 792AA6B50FFF858500B0B5B1 /* VMsvga2Client.cpp */; };
@@ -40,6 +41,8 @@
 		7909DAFC10827DF000CFBDBF /* VMsvga2Device.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VMsvga2Device.cpp; sourceTree = "<group>"; };
 		7909DAFD10827DF000CFBDBF /* VMsvga2DVDContext.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VMsvga2DVDContext.cpp; sourceTree = "<group>"; };
 		7909DAFE10827DF000CFBDBF /* VMsvga2OCDContext.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VMsvga2OCDContext.cpp; sourceTree = "<group>"; };
+		790CE24F1084E41B004D109E /* VLog.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = VLog.c; sourceTree = "<group>"; };
+		790CE2531084E42A004D109E /* VLog.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VLog.h; sourceTree = "<group>"; };
 		7919BDD0102B1EFF00E56229 /* VMsvga2Accel.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VMsvga2Accel.kext; sourceTree = BUILT_PRODUCTS_DIR; };
 		7919BDDD102B200500E56229 /* VMsvga2Accel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VMsvga2Accel.h; sourceTree = "<group>"; };
 		7919BDE0102B203500E56229 /* VMsvga2Accel.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VMsvga2Accel.cpp; sourceTree = "<group>"; };
@@ -200,6 +203,7 @@
 				799F594510319210000D2A71 /* SVGA3D.h */,
 				7919BDDD102B200500E56229 /* VMsvga2Accel.h */,
 				799EFBCE10483D9C003195B5 /* VMsvga2Allocator.h */,
+				790CE2531084E42A004D109E /* VLog.h */,
 				7986F8FF103B138900CD6D69 /* vmw_options_ac.h */,
 			);
 			name = Headers;
@@ -212,6 +216,7 @@
 				799F594610319210000D2A71 /* SVGA3D.cpp */,
 				7919BDE0102B203500E56229 /* VMsvga2Accel.cpp */,
 				799EFBCF10483D9C003195B5 /* VMsvga2Allocator.cpp */,
+				790CE24F1084E41B004D109E /* VLog.c */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -437,6 +442,7 @@
 				E503A17B10838E1700D1649D /* VMsvga2GLContext.cpp in Sources */,
 				E503A17C10838E1700D1649D /* VMsvga2Surface.cpp in Sources */,
 				E503A17D10838E1700D1649D /* VMsvga22DContext.cpp in Sources */,
+				790CE2501084E41B004D109E /* VLog.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,6 +501,7 @@
 				INFOPLIST_FILE = "Info-AC.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2Accel;
 				PRODUCT_NAME = VMsvga2Accel;
+				WARNING_CFLAGS = "-Wno-format";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Release;
@@ -555,6 +562,7 @@
 				INFOPLIST_FILE = "Info-AC.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2Accel;
 				PRODUCT_NAME = VMsvga2Accel;
+				WARNING_CFLAGS = "-Wno-format";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Release_SL;

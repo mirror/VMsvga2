@@ -28,6 +28,7 @@
  */
 
 #include <IOKit/IOLib.h>
+#include "Vlog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2OCDContext.h"
 
@@ -35,14 +36,8 @@
 #define super IOUserClient
 OSDefineMetaClassAndStructors(VMsvga2OCDContext, IOUserClient);
 
-#define VLOG_PREFIX_STR "log IOOCD: "
-#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
-#define VLOG_BUF_SIZE 256
-
-extern "C" char VMLog_SendString(char const* str);
-
 #if LOGGING_LEVEL >= 1
-#define OCDLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog(fmt, ##__VA_ARGS__); } while (false)
+#define OCDLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IOOCD: ", fmt, ##__VA_ARGS__); } while (false)
 #else
 #define OCDLog(log_level, fmt, ...)
 #endif
@@ -61,18 +56,6 @@ static IOExternalMethod iofbFuncsCache[NUM_OCD_METHODS] =
 	{0, reinterpret_cast<IOMethod>(&CLASS::FreeEvent), kIOUCScalarIScalarO, 0, 0},
 	{0, reinterpret_cast<IOMethod>(&CLASS::GetHandleIndex), kIOUCScalarIScalarO, 0, 2},
 };
-
-void CLASS::VLog(char const* fmt, ...)
-{
-	va_list ap;
-	char print_buf[VLOG_BUF_SIZE];
-	
-	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
-	va_end(ap);
-	VMLog_SendString(&print_buf[0]);
-}
 
 #pragma mark -
 #pragma mark IOUserClient Methods

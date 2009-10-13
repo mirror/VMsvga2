@@ -30,6 +30,7 @@
 #include <IOKit/pci/IOPCIDevice.h>
 #include <IOKit/graphics/IOGraphicsInterfaceTypes.h>
 #include "vmw_options_ac.h"
+#include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Surface.h"
 #include "VMsvga2GLContext.h"
@@ -48,14 +49,8 @@ OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
 
 UInt32 vmw_options_ac = 0;
 
-#define VLOG_PREFIX_STR "log IOAC: "
-#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
-#define VLOG_BUF_SIZE 256
-
-extern "C" char VMLog_SendString(char const* str);
-
 #if LOGGING_LEVEL >= 1
-#define ACLog(log_level, fmt, ...) do { if (log_level <= m_log_level_ac) VLog(fmt, ##__VA_ARGS__); } while(false)
+#define ACLog(log_level, fmt, ...) do { if (log_level <= m_log_level_ac) VLog("IOAC: ", fmt, ##__VA_ARGS__); } while(false)
 #else
 #define ACLog(log_level, fmt, ...)
 #endif
@@ -119,18 +114,6 @@ void CLASS::Cleanup()
 		IOLockFree(m_iolock);
 		m_iolock = 0;
 	}
-}
-
-void CLASS::VLog(char const* fmt, ...)
-{
-	va_list ap;
-	char print_buf[VLOG_BUF_SIZE];
-
-	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
-	va_end(ap);
-	VMLog_SendString(&print_buf[0]);
 }
 
 #ifdef TIMING

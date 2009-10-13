@@ -1,10 +1,9 @@
 /*
- *  VMsvga2DVDContext.h
+ *  VLog.h
  *  VMsvga2Accel
  *
- *  Created by Zenith432 on October 11th 2009.
+ *  Created by Zenith432 on October 13th 2009.
  *  Copyright 2009 Zenith432. All rights reserved.
- *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -27,40 +26,18 @@
  *  SOFTWARE.
  */
 
-#ifndef __VMSVGA2DVDCONTEXT_H__
-#define __VMSVGA2DVDCONTEXT_H__
+#ifndef __VLOG_H__
+#define __VLOG_H__
 
-#include <IOKit/IOUserClient.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-class VMsvga2DVDContext: public IOUserClient
-{
-	OSDeclareDefaultStructors(VMsvga2DVDContext);
+char VMLog_SendString(char const* str);
+void VLog(char const* prefix_str, char const* fmt, ...) __printflike(2, 3);
 
-private:
-	task_t m_owning_task;
-	class VMsvga2Accel* m_provider;
-	IOExternalMethod* m_funcs_cache;
-	SInt32 m_log_level;
+#ifdef __cplusplus
+}
+#endif
 
-public:
-	/*
-	 * Methods overridden from superclass
-	 */
-	IOExternalMethod* getTargetAndMethodForIndex(IOService** targetP, UInt32 index);
-	IOReturn clientClose();
-	IOReturn clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory);
-	IOReturn connectClient(IOUserClient* client);
-	bool start(IOService* provider);
-	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
-	static VMsvga2DVDContext* withTask(task_t owningTask, void* securityToken, UInt32 type);
-
-	/*
-	 * TBD: Methods from IONVDVDContext
-	 */
-
-	/*
-	 * TBD: Methods from NVDVDContext
-	 */
-};
-
-#endif /* __VMSVGA2DVDCONTEXT_H__ */
+#endif /* __VLOG_H__ */

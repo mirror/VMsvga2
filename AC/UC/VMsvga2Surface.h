@@ -120,7 +120,6 @@ private:
 		SVGAOverlayUnit	unit;
 	} m_video;
 
-	void VLog(char const* fmt, ...);
 #ifdef TESTING
 	void runTest();
 #endif
