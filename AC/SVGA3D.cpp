@@ -48,6 +48,7 @@ bool CLASS::Init(SVGADevice* device)
 {
 	UInt32* fifo_ptr;
 
+	HWVersion = 0;
 	if (!device) {
 		m_svga = 0;
 		return false;
@@ -67,11 +68,12 @@ bool CLASS::Init(SVGADevice* device)
 	 * Check the host's version, make sure we're binary compatible.
 	 */
 
-	if (fifo_ptr[SVGA_FIFO_3D_HWVERSION] == 0) {
+	HWVersion = fifo_ptr[SVGA_FIFO_3D_HWVERSION];
+	if (HWVersion == 0) {
 		SLog("%s: SVGA3D: 3D disabled by host.\n", __FUNCTION__);
 		return false;
 	}
-	if (fifo_ptr[SVGA_FIFO_3D_HWVERSION] < SVGA3D_HWVERSION_WS65_B1) {
+	if (HWVersion < SVGA3D_HWVERSION_WS65_B1) {
 		SLog("%s: SVGA3D: Host SVGA3D protocol is too old, not binary compatible.\n", __FUNCTION__);
 		return false;
 	}

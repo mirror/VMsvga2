@@ -64,6 +64,9 @@ private:
 	UInt32 m_width;
 	UInt32 m_height;
 	UInt32 m_pitch;
+	UInt32 m_max_width;
+	UInt32 m_max_height;
+	UInt32 m_max_gmrs;
 	/*
 	 * End Added
 	 */
@@ -134,6 +137,9 @@ public:
 	UInt32 getCurrentWidth() const { return m_width; }
 	UInt32 getCurrentHeight() const { return m_height; }
 	UInt32 getCurrentPitch() const { return m_pitch; }
+	UInt32 getMaxWidth() const { return m_max_width; }
+	UInt32 getMaxHeight() const { return m_max_height; }
+	UInt32 getMaxGMRs() const { return m_max_gmrs; }
 	void RegDump();
 
 	bool RectCopy(UInt32 const* copyRect);					// copyRect is an array of 6 UInt32 - same order as SVGAFifoCmdRectCopy

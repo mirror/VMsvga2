@@ -83,6 +83,8 @@ IOExternalMethod* VMsvga2Client::getTargetAndMethodForIndex(IOService** targetP,
 		case 2:
 			*targetP = this;
 			break;
+		case 0:
+			index = 3;
 		case 3:
 			if (!m_provider)	// Added
 				return 0;

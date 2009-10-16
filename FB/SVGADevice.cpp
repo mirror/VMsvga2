@@ -181,6 +181,10 @@ bool SVGADevice::Init(IOPCIDevice* provider, VMFBIOLog log_level)
 	m_width = ReadReg(SVGA_REG_WIDTH);
 	m_height = ReadReg(SVGA_REG_HEIGHT);
 	m_pitch = ReadReg(SVGA_REG_BYTES_PER_LINE);
+	m_max_width = ReadReg(SVGA_REG_MAX_WIDTH);
+	m_max_height = ReadReg(SVGA_REG_MAX_HEIGHT);
+	if (HasCapability(SVGA_CAP_GMR))
+		m_max_gmrs = ReadReg(SVGA_REG_GMR_MAX_IDS);
 	LogPrintf(3, "%s: SVGA max w, h=%u, %u : host_bpp=%u, bpp=%u\n", __FUNCTION__, max_width, max_height, host_bpp, guest_bpp);
 	LogPrintf(3, "%s: SVGA VRAM size=%u FB size=%u, FIFO size=%u\n", __FUNCTION__, vram_size, fb_size, m_fifo_size);
 	if (HasCapability(SVGA_CAP_TRACES))

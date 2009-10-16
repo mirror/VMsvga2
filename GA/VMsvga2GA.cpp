@@ -258,8 +258,11 @@ static IOReturn vmStart(void* myInstance, CFDictionaryRef propertyTable, io_serv
 	if (rc != kIOReturnSuccess)
 		goto cleanup;
 	me->_config_val_2 = output_struct;
-	if (vmReset(me, 0) == kIOReturnSuccess)
-		goto good_exit;
+	rc = vmReset(me, 0);
+	if (rc != kIOReturnSuccess)
+		goto cleanup;
+	useAccelUpdates(context, 1);
+	goto good_exit;
 
 cleanup:
 	if (context)
@@ -310,7 +313,6 @@ static IOReturn vmReset(void* myInstance, IOOptionBits options)
 		return kIOReturnBadArgument;
 	if (!me->_context)
 		return kIOReturnNotReady;
-	useAccelUpdates(me->_context, 1);
 	/*
 	 * TBD GeForceGA 0x1920 - 0x1B07
 	 */
@@ -349,10 +351,6 @@ static IOReturn vmGetCapabilities(void* myInstance, FourCharCode select, CFTypeR
 static IOReturn vmFlush(void* myInstance, IOOptionBits options)
 {
 	GALog(3, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, options);
-
-	/*
-	 * TBD call useAccelUpdates(0) ? (only when called from vmStop())
-	 */
 
 #if 0
 	/*

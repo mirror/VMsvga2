@@ -46,6 +46,7 @@ class SVGA3D
 {
 private:
 	SVGADevice* m_svga;
+	UInt32 HWVersion;
 
 	void* FIFOReserve(UInt32 cmd, size_t cmdSize);
 
@@ -55,6 +56,7 @@ public:
 	 */
 
 	bool Init(SVGADevice*);
+	UInt32 getHWVersion() const { return HWVersion; }
 	bool BeginPresent(UInt32 sid, SVGA3dCopyRect **rects, size_t numRects);
 	bool BeginPresentReadback(SVGA3dRect **rects, size_t numRects);
 

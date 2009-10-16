@@ -70,7 +70,7 @@ static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 {0, reinterpret_cast<IOMethod>(&CLASS::kernel_printf), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 // Note: VM Methods
 {0, reinterpret_cast<IOMethod>(&CLASS::CopyRegion), kIOUCScalarIStructI, 3, kIOUCVariableStructureSize},
-{0, reinterpret_cast<IOMethod>(&VMsvga2Accel::useAccelUpdates), kIOUCScalarIScalarO, 1, 0},
+{0, reinterpret_cast<IOMethod>(&CLASS::useAccelUpdates), kIOUCScalarIScalarO, 1, 0},
 {0, reinterpret_cast<IOMethod>(&VMsvga2Accel::RectCopy), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&VMsvga2Accel::RectFill), kIOUCScalarIStructI, 1, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&VMsvga2Accel::UpdateFramebufferAutoRing), kIOUCScalarIStructI, 0, 4U * sizeof(UInt32)}
@@ -86,7 +86,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 {
 	if (!targetP || index >= kIOVM2DNumMethods)
 		return 0;
-	if (index >= kIOVM2DUseAccelUpdates) {
+	if (index >= kIOVM2DRectCopy) {
 		if (m_provider)
 			*targetP = m_provider;
 		else
@@ -107,6 +107,8 @@ IOReturn CLASS::clientClose()
 		surface_client = 0;
 		bTargetIsCGSSurface = false;
 	}
+	if (m_provider)
+		m_provider->useAccelUpdates(0, m_owning_task);
 	if (!terminate(0))
 		IOLog("%s: terminate failed\n", __FUNCTION__);
 	m_owning_task = 0;
@@ -207,6 +209,13 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id, intptr_t destX, intptr_t
 	if (!surface_client)
 		return kIOReturnNotReady;
 	return surface_client->context_copy_region(destX, destY, region, regionSize);
+}
+
+IOReturn CLASS::useAccelUpdates(uintptr_t state)
+{
+	if (!m_provider)
+		return kIOReturnNotReady;
+	return m_provider->useAccelUpdates(state, m_owning_task);
 }
 
 #pragma mark -

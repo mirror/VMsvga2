@@ -81,6 +81,7 @@ private:
 	thread_call_t m_refresh_call;
 	UInt32 m_refresh_fence_count;
 	UInt32 m_refresh_quantum_ms;
+	UInt32 m_num_active_modes;
 	/*
 	 * End Added
 	 */

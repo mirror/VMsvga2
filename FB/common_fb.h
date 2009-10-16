@@ -35,7 +35,7 @@
 #ifndef __VMSVGA2_COMMON_FB_H__
 #define __VMSVGA2_COMMON_FB_H__
 
-#define NUM_DISPLAY_MODES 14
+#define NUM_DISPLAY_MODES 17
 #define CUSTOM_MODE_ID 1
 
 #define GUEST_OS_LINUX 0x5008U

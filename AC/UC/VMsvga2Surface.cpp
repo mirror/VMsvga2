@@ -401,7 +401,7 @@ IOReturn CLASS::detectBlitBug()
 	UInt32* ptr = 0;
 	UInt32 const sid = 666;
 	UInt32 const cid = 667;
-	UInt32 const pixval_red = 0xFF0000U;
+	UInt32 const pixval_check = 0xFF000000U;
 	UInt32 const pixval_green = 0xFF00U;
 	UInt32 const w = 10;
 	UInt32 const h = 10;
@@ -446,7 +446,7 @@ IOReturn CLASS::detectBlitBug()
 	m_provider->SyncFIFO();
 	rc = kIOReturnSuccess;
 	for (i = 0; i < pixels; ++i)
-		if (ptr[i] != pixval_red) {
+		if (ptr[i] != pixval_check) {
 			rc = kIOReturnUnsupported;
 			break;
 		}
@@ -1232,8 +1232,13 @@ IOReturn CLASS::context_copy_region(intptr_t destX, intptr_t destY, IOAccelDevic
 	bzero(&extra, sizeof extra);
 	extra.mem_offset_in_bar1 = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
-	extra.dstDeltaX = static_cast<SInt32>(destX) - region->bounds.x;
-	extra.dstDeltaY = static_cast<SInt32>(destY) - region->bounds.y;
+	if (m_provider->reverseDMAReadSense()) {
+		extra.srcDeltaX = static_cast<SInt32>(destX) - region->bounds.x;
+		extra.srcDeltaY = static_cast<SInt32>(destY) - region->bounds.y;
+	} else {
+		extra.dstDeltaX = static_cast<SInt32>(destX) - region->bounds.x;
+		extra.dstDeltaY = static_cast<SInt32>(destY) - region->bounds.y;
+	}
 	rc = m_provider->surfaceDMA2D(m_provider->getMasterSurfaceID(),
 								  SVGA3D_READ_HOST_VRAM,
 								  region,

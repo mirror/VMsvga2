@@ -339,14 +339,14 @@ IOReturn CLASS::getDisplayModes(IODisplayModeID* allDisplayModes)
 		*allDisplayModes = CUSTOM_MODE_ID;
 		return kIOReturnSuccess;
 	}
-	memcpy(allDisplayModes, &m_modes[0], sizeof m_modes);
+	memcpy(allDisplayModes, &m_modes[0], m_num_active_modes * sizeof(IODisplayModeID));
 	return kIOReturnSuccess;
 }
 
 IOItemCount CLASS::getDisplayModeCount()
 {
 	IOItemCount r;
-	r = m_custom_switch ? 1 : NUM_DISPLAY_MODES;
+	r = m_custom_switch ? 1 : m_num_active_modes;
 	LogPrintf(4, "%s: mode count=%u\n", __FUNCTION__, r);
 	return r;
 }
@@ -518,7 +518,7 @@ void CLASS::deleteRefreshTimer()
 
 bool CLASS::start(IOService* provider)
 {
-	UInt32 boot_arg;
+	UInt32 boot_arg, max_w, max_h;
 	UInt16 vendor_id, device_id, subvendor_id, subsystem_id;
 	UInt8 revision_id;
 	OSData* o_edid;		// Added
@@ -617,8 +617,13 @@ bool CLASS::start(IOService* provider)
 	/*
 	 * End Added
 	 */
+	max_w = svga.getMaxWidth();
+	max_h = svga.getMaxHeight();
+	m_num_active_modes = 0;
 	for (unsigned i = 0; i < NUM_DISPLAY_MODES; ++i)
-		m_modes[i] = modeList[i].mode_id;
+		if (modeList[i].width <= max_w &&
+			modeList[i].height <= max_h)
+			m_modes[m_num_active_modes++] = modeList[i].mode_id;
 	m_restore_call = thread_call_allocate(&_RestoreAllModes, this);
 	if (!m_restore_call) {
 		LogPrintf(1, "%s: Failed to allocate timer.\n", __FUNCTION__);
@@ -860,14 +865,14 @@ void CLASS::RestoreAllModes()
 	dme1 = FindDisplayMode(CUSTOM_MODE_ID);
 	if (!dme1)
 		return;
-	for (i = 0; i < NUM_DISPLAY_MODES; ++i) {
+	for (i = 0; i < m_num_active_modes; ++i) {
 		dme2 = FindDisplayMode(m_modes[i]);
 		if (!dme2)
 			continue;
 		if (dme2->width != dme1->width || dme2->height != dme1->height)
 			break;
 	}
-	if (i == NUM_DISPLAY_MODES)
+	if (i == m_num_active_modes)
 		return;
 	t = m_modes[0];
 	m_modes[0] = m_modes[i];
@@ -1124,4 +1129,5 @@ void CLASS::useAccelUpdates(bool state)
 		IOLockUnlock(m_iolock);
 	}
 	setProperty("VMwareSVGAAccelSynchronize", state);
+	LogPrintf(2, "Accelerator Assisted Updates: %s\n", state ? "On" : "Off");
 }

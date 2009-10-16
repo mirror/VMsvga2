@@ -45,12 +45,15 @@ DisplayModeEntry const modeList[NUM_DISPLAY_MODES] =
 	6, 1280, 800, kDisplayModeValidFlag | kDisplayModeSafeFlag,		// 8x5
 	7, 1280, 1024, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 5x4
 	8, 1376, 1032, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
-	9, 1440, 900, kDisplayModeValidFlag | kDisplayModeSafeFlag,		// 8x5 Note: was 1400x900
-	10, 1400, 1050, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
+	9, 1400, 1050, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
+	10, 1440, 900, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 8x5 Note: was 1400x900
 	11, 1600, 1200, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
 	12, 1680, 1050, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 8x5
 	13, 1920, 1200, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 8x5
-	14, 2360, 1770, kDisplayModeValidFlag | kDisplayModeSafeFlag	// 4x3 Note: was 2364x1773
+	14, 1920, 1440, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
+	15, 2048, 1536, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
+	16, 2360, 1770, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3 Note: was 2364x1773
+	17, 2560, 1600, kDisplayModeValidFlag | kDisplayModeSafeFlag	// 8x5
 };
 
 DisplayModeEntry customMode;

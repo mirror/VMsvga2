@@ -67,6 +67,7 @@ public:
 	 * GA Support Methods
 	 */
 	IOReturn CopyRegion(uintptr_t source_surface_id, intptr_t destX, intptr_t destY, IOAccelDeviceRegion const* region, size_t regionSize);
+	IOReturn useAccelUpdates(uintptr_t state);
 
 	/*
 	 * Methods corresponding to Apple's GeForce.kext 2D Context User Client
