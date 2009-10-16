@@ -71,7 +71,8 @@ static IOExternalMethod iofbFuncsCache[NUM_DV_METHODS] =
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
-	DVLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
+	if (index >= NUM_DV_METHODS)
+		DVLog(2, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
 	if (!targetP || index >= NUM_DV_METHODS)
 		return 0;
 	if (index >= VM_METHODS_START) {
@@ -96,18 +97,18 @@ IOReturn CLASS::clientClose()
 
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
-	DVLog(1, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
-	if (type == 1 &&
-		options != 0 &&
-		memory != 0) {
-		IOBufferMemoryDescriptor* md = IOBufferMemoryDescriptor::withOptions(kIOMemoryPageable | kIOMemoryKernelUserShared,
-																			 0x400,
-																			 PAGE_SIZE);
-		*memory = md;
-		*options = kIOMapAnywhere;
-		return kIOReturnSuccess;
-	}
+	DVLog(2, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
+	if (!options || !memory)
+		return kIOReturnBadArgument;
+	IOBufferMemoryDescriptor* md = IOBufferMemoryDescriptor::withOptions(kIOMemoryPageable | kIOMemoryKernelUserShared,
+																		 PAGE_SIZE,
+																		 PAGE_SIZE);
+	*memory = md;
+	*options = kIOMapAnywhere;
+	return kIOReturnSuccess;
+#if 0
 	return super::clientMemoryForType(type, options, memory);
+#endif
 }
 
 #if 0
@@ -166,85 +167,109 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
 
 IOReturn CLASS::create_shared()
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s()\n", __FUNCTION__);
+	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4, io_user_scalar_t* c5)
 {
+	DVLog(2, "%s(out1, out2, out3, out4, out5)\n", __FUNCTION__);
 	if (c1)
-		*c1 = 0;
+		*c1 = 0x4051;
 	if (c2)
-		*c2 = 0;
+		*c2 = 0x4052;
 	if (c3)
-		*c3 = 0;
+		*c3 = 128 * 1024 * 1024;	// TBD: VRAM size
 	if (c4)
-		*c4 = 0;
+		*c4 = 0x4054;
 	if (c5)
-		*c5 = 0;
+		*c5 = 0x4055;
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_info(uintptr_t, io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*)
+IOReturn CLASS::get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%lu, out2, out3, out4)\n", __FUNCTION__, c1);
+	*c2 = 0x4061;
+	*c3 = 0x4062;
+	*c4 = 0x4063;
+	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_name(char *, size_t* struct_out_size)
+IOReturn CLASS::get_name(char* out_name, size_t* struct_out_size)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%p, %lu)\n", __FUNCTION__, out_name, *struct_out_size);
+	if (!out_name || !struct_out_size)
+		return kIOReturnBadArgument;
+	strlcpy(out_name, "VMsvga2", *struct_out_size);
+	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::wait_for_stamp(uintptr_t)
+IOReturn CLASS::wait_for_stamp(uintptr_t c1)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%lu)\n", __FUNCTION__, c1);
+	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::new_texture(struct VendorNewTextureDataRec const*, struct sIONewTextureReturnData*, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::new_texture(struct VendorNewTextureDataRec const* in_struct, struct sIONewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, in_struct, out_struct, struct_in_size, *struct_out_size);
+	bzero(out_struct, *struct_out_size);
+	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::delete_texture(uintptr_t)
+IOReturn CLASS::delete_texture(uintptr_t c1)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%lu)\n", __FUNCTION__, c1);
+	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::page_off_texture(struct sIODevicePageoffTexture const*, size_t struct_in_size)
+IOReturn CLASS::page_off_texture(struct sIODevicePageoffTexture const* in_struct, size_t struct_in_size)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%p, %lu)\n", __FUNCTION__, in_struct, struct_in_size);
+	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_channel_memory(struct sIODeviceChannelMemoryData*, size_t* struct_out_size)
+IOReturn CLASS::get_channel_memory(struct sIODeviceChannelMemoryData* out_struct, size_t* struct_out_size)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s(%p, %lu)\n", __FUNCTION__, out_struct, *struct_out_size);
+	memset(out_struct, 0x55U, *struct_out_size);
+	return kIOReturnSuccess;
 }
 
 #pragma mark -
 #pragma mark NVDevice Methods
 #pragma mark -
 
-IOReturn CLASS::kernel_printf(char const*, size_t struct_in_size)
+IOReturn CLASS::kernel_printf(char const* str, size_t struct_in_size)
 {
-	return kIOReturnUnsupported;
+	DVLog(2, "%s: %s\n", __FUNCTION__, str);	// TBD: limit str by struct_in_size
+	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::nv_rm_config_get(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size)
 {
-	DVLog(1, "%s(..., ..., %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
+	DVLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, in_struct, out_struct, struct_in_size, *struct_out_size);
+	if (*struct_out_size < struct_in_size)
+		struct_in_size = *struct_out_size;
 	memcpy(out_struct, in_struct, struct_in_size);
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::nv_rm_config_get_ex(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size)
 {
-	DVLog(1, "%s(..., ..., %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
+	DVLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, in_struct, out_struct, struct_in_size, *struct_out_size);
+	if (*struct_out_size < struct_in_size)
+		struct_in_size = *struct_out_size;
 	memcpy(out_struct, in_struct, struct_in_size);
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::nv_rm_control(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size)
 {
-	DVLog(1, "%s(..., ..., %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
+	DVLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, in_struct, out_struct, struct_in_size, *struct_out_size);
+	if (*struct_out_size < struct_in_size)
+		struct_in_size = *struct_out_size;
 	memcpy(out_struct, in_struct, struct_in_size);
 	return kIOReturnSuccess;
 }

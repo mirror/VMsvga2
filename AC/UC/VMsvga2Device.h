@@ -61,18 +61,18 @@ public:
 	 */
 	IOReturn create_shared();
 	IOReturn get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4, io_user_scalar_t* c5);
-	IOReturn get_surface_info(uintptr_t, io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*);
-	IOReturn get_name(char *, size_t* struct_out_size);
-	IOReturn wait_for_stamp(uintptr_t);
-	IOReturn new_texture(struct VendorNewTextureDataRec const*, struct sIONewTextureReturnData*, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn delete_texture(uintptr_t);
-	IOReturn page_off_texture(struct sIODevicePageoffTexture const*, size_t struct_in_size);
-	IOReturn get_channel_memory(struct sIODeviceChannelMemoryData*, size_t* struct_out_size);
+	IOReturn get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4);
+	IOReturn get_name(char* out_name, size_t* struct_out_size);
+	IOReturn wait_for_stamp(uintptr_t c1);
+	IOReturn new_texture(struct VendorNewTextureDataRec const* in_struct, struct sIONewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size);
+	IOReturn delete_texture(uintptr_t c1);
+	IOReturn page_off_texture(struct sIODevicePageoffTexture const* in_struct, size_t struct_in_size);
+	IOReturn get_channel_memory(struct sIODeviceChannelMemoryData* out_struct, size_t* struct_out_size);
 
 	/*
 	 * NVDevice Methods
 	 */
-	IOReturn kernel_printf(char const*, size_t struct_in_size);
+	IOReturn kernel_printf(char const* str, size_t struct_in_size);
 	IOReturn nv_rm_config_get(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size);
 	IOReturn nv_rm_config_get_ex(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size);
 	IOReturn nv_rm_control(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size);

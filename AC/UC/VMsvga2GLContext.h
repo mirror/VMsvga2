@@ -44,6 +44,9 @@ private:
 	IOExternalMethod* m_funcs_cache;
 	SInt32 m_log_level;
 
+	UInt32 m_mem_type;
+	IOMemoryMap* m_mm_remember;
+
 public:
 	/*
 	 * Methods overridden from superclass
@@ -65,28 +68,28 @@ public:
 	/*
 	 * IONVGLContext
 	 */
-	IOReturn set_surface(uintptr_t, eIOGLContextModeBits, uintptr_t, uintptr_t);
-	IOReturn set_swap_rect(intptr_t, intptr_t, intptr_t, intptr_t);
-	IOReturn set_swap_interval(intptr_t, intptr_t);
-	IOReturn get_config(io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*);	// OS 10.5
-	IOReturn get_surface_size(io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*);
-	IOReturn get_surface_info(uintptr_t, io_user_scalar_t*, io_user_scalar_t*, io_user_scalar_t*);
-	IOReturn read_buffer(struct sIOGLContextReadBufferData const*, size_t struct_in_size);
+	IOReturn set_surface(uintptr_t c1, eIOGLContextModeBits c2, uintptr_t c3, uintptr_t c4);
+	IOReturn set_swap_rect(intptr_t c1, intptr_t c2, intptr_t c3, intptr_t c4);
+	IOReturn set_swap_interval(intptr_t c1, intptr_t c2);
+	IOReturn get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3);	// OS 10.5
+	IOReturn get_surface_size(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4);
+	IOReturn get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4);
+	IOReturn read_buffer(struct sIOGLContextReadBufferData const* in_struct, size_t struct_in_size);
 	IOReturn finish();
-	IOReturn wait_for_stamp(uintptr_t);
-	IOReturn new_texture(struct sIOGLNewTextureData const*, struct sIOGLNewTextureReturnData*, size_t struct_in_size, size_t* struct_out_size);		// OS 10.5
-	IOReturn delete_texture(uintptr_t);		// OS 10.5
-	IOReturn become_global_shared(uintptr_t);
-	IOReturn page_off_texture(struct sIOGLContextPageoffTexture const*, size_t struct_in_size);		// OS 10.5
-	IOReturn purge_texture(uintptr_t);
-	IOReturn set_surface_volatile_state(uintptr_t);
-	IOReturn set_surface_get_config_status(struct sIOGLContextSetSurfaceData const*, struct sIOGLContextGetConfigStatus*, size_t struct_in_size, size_t* struct_out_size);
+	IOReturn wait_for_stamp(uintptr_t c1);
+	IOReturn new_texture(struct sIOGLNewTextureData const* in_struct, struct sIOGLNewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size);		// OS 10.5
+	IOReturn delete_texture(uintptr_t c1);		// OS 10.5
+	IOReturn become_global_shared(uintptr_t c1);
+	IOReturn page_off_texture(struct sIOGLContextPageoffTexture const* in_struct, size_t struct_in_size);		// OS 10.5
+	IOReturn purge_texture(uintptr_t c1);
+	IOReturn set_surface_volatile_state(uintptr_t c1);
+	IOReturn set_surface_get_config_status(struct sIOGLContextSetSurfaceData const* in_struct, struct sIOGLContextGetConfigStatus* out_struct, size_t struct_in_size, size_t* struct_out_size);
 	IOReturn reclaim_resources();
-	IOReturn get_data_buffer(struct sIOGLContextGetDataBuffer*, size_t* struct_out_size);
-	IOReturn set_stereo(uintptr_t, uintptr_t);
-	IOReturn purge_accelerator(uintptr_t);
-	IOReturn get_channel_memory(struct sIOGLChannelMemoryData*, size_t* struct_out_size);		// OS 10.5
-	IOReturn submit_command_buffer(uintptr_t, struct sIOGLGetCommandBuffer*, size_t* struct_out_size);		// OS 10.6
+	IOReturn get_data_buffer(struct sIOGLContextGetDataBuffer* out_struct, size_t* struct_out_size);
+	IOReturn set_stereo(uintptr_t c1, uintptr_t c2);
+	IOReturn purge_accelerator(uintptr_t c1);
+	IOReturn get_channel_memory(struct sIOGLChannelMemoryData* out_struct, size_t* struct_out_size);		// OS 10.5
+	IOReturn submit_command_buffer(uintptr_t do_get_data, struct sIOGLGetCommandBuffer* out_struct, size_t* struct_out_size);		// OS 10.6
 
 	/*
 	 * NVGLContext
