@@ -967,8 +967,10 @@ IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
 		return kIOReturnNotReady;
 	if (bVideoMode)
 		return kIOReturnSuccess;
-	if (!bHaveSVGA3D)
+	if (!bHaveSVGA3D) {
+		SFLog(1, "%s: called without SVGA3D - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
 	/*
 	 * Note: conditions for direct blit:
 	 *   surfaceFormat same
@@ -1225,10 +1227,22 @@ IOReturn CLASS::context_copy_region(intptr_t destX, intptr_t destY, IOAccelDevic
 	if (!region || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(region))
 		return kIOReturnBadArgument;
 
-	if (!bHaveID || !isBackingValid())
+	if (!bHaveID)
 		return kIOReturnNotReady;
-	if (bVideoMode || !bHaveSVGA3D)
+	if (bVideoMode) {
+		SFLog(1, "%s: called for YUV surface - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
+	if (!bHaveSVGA3D) {
+		SFLog(1, "%s: called without SVGA3D - unsupported\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
+	if (!isBackingValid()) {
+		/*
+		 * TBD: handle if called without a preexisting backing
+		 */
+		return kIOReturnNotReady;
+	}
 	bzero(&extra, sizeof extra);
 	extra.mem_offset_in_bar1 = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
@@ -1266,8 +1280,10 @@ IOReturn CLASS::surface_flush_video()
 
 	if (!bHaveID || !m_last_region || !isBackingValid())
 		return kIOReturnNotReady;
-	if (!bVideoMode)
+	if (!bVideoMode) {
+		SFLog(1, "%s: called for non-YUV surface - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
 	/*
 	 * Note: we don't SyncFIFO right after a flush, which means the backing may be reused
 	 *   while there are still outgoing video flushes in the FIFO.  This may cause some tearing.

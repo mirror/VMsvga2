@@ -343,6 +343,18 @@ bool CLASS::start(IOService* provider)
 	if (!m_fbNotifier)
 		ACLog(1, "Unable to register framebuffer notification handler\n");
 #endif
+	/*
+	 * Options Are:
+	 *   ATIRadeonX1000GLDriver
+	 *   ATIRadeonX2000GLDriver
+	 *   AppleIntelGMA950GLDriver
+	 *   AppleIntelGMAX3100GLDriver
+	 *   GeForce7xxxGLDriver
+	 *   GeForce8xxxGLDriver
+	 */
+#if 0
+	setProperty("IOGLBundleName", "AppleIntelGMA950GLDriver");
+#endif
 	return true;
 }
 
@@ -491,6 +503,10 @@ IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects, size
 		return kIOReturnBadArgument;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
+	if (bHaveSVGA3D) {
+		ACLog(1, "%s: called with SVGA3D - unsupported\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
 	m_framebuffer->lockDevice();
 	for (i = 0; i < count; ++i) {
 		rc = m_svga->RectCopy(reinterpret_cast<UInt32 const*>(&copyRects[i]));
@@ -510,6 +526,10 @@ IOReturn CLASS::RectFill(uintptr_t color, struct IOBlitRectangleStruct const* re
 		return kIOReturnBadArgument;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
+	if (bHaveSVGA3D) {
+		ACLog(1, "%s: called with SVGA3D - unsupported\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
 	m_framebuffer->lockDevice();
 	for (i = 0; i < count; ++i) {
 		rc = m_svga->RectFill(static_cast<UInt32>(color), reinterpret_cast<UInt32 const*>(&rects[i]));
@@ -526,6 +546,8 @@ IOReturn CLASS::UpdateFramebuffer(UInt32 const* rect)
 		return kIOReturnBadArgument;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
+	if (bHaveSVGA3D)
+		return kIOReturnSuccess;
 	m_framebuffer->lockDevice();
 	m_svga->UpdateFramebuffer2(rect);
 	m_framebuffer->unlockDevice();
@@ -538,6 +560,8 @@ IOReturn CLASS::UpdateFramebufferAutoRing(UInt32 const* rect)
 		return kIOReturnBadArgument;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
+	if (bHaveSVGA3D)
+		return kIOReturnSuccess;
 	++m_updates_counter;
 	if (m_updates_counter == UPDATES_COUNTER_THRESHOLD)
 		m_updates_counter = 0;
@@ -564,6 +588,10 @@ IOReturn CLASS::CopyRegion(intptr_t destX, intptr_t destY, void /* IOAccelDevice
 		return kIOReturnBadArgument;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
+	if (bHaveSVGA3D) {
+		ACLog(1, "%s: called with SVGA3D - unsupported\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
 	m_framebuffer->lockDevice();
 	rect = &rgn->bounds;
 	if (checkOptionAC(VMW_OPTION_AC_REGION_BOUNDS_COPY)) {

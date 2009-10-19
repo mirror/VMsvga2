@@ -44,6 +44,7 @@ private:
 	task_t m_owning_task;
 	class VMsvga2Accel* m_provider;
 	IOExternalMethod* m_funcs_cache;
+	SInt32 m_log_level;
 
 	unsigned bTargetIsCGSSurface:1;
 	class VMsvga2Surface* surface_client;

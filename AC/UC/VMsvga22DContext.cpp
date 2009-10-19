@@ -29,6 +29,7 @@
 
 #include <IOKit/IOLib.h>
 #include <IOKit/graphics/IOGraphicsInterfaceTypes.h>
+#include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Surface.h"
 #include "VMsvga22DContext.h"
@@ -41,6 +42,12 @@
 #define CLASS VMsvga22DContext
 #define super IOUserClient
 OSDefineMetaClassAndStructors(VMsvga22DContext, IOUserClient);
+
+#if LOGGING_LEVEL >= 1
+#define TDLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IO2D: ", fmt, ##__VA_ARGS__); } while (false)
+#else
+#define TDLog(log_level, fmt, ...)
+#endif
 
 static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 {
@@ -76,8 +83,6 @@ static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 {0, reinterpret_cast<IOMethod>(&VMsvga2Accel::UpdateFramebufferAutoRing), kIOUCScalarIStructI, 0, 4U * sizeof(UInt32)}
 };
 
-extern "C" char VMLog_SendString(char const* str);
-
 #pragma mark -
 #pragma mark IOUserClient Methods
 #pragma mark -
@@ -98,10 +103,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 
 IOReturn CLASS::clientClose()
 {
-#if LOGGING_LEVEL >= 1
-	if (m_provider->getLogLevelAC() >= 2)
-		VMLog_SendString("log IO2D: clientClose\n");
-#endif
+	TDLog(2, "%s\n", __FUNCTION__);
 	if (surface_client) {
 		surface_client->release();
 		surface_client = 0;
@@ -129,11 +131,13 @@ bool CLASS::start(IOService* provider)
 	m_provider = OSDynamicCast(VMsvga2Accel, provider);
 	if (!m_provider)
 		return false;
+	m_log_level = m_provider->getLogLevelAC();
 	return super::start(provider);
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 {
+	m_log_level = 1;
 	if (!super::initWithTask(owningTask, securityToken, type))
 		return false;
 	m_owning_task = owningTask;
@@ -193,8 +197,10 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id, intptr_t destX, intptr_t
 	 *   WindowsServer blits by using surface_flush() and QuickTime blits with SwapSurface,
 	 *   so it's not really necessary.
 	 */
-	if (source_surface_id)
+	if (source_surface_id) {
+		TDLog(1, "%s: Copy from surface source (0x%lx) - unsupported\n", __FUNCTION__, source_surface_id);
 		return kIOReturnUnsupported;
+	}
 	if (!bTargetIsCGSSurface) {
 		/*
 		 * destination is framebuffer, use classic mode
@@ -295,8 +301,10 @@ IOReturn CLASS::get_surface_info1(uintptr_t, eIOContextModeBits, void *, size_t*
 
 IOReturn CLASS::swap_surface(uintptr_t options, io_user_scalar_t* swapFlags)
 {
-	if (!bTargetIsCGSSurface)
+	if (!bTargetIsCGSSurface) {
+		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
 	if (!surface_client)
 		return kIOReturnNotReady;
 	surface_client->surface_flush_video();
@@ -307,8 +315,10 @@ IOReturn CLASS::swap_surface(uintptr_t options, io_user_scalar_t* swapFlags)
 
 IOReturn CLASS::scale_surface(uintptr_t options, uintptr_t width, uintptr_t height)
 {
-	if (!bTargetIsCGSSurface)
+	if (!bTargetIsCGSSurface) {
+		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
 	if (!surface_client)
 		return kIOReturnNotReady;
 	return surface_client->context_scale_surface(static_cast<IOOptionBits>(options),
@@ -320,8 +330,10 @@ IOReturn CLASS::lock_memory(uintptr_t options, mach_vm_address_t* address, mach_
 {
 	if (!address || !rowBytes)
 		return kIOReturnBadArgument;
-	if (!bTargetIsCGSSurface)
+	if (!bTargetIsCGSSurface) {
+		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
 	if (!surface_client)
 		return kIOReturnNotReady;
 	return surface_client->context_lock_memory(m_owning_task, address, rowBytes);
@@ -329,8 +341,10 @@ IOReturn CLASS::lock_memory(uintptr_t options, mach_vm_address_t* address, mach_
 
 IOReturn CLASS::unlock_memory(uintptr_t options, io_user_scalar_t* swapFlags)
 {
-	if (!bTargetIsCGSSurface)
+	if (!bTargetIsCGSSurface) {
+		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
+	}
 	if (!surface_client)
 		return kIOReturnNotReady;
 	if (swapFlags)
