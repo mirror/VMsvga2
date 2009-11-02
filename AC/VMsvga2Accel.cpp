@@ -993,17 +993,6 @@ void CLASS::unlockAccel()
 	IOLockUnlock(m_iolock);
 }
 
-/*
- * Note:
- *   This is a somewhat artifical way to determine if we're
- *   running on Workstation 7 and should reverse the sense of
- *   SVGA3D_READ_HOST_VRAM.
- */
-bool CLASS::reverseDMAReadSense() const
-{
-	return m_svga->getMaxGMRs() > 64U;
-}
-
 #pragma mark -
 #pragma mark Video Methods
 #pragma mark -

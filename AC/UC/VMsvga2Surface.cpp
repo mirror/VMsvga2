@@ -1238,21 +1238,16 @@ IOReturn CLASS::context_copy_region(intptr_t destX, intptr_t destY, IOAccelDevic
 		return kIOReturnUnsupported;
 	}
 	if (!isBackingValid()) {
-		/*
-		 * TBD: handle if called without a preexisting backing
-		 */
-		return kIOReturnNotReady;
+		if (!isSourceValid() ||
+			!allocBacking())
+			return kIOReturnNotReady;
 	}
 	bzero(&extra, sizeof extra);
 	extra.mem_offset_in_bar1 = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
-	if (m_provider->reverseDMAReadSense()) {
-		extra.srcDeltaX = static_cast<SInt32>(destX) - region->bounds.x;
-		extra.srcDeltaY = static_cast<SInt32>(destY) - region->bounds.y;
-	} else {
-		extra.dstDeltaX = static_cast<SInt32>(destX) - region->bounds.x;
-		extra.dstDeltaY = static_cast<SInt32>(destY) - region->bounds.y;
-	}
+	extra.mem_offset_in_bar1 +=
+		(static_cast<SInt32>(destY) - region->bounds.y) * extra.mem_pitch +
+		(static_cast<SInt32>(destX) - region->bounds.x) * m_bytes_per_pixel;
 	rc = m_provider->surfaceDMA2D(m_provider->getMasterSurfaceID(),
 								  SVGA3D_READ_HOST_VRAM,
 								  region,
