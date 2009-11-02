@@ -129,11 +129,11 @@ private:
 	 */
 	IOReturn set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 										  uintptr_t framebufferIndex,
-										  IOVirtualAddress backing,
+										  mach_vm_address_t backing,
 										  size_t rowbytes,
+										  size_t backingLength,
 										  IOAccelDeviceRegion const* rgn,
-										  size_t rgnSize,
-										  size_t backingLength);
+										  size_t rgnSize);
 	void Init();
 	void Cleanup();
 	void Start3D();
@@ -175,8 +175,8 @@ public:
 	IOReturn clientClose();
 #if 0
 	IOReturn clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory);
-	IOReturn externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch = 0, OSObject* target = 0, void* reference = 0);
 #endif
+	IOReturn externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch = 0, OSObject* target = 0, void* reference = 0);
 	IOReturn message(UInt32 type, IOService* provider, void* argument = 0);
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);

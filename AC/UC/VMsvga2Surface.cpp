@@ -149,7 +149,6 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
 }
 #endif
 
-#if 0
 /*
  * Note:
  *   IONVSurface in OS 10.6 has an override on this method, to
@@ -159,9 +158,26 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
  */
 IOReturn CLASS::externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch, OSObject* target, void* reference)
 {
+	switch (selector) {
+		case kIOAccelSurfaceSetShapeBackingAndLength:
+			return set_shape_backing_length_ext(static_cast<eIOAccelSurfaceShapeBits>(arguments->scalarInput[0]),
+												static_cast<uintptr_t>(arguments->scalarInput[1]),
+												arguments->scalarInput[2],
+												static_cast<size_t>(arguments->scalarInput[3]),
+												static_cast<size_t>(arguments->scalarInput[4]),
+												static_cast<IOAccelDeviceRegion const*>(arguments->structureInput),
+												arguments->structureInputSize);
+		case kIOAccelSurfaceSetShapeBacking:
+			return set_shape_backing_length_ext(static_cast<eIOAccelSurfaceShapeBits>(arguments->scalarInput[0]),
+												static_cast<uintptr_t>(arguments->scalarInput[1]),
+												arguments->scalarInput[2],
+												static_cast<size_t>(arguments->scalarInput[3]),
+												0,
+												static_cast<IOAccelDeviceRegion const*>(arguments->structureInput),
+												arguments->structureInputSize);
+	}
 	return super::externalMethod(selector, arguments, dispatch, target, reference);
 }
-#endif
 
 IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 {
@@ -884,7 +900,7 @@ IOReturn CLASS::set_shape_backing(eIOAccelSurfaceShapeBits options,
 								  IOAccelDeviceRegion const* rgn,
 								  size_t rgnSize)
 {
-	return set_shape_backing_length_ext(options, framebufferIndex, backing, rowbytes, rgn, rgnSize, rgn ? (rowbytes * rgn->bounds.h) : 0);
+	return set_shape_backing_length_ext(options, framebufferIndex, backing, rowbytes, rgn ? (rowbytes * rgn->bounds.h) : 0, rgn, rgnSize);
 }
 
 IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
@@ -952,7 +968,7 @@ IOReturn CLASS::set_scale(eIOAccelSurfaceScaleBits options, IOAccelSurfaceScalin
 
 IOReturn CLASS::set_shape(eIOAccelSurfaceShapeBits options, uintptr_t framebufferIndex, IOAccelDeviceRegion const* rgn, size_t rgnSize)
 {
-	return set_shape_backing_length_ext(options, framebufferIndex, 0, static_cast<size_t>(-1), rgn, rgnSize, 0);
+	return set_shape_backing_length_ext(options, framebufferIndex, 0, static_cast<size_t>(-1), 0, rgn, rgnSize);
 }
 
 IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
@@ -1045,30 +1061,30 @@ IOReturn CLASS::set_shape_backing_length(eIOAccelSurfaceShapeBits options,
 										 size_t backingLength,
 										 IOAccelDeviceRegion const* rgn /* , size_t rgnSize */)
 {
-	return set_shape_backing_length_ext(options, framebufferIndex, backing, rowbytes, rgn,  rgn ? IOACCEL_SIZEOF_DEVICE_REGION(rgn) : 0, backingLength);
+	return set_shape_backing_length_ext(options, framebufferIndex, backing, rowbytes, backingLength, rgn,  rgn ? IOACCEL_SIZEOF_DEVICE_REGION(rgn) : 0);
 }
 
 IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 											 uintptr_t framebufferIndex,
-											 IOVirtualAddress backing,
+											 mach_vm_size_t backing,
 											 size_t rowbytes,
+											 size_t backingLength,
 											 IOAccelDeviceRegion const* rgn,
-											 size_t rgnSize,
-											 size_t backingLength)
+											 size_t rgnSize)
 {
 #if 0
 	int const expectedOptions = kIOAccelSurfaceShapeIdentityScaleBit | kIOAccelSurfaceShapeFrameSyncBit;
 #endif
 
-	SFLog(3, "%s(0x%x, %lu, %p, 0x%lx, %p, %lu, %lu)\n",
-		 __FUNCTION__,
-		 options,
-		 framebufferIndex,
-		 reinterpret_cast<void*>(backing),
-		 rowbytes,
-		 rgn,
-		 rgnSize,
-		 backingLength);
+	SFLog(3, "%s(0x%x, %lu, 0x%llx, %lu, %lu, %p, %lu)\n",
+		  __FUNCTION__,
+		  options,
+		  framebufferIndex,
+		  backing,
+		  rowbytes,
+		  backingLength,
+		  rgn,
+		  rgnSize);
 
 	if (!rgn || rgnSize < IOACCEL_SIZEOF_DEVICE_REGION(rgn))
 		return kIOReturnBadArgument;
