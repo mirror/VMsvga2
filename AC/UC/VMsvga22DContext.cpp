@@ -201,6 +201,11 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id, intptr_t destX, intptr_t
 		TDLog(1, "%s: Copy from surface source (0x%lx) - unsupported\n", __FUNCTION__, source_surface_id);
 		return kIOReturnUnsupported;
 	}
+	/*
+	 * Correct for truncation done by IOUserClient dispatcher
+	 */
+	destX = static_cast<intptr_t>(static_cast<SInt32>(destX));
+	destY = static_cast<intptr_t>(static_cast<SInt32>(destY));
 	if (!bTargetIsCGSSurface) {
 		/*
 		 * destination is framebuffer, use classic mode

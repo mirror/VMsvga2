@@ -411,6 +411,11 @@ bool CLASS::isSourceValid() const
 	return (m_scale.source.w > 0) && (m_scale.source.h > 0);
 }
 
+bool CLASS::isClientBackingValid() const
+{
+	return m_client_backing.addr != 0;
+}
+
 IOReturn CLASS::detectBlitBug()
 {
 	IOReturn rc;
@@ -665,6 +670,12 @@ void CLASS::calculateSurfaceInformation(IOAccelSurfaceInformation* info)
 
 void CLASS::calculateScaleParameters()
 {
+	if (isClientBackingValid()) {
+		m_scale.reserved[0] = static_cast<UInt32>(round_up_to_power2(m_client_backing.size, PAGE_SIZE));
+		m_scale.reserved[1] = static_cast<UInt32>(m_client_backing.rowbytes);
+		m_scale.reserved[2] = 0;	// Note: assumes buffer.x == buffer.y == 0
+		return;
+	}
 	/*
 	 * Byte size of source rounded up nearest PAGE_SIZE
 	 */
@@ -680,6 +691,33 @@ void CLASS::calculateScaleParameters()
 	 * buffer byte offset within source
 	 */
 	m_scale.reserved[2] = m_scale.buffer.y * m_scale.reserved[1] + m_scale.buffer.x * m_bytes_per_pixel;
+}
+
+IOReturn CLASS::copy_to_client_backing(vm_address_t source_addr)
+{
+	IOReturn rc;
+	IOByteCount bc;
+	IOMemoryDescriptor* md;
+
+	md = IOMemoryDescriptor::withAddressRange(m_client_backing.addr,
+											  m_client_backing.size,
+											  kIODirectionIn,
+											  m_owning_task);
+	if (!md)
+		return kIOReturnSuccess;
+	rc = md->prepare();
+	if (rc != kIOReturnSuccess) {
+		md->release();
+		return rc;
+	}
+	bc = m_client_backing.size;
+	if (m_backing.size < bc)	// Note: this should never happen
+		bc = m_backing.size;
+	bc = md->writeBytes(0, reinterpret_cast<void const*>(source_addr), bc);
+	md->complete();
+	md->release();
+	SFLog(2, "%s: copied %lu bytes\n", __FUNCTION__, bc);
+	return kIOReturnSuccess;
 }
 
 #pragma mark -
@@ -900,7 +938,7 @@ IOReturn CLASS::set_shape_backing(eIOAccelSurfaceShapeBits options,
 								  IOAccelDeviceRegion const* rgn,
 								  size_t rgnSize)
 {
-	return set_shape_backing_length_ext(options, framebufferIndex, backing, rowbytes, rgn ? (rowbytes * rgn->bounds.h) : 0, rgn, rgnSize);
+	return set_shape_backing_length_ext(options, framebufferIndex, backing, rowbytes, 0, rgn, rgnSize);
 }
 
 IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
@@ -1066,7 +1104,7 @@ IOReturn CLASS::set_shape_backing_length(eIOAccelSurfaceShapeBits options,
 
 IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 											 uintptr_t framebufferIndex,
-											 mach_vm_size_t backing,
+											 mach_vm_address_t backing,
 											 size_t rowbytes,
 											 size_t backingLength,
 											 IOAccelDeviceRegion const* rgn,
@@ -1111,6 +1149,7 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 #endif
 
 	clearLastShape();
+	bzero(&m_client_backing, sizeof m_client_backing);
 #if 0
 	if (!(options & kIOAccelSurfaceShapeNonBlockingBit))	// driver doesn't support waiting on locks
 		return kIOReturnUnsupported;
@@ -1125,8 +1164,20 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 	if (!m_last_shape)
 		return kIOReturnNoMemory;
 	m_last_region = static_cast<IOAccelDeviceRegion const*>(m_last_shape->getBytesNoCopy());
+	if (backing != 0) {
+		m_client_backing.addr = backing;
+		if (static_cast<intptr_t>(rowbytes) <= 0)
+			m_client_backing.rowbytes = static_cast<size_t>(rgn->bounds.w) * m_bytes_per_pixel;
+		else
+			m_client_backing.rowbytes = rowbytes;
+		if (backingLength != 0)
+			m_client_backing.size = backingLength;
+		else
+			m_client_backing.size = static_cast<size_t>(rgn->bounds.h) * m_client_backing.rowbytes;
+	}
 	if (options & kIOAccelSurfaceShapeIdentityScaleBit) {
-		if (checkOptionAC(VMW_OPTION_AC_PACKED_BACKING)) {
+		if (m_wID != 1U ||
+			checkOptionAC(VMW_OPTION_AC_PACKED_BACKING)) {
 			m_scale.source.w = rgn->bounds.w;
 			m_scale.source.h = rgn->bounds.h;
 			m_scale.buffer.x = 0;
@@ -1262,8 +1313,8 @@ IOReturn CLASS::context_copy_region(intptr_t destX, intptr_t destY, IOAccelDevic
 	extra.mem_offset_in_bar1 = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	extra.mem_offset_in_bar1 +=
-		(static_cast<SInt32>(destY) - region->bounds.y) * extra.mem_pitch +
-		(static_cast<SInt32>(destX) - region->bounds.x) * m_bytes_per_pixel;
+		(destY - region->bounds.y) * extra.mem_pitch +
+		(destX - region->bounds.x) * m_bytes_per_pixel;
 	rc = m_provider->surfaceDMA2D(m_provider->getMasterSurfaceID(),
 								  SVGA3D_READ_HOST_VRAM,
 								  region,
@@ -1272,6 +1323,8 @@ IOReturn CLASS::context_copy_region(intptr_t destX, intptr_t destY, IOAccelDevic
 	if (rc != kIOReturnSuccess)
 		return kIOReturnNotReadable;
 	m_provider->SyncToFence(m_backing.last_DMA_fence);		// Note: regrettable but necessary - even RingDoorBell didn't do the job when swinging windows around
+	if (isClientBackingValid())
+		copy_to_client_backing(CLIENT_ADDR_TO_UINTPTR_T(screenInfo.client_addr) + m_backing.offset);
 	return kIOReturnSuccess;
 }
 

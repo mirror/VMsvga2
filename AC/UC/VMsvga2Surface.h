@@ -89,6 +89,15 @@ private:
 	} m_backing;
 
 	/*
+	 * Client backing
+	 */
+	struct {
+		mach_vm_address_t addr;
+		vm_size_t rowbytes;
+		vm_size_t size;
+	} m_client_backing;
+
+	/*
 	 * Shape stuff
 	 */
 	OSData* m_last_shape;
@@ -147,6 +156,7 @@ private:
 	void releaseBacking();
 	void releaseBackingMap(UInt32 index);
 	bool isSourceValid() const;
+	bool isClientBackingValid() const;
 	IOReturn detectBlitBug();
 	IOReturn DMAOutDirect(bool withFence);
 	IOReturn DMAOutWithCopy(bool withFence);
@@ -157,6 +167,7 @@ private:
 #endif
 	void calculateSurfaceInformation(IOAccelSurfaceInformation* info);
 	void calculateScaleParameters();
+	IOReturn copy_to_client_backing(vm_address_t source_addr);
 
 	/*
 	 * Private support methods - Video

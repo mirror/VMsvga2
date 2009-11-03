@@ -219,6 +219,7 @@ IOReturn CLASS::connectClient(IOUserClient* client)
  * Note: IONVGLContext has an override on this method
  *   In OS 10.5 it redirects function number 17 to get_data_buffer()
  *   In OS 10.6 it redirects function number 13 to get_data_buffer()
+ *     Sets structureOutputSize for get_data_buffer() to 12
  */
 IOReturn CLASS::externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch, OSObject* target, void* reference)
 {
