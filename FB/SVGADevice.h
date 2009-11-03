@@ -66,7 +66,8 @@ private:
 	UInt32 m_pitch;
 	UInt32 m_max_width;
 	UInt32 m_max_height;
-	UInt32 m_max_gmrs;
+	UInt32 m_max_gmr_ids;
+	UInt32 m_max_gmr_descriptor_length;
 	/*
 	 * End Added
 	 */
@@ -113,6 +114,7 @@ public:
 	 * Cursor Stuff
 	 */
 	void setCursorState(UInt32 x, UInt32 y, bool visible);
+	void setCursorState(UInt32 screenId, UInt32 x, UInt32 y, bool visible);
 	void* BeginDefineAlphaCursor(UInt32 width, UInt32 height, UInt32 bytespp);
 	bool EndDefineAlphaCursor(UInt32 width, UInt32 height, UInt32 bytespp, UInt32 hotspot_x, UInt32 hotspot_y);
 
@@ -139,7 +141,8 @@ public:
 	UInt32 getCurrentPitch() const { return m_pitch; }
 	UInt32 getMaxWidth() const { return m_max_width; }
 	UInt32 getMaxHeight() const { return m_max_height; }
-	UInt32 getMaxGMRs() const { return m_max_gmrs; }
+	UInt32 getMaxGMRIDs() const { return m_max_gmr_ids; }
+	UInt32 getMaxGMRDescriptorLength() const { return m_max_gmr_descriptor_length; }
 	void RegDump();
 
 	bool RectCopy(UInt32 const* copyRect);					// copyRect is an array of 6 UInt32 - same order as SVGAFifoCmdRectCopy

@@ -59,6 +59,12 @@ public:
 	UInt32 getHWVersion() const { return HWVersion; }
 	bool BeginPresent(UInt32 sid, SVGA3dCopyRect **rects, size_t numRects);
 	bool BeginPresentReadback(SVGA3dRect **rects, size_t numRects);
+	bool BeginBlitSurfaceToScreen(SVGA3dSurfaceImageId const* srcImage,
+								  SVGASignedRect const* srcRect,
+								  UInt32 destScreenId,
+								  SVGASignedRect const* destRect,
+								  SVGASignedRect** clipRects,
+								  UInt32 numClipRects);
 
 	/*
 	 * Surface Management
@@ -76,6 +82,13 @@ public:
 						 SVGA3dTransferType transfer,
 						 SVGA3dCopyBox **boxes,
 						 size_t numBoxes);
+	bool BeginSurfaceDMAwithSuffix(SVGA3dGuestImage const *guestImage,
+								   SVGA3dSurfaceImageId const *hostImage,
+								   SVGA3dTransferType transfer,
+								   SVGA3dCopyBox **boxes,
+								   size_t numBoxes,
+								   UInt32 maximumOffset,
+								   SVGA3dSurfaceDMAFlags flags);
 
 	/*
 	 * Context Management

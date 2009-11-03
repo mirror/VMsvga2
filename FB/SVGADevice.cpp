@@ -137,8 +137,6 @@ bool SVGADevice::Init(IOPCIDevice* provider, VMFBIOLog log_level)
 {
 	UInt32 fb_size;
 	UInt32 vram_size;
-	UInt32 max_width;
-	UInt32 max_height;
 	UInt32 host_bpp;
 	UInt32 guest_bpp;
 
@@ -174,19 +172,21 @@ bool SVGADevice::Init(IOPCIDevice* provider, VMFBIOLog log_level)
 	m_fifo_size = ReadReg(SVGA_REG_MEM_SIZE);
 	fb_size = ReadReg(SVGA_REG_FB_SIZE);
 	vram_size = ReadReg(SVGA_REG_VRAM_SIZE);
-	max_width = ReadReg(SVGA_REG_MAX_WIDTH);
-	max_height = ReadReg(SVGA_REG_MAX_HEIGHT);
+	m_max_width = ReadReg(SVGA_REG_MAX_WIDTH);
+	m_max_height = ReadReg(SVGA_REG_MAX_HEIGHT);
 	host_bpp = ReadReg(SVGA_REG_HOST_BITS_PER_PIXEL);
 	guest_bpp = ReadReg(SVGA_REG_BITS_PER_PIXEL);
 	m_width = ReadReg(SVGA_REG_WIDTH);
 	m_height = ReadReg(SVGA_REG_HEIGHT);
 	m_pitch = ReadReg(SVGA_REG_BYTES_PER_LINE);
-	m_max_width = ReadReg(SVGA_REG_MAX_WIDTH);
-	m_max_height = ReadReg(SVGA_REG_MAX_HEIGHT);
-	if (HasCapability(SVGA_CAP_GMR))
-		m_max_gmrs = ReadReg(SVGA_REG_GMR_MAX_IDS);
-	LogPrintf(3, "%s: SVGA max w, h=%u, %u : host_bpp=%u, bpp=%u\n", __FUNCTION__, max_width, max_height, host_bpp, guest_bpp);
+	if (HasCapability(SVGA_CAP_GMR)) {
+		m_max_gmr_ids = ReadReg(SVGA_REG_GMR_MAX_IDS);
+		m_max_gmr_descriptor_length = ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH);
+	}
+	LogPrintf(3, "%s: SVGA max w, h=%u, %u : host_bpp=%u, bpp=%u\n", __FUNCTION__, m_max_width, m_max_height, host_bpp, guest_bpp);
 	LogPrintf(3, "%s: SVGA VRAM size=%u FB size=%u, FIFO size=%u\n", __FUNCTION__, vram_size, fb_size, m_fifo_size);
+	if (HasCapability(SVGA_CAP_GMR))
+		LogPrintf(3, "%s: SVGA max GMR IDs == %u, max GMR descriptor length == %u\n", __FUNCTION__, m_max_gmr_ids, m_max_gmr_descriptor_length);
 	if (HasCapability(SVGA_CAP_TRACES))
 		WriteReg(SVGA_REG_TRACES, 1);
 	m_bounce_buffer = static_cast<UInt8*>(IOMalloc(BOUNCE_BUFFER_SIZE));
@@ -434,6 +434,17 @@ void SVGADevice::setCursorState(UInt32 x, UInt32 y, bool visible)
 		WriteReg(SVGA_REG_CURSOR_ON, visible ? 1U : 0U);
 		return;
 	}
+	// CURSOR_BYPASS_3
+	m_fifo_ptr[SVGA_FIFO_CURSOR_ON] = visible ? 1U : 0U;
+	m_fifo_ptr[SVGA_FIFO_CURSOR_X] = x;
+	m_fifo_ptr[SVGA_FIFO_CURSOR_Y] = y;
+	++m_fifo_ptr[SVGA_FIFO_CURSOR_COUNT];
+}
+
+void SVGADevice::setCursorState(UInt32 screenId, UInt32 x, UInt32 y, bool visible)
+{
+	if (HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT))
+		m_fifo_ptr[SVGA_FIFO_CURSOR_SCREEN_ID] = screenId;
 	// CURSOR_BYPASS_3
 	m_fifo_ptr[SVGA_FIFO_CURSOR_ON] = visible ? 1U : 0U;
 	m_fifo_ptr[SVGA_FIFO_CURSOR_X] = x;

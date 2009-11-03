@@ -151,6 +151,36 @@ bool CLASS::BeginSurfaceDMA(SVGA3dGuestImage const* guestImage,     // IN
 	return true;
 }
 
+bool CLASS::BeginSurfaceDMAwithSuffix(SVGA3dGuestImage const *guestImage,
+									  SVGA3dSurfaceImageId const *hostImage,
+									  SVGA3dTransferType transfer,
+									  SVGA3dCopyBox **boxes,
+									  size_t numBoxes,
+									  UInt32 maximumOffset,
+									  SVGA3dSurfaceDMAFlags flags)
+{
+	SVGA3dCmdSurfaceDMA* cmd;
+	SVGA3dCmdSurfaceDMASuffix* suffix;
+	size_t boxesSize = sizeof **boxes * numBoxes;
+
+	cmd = static_cast<SVGA3dCmdSurfaceDMA*>(FIFOReserve(SVGA_3D_CMD_SURFACE_DMA,
+														sizeof *cmd + boxesSize + sizeof *suffix));
+	if (!cmd)
+		return false;
+
+	cmd->guest = *guestImage;
+	cmd->host = *hostImage;
+	cmd->transfer = transfer;
+	*boxes = reinterpret_cast<SVGA3dCopyBox*>(&cmd[1]);
+
+	bzero(*boxes, boxesSize);
+	suffix = reinterpret_cast<SVGA3dCmdSurfaceDMASuffix*>(&(*boxes)[numBoxes]);
+	suffix->suffixSize = static_cast<UInt32>(sizeof *suffix);
+	suffix->maximumOffset = maximumOffset,
+	suffix->flags = flags;
+	return true;
+}
+
 bool CLASS::DefineContext(UInt32 cid)
 {
 	SVGA3dCmdDefineContext* cmd;
@@ -502,5 +532,26 @@ bool CLASS::BeginPresentReadback(SVGA3dRect **rects,  // OUT
 	if (!cmd)
 		return false;
 	*rects = static_cast<SVGA3dRect*>(cmd);
+	return true;
+}
+
+bool CLASS::BeginBlitSurfaceToScreen(SVGA3dSurfaceImageId const* srcImage,
+									 SVGASignedRect const* srcRect,
+									 UInt32 destScreenId,
+									 SVGASignedRect const* destRect,
+									 SVGASignedRect** clipRects,
+									 UInt32 numClipRects)
+{
+	SVGA3dCmdBlitSurfaceToScreen* cmd = static_cast<SVGA3dCmdBlitSurfaceToScreen*>(FIFOReserve(SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN,
+																							   sizeof *cmd + numClipRects * sizeof(SVGASignedRect)));
+	if (!cmd)
+		return false;
+	cmd->srcImage = *srcImage;
+	cmd->srcRect = *srcRect;
+	cmd->destScreenId = destScreenId;
+	cmd->destRect = *destRect;
+
+	if (clipRects)
+		*clipRects = reinterpret_cast<SVGASignedRect*>(&cmd[1]);
 	return true;
 }
