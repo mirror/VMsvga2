@@ -29,10 +29,6 @@
  *  SOFTWARE.
  */
 
-#ifdef __APPLE__
-#undef PACKED
-#endif /* __APPLE__*/
-
 #undef uint32
 #undef int32
 #undef uint16
