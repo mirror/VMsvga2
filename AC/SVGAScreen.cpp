@@ -1,5 +1,5 @@
 /*
- *  Screen.cpp
+ *  SVGAScreen.cpp
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on November 3rd 2009.
@@ -33,7 +33,7 @@
  **********************************************************/
 
 #include <IOKit/IOLib.h>
-#include "Screen.h"
+#include "SVGAScreen.h"
 #include "SVGADevice.h"
 
 #if LOGGING_LEVEL >= 1
@@ -42,7 +42,7 @@
 #define SLog(fmt, ...)
 #endif
 
-#define CLASS Screen
+#define CLASS SVGAScreen
 
 bool CLASS::Init(SVGADevice* device)
 {

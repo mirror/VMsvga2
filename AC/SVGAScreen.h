@@ -1,5 +1,5 @@
 /*
- *  Screen.h
+ *  SVGAScreen.h
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on November 3rd 2009.
@@ -32,8 +32,8 @@
  *
  **********************************************************/
 
-#ifndef __SCREEN_H__
-#define __SCREEN_H__
+#ifndef __SVGASCREEN_H__
+#define __SVGASCREEN_H__
 
 #include <libkern/OSTypes.h>
 #include "svga_apple_header.h"
@@ -42,7 +42,7 @@
 
 class SVGADevice;
 
-class Screen
+class SVGAScreen
 {
 private:
 	SVGADevice* m_svga;
@@ -66,4 +66,4 @@ public:
 					  UInt32 srcScreen);
 };
 
-#endif /* __SCREEN_H__ */
+#endif /* __SVGASCREEN_H__ */
