@@ -635,6 +635,16 @@ bool SVGADevice::VideoFlush(UInt32 streamId)
 	return true;
 }
 
+bool SVGADevice::get3DHWVersion(UInt32* HWVersion)
+{
+	if (!HWVersion)
+		return false;
+	if (m_fifo_ptr[SVGA_FIFO_MIN] <= static_cast<UInt32>(sizeof(UInt32) * SVGA_FIFO_GUEST_3D_HWVERSION))
+		return false;
+	*HWVersion = m_fifo_ptr[SVGA_FIFO_3D_HWVERSION];
+	return true;
+}
+
 void SVGADevice::RegDump()
 {
 	UInt32 regs[SVGA_REG_TOP];

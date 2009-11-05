@@ -118,6 +118,7 @@ private:
 	 */
 	SVGADevice* getDevice() { return &svga; }
 	IOVirtualAddress getVRAMPtr() const { return m_bar1_ptr; }
+	IOPhysicalAddress getFBOffset() const { return m_fb_offset; }
 	void lockDevice();
 	void unlockDevice();
 	bool supportsAccel();

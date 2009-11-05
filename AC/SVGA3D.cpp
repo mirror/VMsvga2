@@ -46,8 +46,6 @@
 
 bool CLASS::Init(SVGADevice* device)
 {
-	UInt32* fifo_ptr;
-
 	HWVersion = 0;
 	if (!device) {
 		m_svga = 0;
@@ -58,8 +56,7 @@ bool CLASS::Init(SVGADevice* device)
 		SLog("%s: SVGA3D requires the Extended FIFO capability.\n", __FUNCTION__);
 		return false;
 	}
-	fifo_ptr = device->getFifoPtr();
-	if (fifo_ptr[SVGA_FIFO_MIN] <= static_cast<UInt32>(sizeof(UInt32) * SVGA_FIFO_GUEST_3D_HWVERSION)) {
+	if (!device->get3DHWVersion(&HWVersion)) {
 		SLog("%s: SVGA3D: GUEST_3D_HWVERSION register not present.\n", __FUNCTION__);
 		return false;
 	}
@@ -68,7 +65,6 @@ bool CLASS::Init(SVGADevice* device)
 	 * Check the host's version, make sure we're binary compatible.
 	 */
 
-	HWVersion = fifo_ptr[SVGA_FIFO_3D_HWVERSION];
 	if (HWVersion == 0) {
 		SLog("%s: SVGA3D: 3D disabled by host.\n", __FUNCTION__);
 		return false;

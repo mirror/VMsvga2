@@ -42,8 +42,6 @@ class IOMemoryMap;
 
 class SVGADevice
 {
-	friend class SVGA3D;
-
 private:
 	IOPCIDevice* m_provider;	// offset 0
 	IOMemoryMap* m_bar0;		// offset 4
@@ -74,11 +72,6 @@ private:
 
 	void LogPrintf(VMFBIOLog log_level, char const* fmt, ...);
 	void FIFOFull();
-
-	/*
-	 * SVGA3D Support
-	 */
-	UInt32* getFifoPtr() const { return m_fifo_ptr; }
 
 public:
 	SVGADevice();
@@ -143,6 +136,7 @@ public:
 	UInt32 getMaxHeight() const { return m_max_height; }
 	UInt32 getMaxGMRIDs() const { return m_max_gmr_ids; }
 	UInt32 getMaxGMRDescriptorLength() const { return m_max_gmr_descriptor_length; }
+	bool get3DHWVersion(UInt32* HWVersion);
 	void RegDump();
 
 	bool RectCopy(UInt32 const* copyRect);					// copyRect is an array of 6 UInt32 - same order as SVGAFifoCmdRectCopy
