@@ -52,6 +52,7 @@ private:
 	unsigned bHaveSVGA3D:1;
 	unsigned bVideoMode:1;
 	unsigned bDirectBlit:1;
+	unsigned bHaveScreenObject:1;
 
 	/*
 	 * Locking stuff
@@ -67,7 +68,7 @@ private:
 	 * ID stuff
 	 */
 	UInt32 m_wID;
-	SVGA3dSurfaceFormat surfaceFormat;
+	SVGA3dSurfaceFormat m_surfaceFormat;
 	UInt32 m_bytes_per_pixel;
 	UInt32 m_pixel_format;
 
@@ -89,7 +90,7 @@ private:
 	} m_backing;
 
 	/*
-	 * Client backing
+	 * Client backing stuff
 	 */
 	struct {
 		mach_vm_address_t addr;
@@ -102,6 +103,7 @@ private:
 	 */
 	OSData* m_last_shape;
 	IOAccelDeviceRegion const* m_last_region;
+	UInt32 m_framebufferIndex;
 
 	/*
 	 * Scale stuff
@@ -118,7 +120,7 @@ private:
 	/*
 	 * Fullscreen stuff
 	 */
-	IOAccelSurfaceReadData screenInfo;
+	IOAccelSurfaceReadData m_screenInfo;
 
 	/*
 	 * Video stuff
@@ -143,20 +145,40 @@ private:
 										  size_t backingLength,
 										  IOAccelDeviceRegion const* rgn,
 										  size_t rgnSize);
-	void Init();
-	void Cleanup();
-	void Start3D();
-	void Cleanup3D();
-	void clearLastShape();
-	bool createAuxSurface(UInt32 sid, UInt32 cid, SVGA3dSurfaceFormat format, UInt32 width, UInt32 height);
+	bool haveFrontBuffer() const;
 	bool isBackingValid() const;
 	bool hasSourceGrown() const;
+	bool isSourceValid() const;
+	bool isClientBackingValid() const;
+	bool isIdentityScale() const;
+	void Init();
+	void Cleanup();
+	void clearLastShape();
+	void calculateSurfaceInformation(IOAccelSurfaceInformation* info);
+	void calculateScaleParameters();
+	void clipRegionToBuffer(IOAccelDeviceRegion* region,
+							SInt32 deltaX,
+							SInt32 deltaY);
+
+	/*
+	 * Private support methods - backing
+	 */
 	bool allocBacking();
 	bool mapBacking(task_t for_task, UInt32 index);
 	void releaseBacking();
 	void releaseBackingMap(UInt32 index);
-	bool isSourceValid() const;
-	bool isClientBackingValid() const;
+
+	/*
+	 * Private support methods - client backing
+	 */
+	IOReturn copy_to_client_backing();
+	IOReturn copy_from_client_backing();
+
+	/*
+	 * Private support methods - 3D
+	 */
+	void Start3D();
+	void Cleanup3D();
 	IOReturn detectBlitBug();
 	IOReturn DMAOutDirect(bool withFence);
 	IOReturn DMAOutWithCopy(bool withFence);
@@ -165,9 +187,17 @@ private:
 #ifdef TIMED_PRESENT
 	IOReturn doTimedPresent();
 #endif
-	void calculateSurfaceInformation(IOAccelSurfaceInformation* info);
-	void calculateScaleParameters();
-	IOReturn copy_to_client_backing(vm_address_t source_addr);
+
+	/*
+	 * Private support methods - Screen Object
+	 */
+	IOReturn ScreenObjectOutDirect(bool withFence);
+	IOReturn ScreenObjectOutVia3D(bool withFence);
+
+	/*
+	 * Private support methods - GFB
+	 */
+	IOReturn GFBOutDirect();
 
 	/*
 	 * Private support methods - Video
@@ -187,7 +217,11 @@ public:
 #if 0
 	IOReturn clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory);
 #endif
-	IOReturn externalMethod(uint32_t selector, IOExternalMethodArguments* arguments, IOExternalMethodDispatch* dispatch = 0, OSObject* target = 0, void* reference = 0);
+	IOReturn externalMethod(uint32_t selector,
+							IOExternalMethodArguments* arguments,
+							IOExternalMethodDispatch* dispatch = 0,
+							OSObject* target = 0,
+							void* reference = 0);
 	IOReturn message(UInt32 type, IOService* provider, void* argument = 0);
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
@@ -198,11 +232,16 @@ public:
 	 */
 	IOReturn context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pixel_format);
 	IOReturn context_scale_surface(IOOptionBits options, UInt32 width, UInt32 height);
-	IOReturn context_lock_memory(task_t context_owning_task, mach_vm_address_t* address, mach_vm_size_t* rowBytes);
-	IOReturn context_unlock_memory();
-	IOReturn context_copy_region(intptr_t destX, intptr_t destY, IOAccelDeviceRegion const* region, size_t regionSize);
+	IOReturn context_lock_memory(task_t context_owning_task,
+								 mach_vm_address_t* address,
+								 mach_vm_size_t* rowBytes);
+	IOReturn context_unlock_memory(io_user_scalar_t* swapFlags);
+	IOReturn context_copy_region(intptr_t destX,
+								 intptr_t destY,
+								 IOAccelDeviceRegion const* region,
+								 size_t regionSize);
 	IOReturn surface_video_off();
-	IOReturn surface_flush_video();
+	IOReturn surface_flush_video(io_user_scalar_t* swapFlags);
 
 	/*
 	 * IOAccelSurfaceConnect
@@ -220,8 +259,13 @@ public:
 							   IOAccelDeviceRegion const* rgn,
 							   size_t rgnSize);	// not called
 	IOReturn set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits);
-	IOReturn set_scale(eIOAccelSurfaceScaleBits options, IOAccelSurfaceScaling const* scaling, size_t scalingSize);
-	IOReturn set_shape(eIOAccelSurfaceShapeBits options, uintptr_t framebufferIndex, IOAccelDeviceRegion const* rgn, size_t rgnSize);
+	IOReturn set_scale(eIOAccelSurfaceScaleBits options,
+					   IOAccelSurfaceScaling const* scaling,
+					   size_t scalingSize);
+	IOReturn set_shape(eIOAccelSurfaceShapeBits options,
+					   uintptr_t framebufferIndex,
+					   IOAccelDeviceRegion const* rgn,
+					   size_t rgnSize);
 	IOReturn surface_flush(uintptr_t framebufferMask, IOOptionBits options);
 	IOReturn surface_query_lock();
 	IOReturn surface_read_lock(IOAccelSurfaceInformation* info, size_t* infoSize);

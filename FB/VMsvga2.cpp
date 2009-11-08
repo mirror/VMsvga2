@@ -1124,8 +1124,11 @@ void CLASS::useAccelUpdates(bool state)
 	} else {
 		scheduleRefreshTimer(200);
 		IOLockLock(m_iolock);
-		if (svga.HasCapability(SVGA_CAP_TRACES))
+		if (svga.HasCapability(SVGA_CAP_TRACES)) {
 			svga.WriteReg(SVGA_REG_TRACES, 1);
+			svga.UpdateFullscreen();
+			svga.RingDoorBell();
+		}
 		IOLockUnlock(m_iolock);
 	}
 	setProperty("VMwareSVGAAccelSynchronize", state);
