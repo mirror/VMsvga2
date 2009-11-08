@@ -82,6 +82,7 @@ private:
 	void toFree(size_t firstBlock, size_t pastBlock, bool zap);
 	IOReturn BuddyMalloc(int bits, void **newStore);
 	IOReturn BuddyAllocSize(void *sss, int *numBits);
+	void ReleaseMap();
 
 public:
 	/*

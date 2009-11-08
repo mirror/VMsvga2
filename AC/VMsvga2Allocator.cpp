@@ -467,6 +467,17 @@ IOReturn CLASS::BuddyAllocSize(void *sss, int *numBits)
 	return kIOReturnSuccess;
 }
 
+/*
+ * frees free-block bitmap
+ */
+void CLASS::ReleaseMap()
+{
+	if (!map)
+		return;
+	IOFree(map, (poolBlocks + 7U) >> 3);
+	map = 0;
+}
+
 #pragma mark -
 #pragma mark OSObject Methods
 #pragma mark -
@@ -479,10 +490,7 @@ bool CLASS::init()
 
 void CLASS::free()
 {
-	if (map) {
-		IOFree(map, (poolBlocks + 7U) >> 3);
-		map = 0;
-	}
+	ReleaseMap();
 	super::free();
 }
 
@@ -512,6 +520,7 @@ IOReturn CLASS::Init(void* startAddress, size_t bytes)
 	int const minBits = 12;
 	int const numSizes = 13;
 
+	ReleaseMap();	// In case we get reinitialized
 #if 0
 	if ((1U << minBits) < (sizeof(size_t) * FREEBLOCK))
 		return kIOReturnBadArgument /* "minBits too small" */ ;
