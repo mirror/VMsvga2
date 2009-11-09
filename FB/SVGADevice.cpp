@@ -136,7 +136,6 @@ void SVGADevice::LogPrintf(VMFBIOLog log_level, char const* fmt, ...)
 bool SVGADevice::Init(IOPCIDevice* provider, VMFBIOLog log_level)
 {
 	UInt32 fb_size;
-	UInt32 vram_size;
 	UInt32 host_bpp;
 	UInt32 guest_bpp;
 
@@ -170,8 +169,9 @@ bool SVGADevice::Init(IOPCIDevice* provider, VMFBIOLog log_level)
 	LogPrintf(2, "%s: SVGA_REG caps = 0x%08x\n", __FUNCTION__, m_capabilities);
 #endif
 	m_fifo_size = ReadReg(SVGA_REG_MEM_SIZE);
+	m_fb_offset = ReadReg(SVGA_REG_FB_OFFSET);
 	fb_size = ReadReg(SVGA_REG_FB_SIZE);
-	vram_size = ReadReg(SVGA_REG_VRAM_SIZE);
+	m_vram_size = ReadReg(SVGA_REG_VRAM_SIZE);
 	m_max_width = ReadReg(SVGA_REG_MAX_WIDTH);
 	m_max_height = ReadReg(SVGA_REG_MAX_HEIGHT);
 	host_bpp = ReadReg(SVGA_REG_HOST_BITS_PER_PIXEL);
@@ -184,7 +184,7 @@ bool SVGADevice::Init(IOPCIDevice* provider, VMFBIOLog log_level)
 		m_max_gmr_descriptor_length = ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH);
 	}
 	LogPrintf(3, "%s: SVGA max w, h=%u, %u : host_bpp=%u, bpp=%u\n", __FUNCTION__, m_max_width, m_max_height, host_bpp, guest_bpp);
-	LogPrintf(3, "%s: SVGA VRAM size=%u FB size=%u, FIFO size=%u\n", __FUNCTION__, vram_size, fb_size, m_fifo_size);
+	LogPrintf(3, "%s: SVGA VRAM size=%u FB size=%u, FIFO size=%u\n", __FUNCTION__, m_vram_size, fb_size, m_fifo_size);
 	if (HasCapability(SVGA_CAP_GMR))
 		LogPrintf(3, "%s: SVGA max GMR IDs == %u, max GMR descriptor length == %u\n", __FUNCTION__, m_max_gmr_ids, m_max_gmr_descriptor_length);
 	if (HasCapability(SVGA_CAP_TRACES))

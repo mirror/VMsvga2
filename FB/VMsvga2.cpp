@@ -359,9 +359,18 @@ const char* CLASS::getPixelFormats()
 
 IODeviceMemory* CLASS::getVRAMRange()
 {
+	IODeviceMemory* mem;
+	IOByteCount vramSize;
+
 	LogPrintf(4, "%s\n", __FUNCTION__);
 	if (!m_bar1)
 		return 0;
+	vramSize = svga.getVRAMSize();
+	if (vramSize < m_bar1->getLength()) {
+		mem = IODeviceMemory::withSubRange(m_bar1, 0, vramSize);
+		if (mem)
+			return mem;
+	}
 	m_bar1->retain();
 	return m_bar1;
 }
@@ -395,7 +404,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 		return 0;
 	fb_size = getCurrentApertureSize() /* getApertureSize(m_display_mode, m_depth_mode) */;
 	LogPrintf(4, "%s: aperture=%d, fb size=%u\n", __FUNCTION__, aperture, fb_size);
-	mem = IODeviceMemory::withSubRange(m_bar1, m_fb_offset, fb_size);
+	mem = IODeviceMemory::withSubRange(m_bar1, svga.getFBOffset(), fb_size);
 	if (!mem)
 		LogPrintf(1, "%s: failed to create IODeviceMemory, aperture=%d\n", __FUNCTION__, kIOFBSystemAperture);
 	return mem;
@@ -590,7 +599,6 @@ bool CLASS::start(IOService* provider)
 		Cleanup();
 		return false;
 	}
-	m_fb_offset = 0;
 	m_bar1_ptr = m_bar1_map->getVirtualAddress();
 	if (!svga.Init(m_provider, m_log_level)) {
 		Cleanup();
@@ -1031,7 +1039,7 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
 	if (m_custom_switch == 1)
-		bzero(reinterpret_cast<void*>(m_bar1_ptr), m_aperture_size);
+		bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getFBOffset()), m_aperture_size);
 	svga.SetMode(dme->width, dme->height, 32);
 	m_display_mode = displayMode;
 	m_depth_mode = 0;

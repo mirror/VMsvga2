@@ -322,6 +322,9 @@ IOReturn CLASS::setupAllocator()
 		return kIOReturnInternalError;
 	p = reinterpret_cast<void*>(m_framebuffer->getVRAMPtr());
 	s = m_bar1->getLength();
+	if (m_svga->getVRAMSize() < s)
+		s = m_svga->getVRAMSize();
+	s &= ~(static_cast<IOByteCount>(PAGE_SIZE - 1));
 
 	if (!p || !s) {
 		rc = kIOReturnNoMemory;
@@ -1355,7 +1358,7 @@ IOReturn CLASS::blitGFB(UInt32 framebufferIndex,
 	numRects = rgn ? rgn->num_rects : 0;
 	m_framebuffer->lockDevice();
 	vram_ptr = m_framebuffer->getVRAMPtr();
-	gfb_start = vram_ptr + static_cast<IOVirtualAddress>(m_framebuffer->getFBOffset());
+	gfb_start = vram_ptr + static_cast<IOVirtualAddress>(m_svga->getFBOffset());
 	gfb_pitch = m_svga->getCurrentPitch();
 	gfb_end = gfb_start + m_svga->getCurrentHeight() * gfb_pitch;
 	m_framebuffer->unlockDevice();
@@ -1403,7 +1406,7 @@ IOReturn CLASS::clearGFB(UInt32 color,
 	if (!m_framebuffer)
 		return kIOReturnNotReady;
 	m_framebuffer->lockDevice();
-	gfb_start = m_framebuffer->getVRAMPtr() + static_cast<IOVirtualAddress>(m_framebuffer->getFBOffset());
+	gfb_start = m_framebuffer->getVRAMPtr() + static_cast<IOVirtualAddress>(m_svga->getFBOffset());
 	gfb_w = m_svga->getCurrentWidth();
 	gfb_h = m_svga->getCurrentHeight();
 	gfb_pitch = m_svga->getCurrentPitch();

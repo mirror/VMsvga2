@@ -57,7 +57,9 @@ private:
 	IODeviceMemory* m_bar1;			// offset 0x140
 	IOMemoryMap* m_bar1_map;		// offset 0x144
 	IOVirtualAddress m_bar1_ptr;	// offset 0x148
+#if 0
 	IOPhysicalAddress m_fb_offset;	// offset 0x14C
+#endif
 	UInt32 m_aperture_size;			// offset 0x150
 	IODisplayModeID m_display_mode;	// offset 0x154
 	IOIndex m_depth_mode;			// offset 0x158
@@ -118,7 +120,6 @@ private:
 	 */
 	SVGADevice* getDevice() { return &svga; }
 	IOVirtualAddress getVRAMPtr() const { return m_bar1_ptr; }
-	IOPhysicalAddress getFBOffset() const { return m_fb_offset; }
 	void lockDevice();
 	void unlockDevice();
 	bool supportsAccel();
