@@ -466,6 +466,11 @@ bool CLASS::start(IOService* provider)
 #if 0
 	setProperty("IOGLBundleName", "AppleIntelGMA950GLDriver");
 #endif
+	/*
+	 * Stupid bug in AppleVA attempts to CFRelease a NULL pointer
+	 *   if it can't find this property.
+	 */
+	setProperty("IODVDBundleName", "");
 	return true;
 }
 
