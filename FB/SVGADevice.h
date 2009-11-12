@@ -68,6 +68,7 @@ private:
 	UInt32 m_max_gmr_descriptor_length;
 	UInt32 m_fb_offset;
 	UInt32 m_vram_size;
+	UInt32 m_fb_size;
 	/*
 	 * End Added
 	 */
@@ -138,8 +139,9 @@ public:
 	UInt32 getMaxHeight() const { return m_max_height; }
 	UInt32 getMaxGMRIDs() const { return m_max_gmr_ids; }
 	UInt32 getMaxGMRDescriptorLength() const { return m_max_gmr_descriptor_length; }
-	UInt32 getFBOffset() const { return m_fb_offset; }
+	UInt32 getCurrentFBOffset() const { return m_fb_offset; }
 	UInt32 getVRAMSize() const { return m_vram_size; }
+	UInt32 getCurrentFBSize() const { return m_fb_size; }
 	bool get3DHWVersion(UInt32* HWVersion);
 	void RegDump();
 
