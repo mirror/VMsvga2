@@ -88,7 +88,7 @@ static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 // Note: VM Methods
 {0, reinterpret_cast<IOMethod>(&CLASS::CopyRegion), kIOUCScalarIStructI, 3, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::useAccelUpdates), kIOUCScalarIScalarO, 1, 0},
-{0, reinterpret_cast<IOMethod>(&VMsvga2Accel::RectCopy), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
+{0, reinterpret_cast<IOMethod>(&CLASS::RectCopy), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::RectFill), kIOUCScalarIStructI, 1, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&VMsvga2Accel::UpdateFramebufferAutoRing), kIOUCScalarIStructI, 0, 4U * sizeof(UInt32)}
 };
@@ -102,7 +102,6 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 	if (!targetP || index >= kIOVM2DNumMethods)
 		return 0;
 	switch (index) {
-		case kIOVM2DRectCopy:
 		case kIOVM2DUpdateFramebuffer:
 			if (m_provider)
 				*targetP = m_provider;
@@ -209,7 +208,21 @@ IOReturn CLASS::useAccelUpdates(uintptr_t state)
 	return m_provider->useAccelUpdates(state, m_owning_task);
 }
 
-IOReturn CLASS::RectFill(uintptr_t color, struct IOBlitRectangleStruct const* rects, size_t rectsSize)
+IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects,
+						 size_t copyRectsSize)
+{
+	if (bTargetIsCGSSurface) {
+		TDLog(1, "%s: called with surface destination - unsupported\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
+	if (!m_provider)
+		return kIOReturnNotReady;
+	return m_provider->RectCopy(framebufferIndex, copyRects, copyRectsSize);
+}
+
+IOReturn CLASS::RectFill(uintptr_t color,
+						 struct IOBlitRectangleStruct const* rects,
+						 size_t rectsSize)
 {
 	if (bTargetIsCGSSurface) {
 		TDLog(1, "%s: called with surface destination - unsupported\n", __FUNCTION__);

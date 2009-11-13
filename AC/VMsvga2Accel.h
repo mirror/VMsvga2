@@ -133,7 +133,10 @@ public:
 	 * Methods for supporting VMsvga22DContext
 	 */
 	IOReturn useAccelUpdates(uintptr_t state, task_t owningTask);
-	IOReturn RectCopy(struct IOBlitCopyRectangleStruct const* copyRects, size_t copyRectsSize);
+	IOReturn RectCopy(UInt32 framebufferIndex,
+					  struct IOBlitCopyRectangleStruct const* copyRects,
+					  size_t copyRectsSize);
+#if 0
 	IOReturn RectFillScreen(UInt32 framebufferIndex,
 							UInt32 color,
 							struct IOBlitRectangleStruct const* rects,
@@ -141,11 +144,14 @@ public:
 	IOReturn RectFill3D(UInt32 color,
 						struct IOBlitRectangleStruct const* rects,
 						size_t numRects);
+#endif
 	IOReturn RectFill(UInt32 framebufferIndex,
 					  uintptr_t color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t rectsSize);
+#if 0
 	IOReturn UpdateFramebuffer(UInt32 const* rect);	// rect is an array of 4 UInt32 - x, y, width, height
+#endif
 	IOReturn UpdateFramebufferAutoRing(UInt32 const* rect);	// rect same as above
 	IOReturn CopyRegion(UInt32 framebufferIndex,
 						intptr_t destX,
@@ -243,9 +249,11 @@ public:
 					 ExtraInfo const* extra,
 					 vm_size_t limit,
 					 int direction);
+#if 0
 	IOReturn clearGFB(UInt32 color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t numRects);
+#endif
 
 	/*
 	 * Misc support methods

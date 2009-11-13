@@ -69,6 +69,8 @@ public:
 	 * GA Support Methods
 	 */
 	IOReturn useAccelUpdates(uintptr_t state);
+	IOReturn RectCopy(struct IOBlitCopyRectangleStruct const* copyRects,
+					  size_t copyRectsSize);
 	IOReturn RectFill(uintptr_t color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t rectsSize);

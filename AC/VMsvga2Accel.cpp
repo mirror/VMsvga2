@@ -107,6 +107,7 @@ static void set_region(IOAccelDeviceRegion* rgn,
 	memcpy(&rgn->rect[0], &rgn->bounds, sizeof rgn->bounds);
 }
 
+#if 0
 static void set_region(IOAccelDeviceRegion* rgn,
 					   IOBlitRectangleStruct const* rects,
 					   size_t numRects)
@@ -137,7 +138,9 @@ static void set_region(IOAccelDeviceRegion* rgn,
 	rgn->bounds.w -= rgn->bounds.x;
 	rgn->bounds.h -= rgn->bounds.y;
 }
+#endif
 
+#if 0
 static void clip_rect(IOBlitRectangleStruct* rect, SInt32 w, SInt32 h)
 {
 	if (rect->x < 0) rect->x = 0;
@@ -147,6 +150,7 @@ static void clip_rect(IOBlitRectangleStruct* rect, SInt32 w, SInt32 h)
 	if (rect->x + rect->width > w) rect->width = w - rect->x;
 	if (rect->y + rect->height > h) rect->height = h - rect->y;
 }
+#endif
 
 static void convert_rect(IOAccelBounds const* src_rect,
 						 SVGASignedRect* dest_rect,
@@ -470,7 +474,7 @@ bool CLASS::start(IOService* provider)
 	 * Stupid bug in AppleVA attempts to CFRelease a NULL pointer
 	 *   if it can't find this property.
 	 */
-	setProperty("IODVDBundleName", "");
+	setProperty("IODVDBundleName", "AppleVADriver");
 	return true;
 }
 
@@ -617,19 +621,38 @@ IOReturn CLASS::useAccelUpdates(uintptr_t state, task_t owningTask)
  *   use IOFBSynchronize (it uses surface_flush instead), and CopyRegion blits
  *   are done to a surface destination.
  */
-IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects, size_t copyRectsSize)
+IOReturn CLASS::RectCopy(UInt32 framebufferIndex,
+						 struct IOBlitCopyRectangleStruct const* copyRects,
+						 size_t copyRectsSize)
 {
 	size_t i, count = copyRectsSize / sizeof(IOBlitCopyRectangle);
 	bool rc;
 
 	if (!count || !copyRects)
 		return kIOReturnBadArgument;
+	if (HaveFrontBuffer()) {
+		DefineRegion<1U> tmpRegion;
+		IOReturn rv = kIOReturnSuccess;
+
+		for (i = 0; i < count; ++i) {
+			struct IOBlitCopyRectangleStruct const* rect = &copyRects[i];
+			set_region(&tmpRegion.r,
+					   rect->sourceX,
+					   rect->sourceY,
+					   rect->width,
+					   rect->height);
+			rv = CopyRegion(framebufferIndex,
+							rect->x,
+							rect->y,
+							&tmpRegion.r,
+							sizeof tmpRegion);
+			if (rv != kIOReturnSuccess)
+				break;
+		}
+		return rv;
+	}
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
-	if (HaveFrontBuffer()) {
-		ACLog(1, "%s: called with SVGAScreen or SVGA3D - unsupported\n", __FUNCTION__);
-		return kIOReturnUnsupported;
-	}
 	m_framebuffer->lockDevice();
 	for (i = 0; i < count; ++i) {
 		rc = m_svga->RectCopy(reinterpret_cast<UInt32 const*>(&copyRects[i]));
@@ -640,48 +663,51 @@ IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects, size
 	return rc ? kIOReturnSuccess : kIOReturnNoMemory;
 }
 
+#if 0
 IOReturn CLASS::RectFillScreen(UInt32 framebufferIndex,
 							   UInt32 color,
 							   struct IOBlitRectangleStruct const* rects,
 							   size_t numRects)
 {
-	size_t s;
-	UInt32 sid, cid;
+	SVGAColorBGRX c;
+	size_t s1, s2;
+	void* p;
 	IOAccelDeviceRegion* rgn;
-	DefineRegion<1U> tmpRegion;
+	VMsvga2Accel::ExtraInfo extra;
 
-	s = sizeof(IOAccelDeviceRegion) * numRects * sizeof(IOAccelBounds);
-	rgn = static_cast<IOAccelDeviceRegion*>(IOMalloc(s));
+	s1 = sizeof(IOAccelDeviceRegion) * numRects * sizeof(IOAccelBounds);
+	rgn = static_cast<IOAccelDeviceRegion*>(IOMalloc(s1));
 	if (!rgn)
 		return kIOReturnNoMemory;
 	set_region(rgn, rects, numRects);
-	set_region(&tmpRegion.r, 0, 0, rgn->bounds.w, rgn->bounds.h);
 
-	sid = AllocSurfaceID();
-	cid = AllocContextID();
-	if (!createClearSurface(sid,
-							cid,
-							SVGA3D_X8R8G8B8,
-							rgn->bounds.w,
-							rgn->bounds.h,
-							color)) {
-		FreeContextID(cid);
-		FreeSurfaceID(sid);
-		IOFree(rgn, s);
-		return kIOReturnError;
+	s2 = rgn->bounds.w * rgn->bounds.h * sizeof(UInt32);
+	p = VRAMMalloc(s2);
+	if (!p) {
+		IOFree(rgn, s1);
+		return kIOReturnNoMemory;
 	}
-	FreeContextID(cid);
-	blitSurfaceToScreen(sid,
-						framebufferIndex,
-						&tmpRegion.r.bounds,
-						rgn);
-	destroySurface(sid);
-	FreeSurfaceID(sid);
-	IOFree(rgn, s);
+	memset32(p, color, s2 / sizeof(UInt32));
+	bzero(&extra, sizeof extra);
+	extra.mem_pitch = rgn->bounds.w * sizeof(UInt32);
+	extra.srcDeltaX = -static_cast<SInt32>(rgn->bounds.x);
+	extra.srcDeltaY = -static_cast<SInt32>(rgn->bounds.y);
+	c.value = color;
+	m_framebuffer->lockDevice();
+	extra.mem_offset_in_bar1 = reinterpret_cast<vm_offset_t>(p) - m_framebuffer->getVRAMPtr();
+	screen.AnnotateFill(c);
+	m_framebuffer->unlockDevice();
+	blitToScreen(framebufferIndex,
+				 rgn,
+				 &extra);
 	SyncFIFO();
+	VRAMFree(p);
+	IOFree(rgn, s1);
 	return kIOReturnSuccess;
 }
+#endif
 
+#if 0
 IOReturn CLASS::RectFill3D(UInt32 color,
 						   struct IOBlitRectangleStruct const* rects,
 						   size_t numRects)
@@ -723,6 +749,7 @@ IOReturn CLASS::RectFill3D(UInt32 color,
 	IOFree(rgn, s);
 	return kIOReturnSuccess;
 }
+#endif
 
 IOReturn CLASS::RectFill(UInt32 framebufferIndex,
 						 uintptr_t color,
@@ -735,18 +762,10 @@ IOReturn CLASS::RectFill(UInt32 framebufferIndex,
 
 	if (!count || !rects)
 		return kIOReturnBadArgument;
-	if (!m_framebuffer)
-		return kIOReturnNoDevice;
 	ACLog(2, "%s: color == 0x%x, numRects == %lu, [%d, %d, %d, %d]\n",
 		  __FUNCTION__, color32, count, rects->x, rects->y, rects->width, rects->height);
-	if (bHaveScreenObject)
-		return RectFillScreen(framebufferIndex,
-							  color32,
-							  rects,
-							  count);
-	if (bHaveSVGA3D)
-		return RectFill3D(color32, rects, count);
-	clearGFB(color32, rects, count);
+	if (!m_framebuffer)
+		return kIOReturnNoDevice;
 	m_framebuffer->lockDevice();
 	for (i = 0; i < count; ++i) {
 		rc = m_svga->RectFill(color32, reinterpret_cast<UInt32 const*>(&rects[i]));
@@ -757,28 +776,30 @@ IOReturn CLASS::RectFill(UInt32 framebufferIndex,
 	return rc ? kIOReturnSuccess : kIOReturnNoMemory;
 }
 
+#if 0
 IOReturn CLASS::UpdateFramebuffer(UInt32 const* rect)
 {
 	if (!rect)
 		return kIOReturnBadArgument;
-	if (!m_framebuffer)
-		return kIOReturnNoDevice;
 	if (HaveFrontBuffer())
 		return kIOReturnSuccess;
+	if (!m_framebuffer)
+		return kIOReturnNoDevice;
 	m_framebuffer->lockDevice();
 	m_svga->UpdateFramebuffer2(rect);
 	m_framebuffer->unlockDevice();
 	return kIOReturnSuccess;
 }
+#endif
 
 IOReturn CLASS::UpdateFramebufferAutoRing(UInt32 const* rect)
 {
 	if (!rect)
 		return kIOReturnBadArgument;
-	if (!m_framebuffer)
-		return kIOReturnNoDevice;
 	if (HaveFrontBuffer())
 		return kIOReturnSuccess;
+	if (!m_framebuffer)
+		return kIOReturnNoDevice;
 	++m_updates_counter;
 	if (m_updates_counter == UPDATES_COUNTER_THRESHOLD)
 		m_updates_counter = 0;
@@ -807,12 +828,12 @@ IOReturn CLASS::CopyRegion(UInt32 framebufferIndex,
 
 	if (!rgn || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(rgn))
 		return kIOReturnBadArgument;
-	if (!m_framebuffer)
-		return kIOReturnNoDevice;
 	if (HaveFrontBuffer()) {
 		ACLog(1, "%s: called with SVGAScreen or SVGA3D - unsupported\n", __FUNCTION__);
-		return kIOReturnUnsupported;
+		return kIOReturnSuccess /* pretend to work... kIOReturnUnsupported */;
 	}
+	if (!m_framebuffer)
+		return kIOReturnNoDevice;
 	m_framebuffer->lockDevice();
 	rect = &rgn->bounds;
 	if (checkOptionAC(VMW_OPTION_AC_REGION_BOUNDS_COPY)) {
@@ -1402,6 +1423,7 @@ IOReturn CLASS::blitGFB(UInt32 framebufferIndex,
 	return kIOReturnSuccess;
 }
 
+#if 0
 IOReturn CLASS::clearGFB(UInt32 color,
 						 struct IOBlitRectangleStruct const* rects,
 						 size_t numRects)
@@ -1437,6 +1459,7 @@ IOReturn CLASS::clearGFB(UInt32 color,
 	}
 	return kIOReturnSuccess;
 }
+#endif
 
 #pragma mark -
 #pragma mark Misc Methods
