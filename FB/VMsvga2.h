@@ -59,8 +59,8 @@ private:
 	IOVirtualAddress m_bar1_ptr;	// offset 0x148
 #if 0
 	IOPhysicalAddress m_fb_offset;	// offset 0x14C
-#endif
 	UInt32 m_aperture_size;			// offset 0x150
+#endif
 	IODisplayModeID m_display_mode;	// offset 0x154
 	IOIndex m_depth_mode;			// offset 0x158
 	thread_call_t m_restore_call;	// offset 0x15C
@@ -158,7 +158,6 @@ public:
 	 */
 	IOReturn getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect blockType, IOOptionBits options, UInt8* data, IOByteCount* length);
 	bool hasDDCConnect(IOIndex connectIndex);
-	UInt32 getCurrentApertureSize() const;
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 	bool passiveMatch(OSDictionary* matching, bool changesOK = false);
 #endif

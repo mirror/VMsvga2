@@ -94,6 +94,10 @@ void CLASS::Cleanup()
 		m_bar1_map = 0;
 		m_bar1_ptr = 0;
 	}
+	if (m_bar1) {
+		m_bar1->release();
+		m_bar1 = 0;
+	}
 	if (m_iolock) {
 		IOLockFree(m_iolock);
 		m_iolock = 0;
@@ -359,18 +363,9 @@ const char* CLASS::getPixelFormats()
 
 IODeviceMemory* CLASS::getVRAMRange()
 {
-	IODeviceMemory* mem;
-	IOByteCount vramSize;
-
 	LogPrintf(4, "%s\n", __FUNCTION__);
 	if (!m_bar1)
 		return 0;
-	vramSize = svga.getVRAMSize();
-	if (vramSize < m_bar1->getLength()) {
-		mem = IODeviceMemory::withSubRange(m_bar1, 0, vramSize);
-		if (mem)
-			return mem;
-	}
 	m_bar1->retain();
 	return m_bar1;
 }
@@ -393,7 +388,7 @@ UInt32 CLASS::getApertureSize(IODisplayModeID displayMode, IOIndex depth)
 
 IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 {
-	UInt32 fb_size;
+	UInt32 fb_offset, fb_size;
 	IODeviceMemory* mem;
 
 	if (aperture != kIOFBSystemAperture) {
@@ -402,9 +397,12 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 	}
 	if (!m_bar1)
 		return 0;
-	fb_size = getCurrentApertureSize() /* getApertureSize(m_display_mode, m_depth_mode) */;
-	LogPrintf(4, "%s: aperture=%d, fb size=%u\n", __FUNCTION__, aperture, fb_size);
-	mem = IODeviceMemory::withSubRange(m_bar1, svga.getFBOffset(), fb_size);
+	IOLockLock(m_iolock);
+	fb_offset = svga.getCurrentFBOffset();
+	fb_size = svga.getCurrentFBSize();
+	IOLockUnlock(m_iolock);
+	LogPrintf(4, "%s: aperture=%d, fb offset=%u, fb size=%u\n", __FUNCTION__, aperture, fb_offset, fb_size);
+	mem = IODeviceMemory::withSubRange(m_bar1, fb_offset, fb_size);
 	if (!mem)
 		LogPrintf(1, "%s: failed to create IODeviceMemory, aperture=%d\n", __FUNCTION__, kIOFBSystemAperture);
 	return mem;
@@ -593,17 +591,35 @@ bool CLASS::start(IOService* provider)
 		Cleanup();
 		return false;
 	}
-	m_bar1_map = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
+	m_bar1->retain();
+	if (!svga.Init(m_provider, m_log_level)) {
+		Cleanup();
+		return false;
+	}
+	/*
+	 * Begin Added
+	 */
+	if (svga.getVRAMSize() < m_bar1->getLength()) {
+		IODeviceMemory* mem = IODeviceMemory::withSubRange(m_bar1,
+														   0,
+														   svga.getVRAMSize());
+		if (mem) {
+			m_bar1->release();
+			m_bar1 = mem;
+		}
+	}
+	/*
+	 * End Added
+	 */
+	m_bar1_map = m_bar1->createMappingInTask(kernel_task,
+											 0,
+											 kIOMapAnywhere);
 	if (!m_bar1_map) {
 		LogPrintf(1, "%s: failed to get memory map BAR1 registers\n", __FUNCTION__);
 		Cleanup();
 		return false;
 	}
 	m_bar1_ptr = m_bar1_map->getVirtualAddress();
-	if (!svga.Init(m_provider, m_log_level)) {
-		Cleanup();
-		return false;
-	}
 #ifdef TESTING
 	SVGADevice::test_ram_size(getName(), m_bar1_ptr, m_bar1->getLength());
 #endif
@@ -658,7 +674,9 @@ bool CLASS::start(IOService* provider)
 	}
 	m_display_mode = TryDetectCurrentDisplayMode(3);
 	m_depth_mode = 0;
-	m_aperture_size = getCurrentApertureSize() /* getApertureSize(m_display_mode, m_depth_mode) */;
+#if 0
+	m_aperture_size = svga.getCurrentFBSize();
+#endif
 	if (!super::start(provider)) {
 		LogPrintf(1, "%s: failed to start super\n", __FUNCTION__);
 		Cleanup();
@@ -1039,15 +1057,18 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
 	if (m_custom_switch == 1)
-		bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getFBOffset()), m_aperture_size);
+		bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getCurrentFBOffset()),
+			  svga.getCurrentFBSize());
 	svga.SetMode(dme->width, dme->height, 32);
 	m_display_mode = displayMode;
 	m_depth_mode = 0;
-	IOLockUnlock(m_iolock);
-	m_aperture_size = getCurrentApertureSize() /* getApertureSize(m_display_mode, m_depth_mode) */;
-	LogPrintf(4, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__, m_display_mode, m_depth_mode);
+#if 0
+	m_aperture_size = svga.getCurrentFBSize();
+#endif
 	if (checkOptionFB(VMW_OPTION_FB_REG_DUMP))	// Added
 		svga.RegDump();						// Added
+	IOLockUnlock(m_iolock);
+	LogPrintf(4, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__, m_display_mode, m_depth_mode);
 	if (!m_accel_updates)
 		scheduleRefreshTimer(200 /* m_refresh_quantum_ms */);	// Added
 	return kIOReturnSuccess;
@@ -1092,11 +1113,6 @@ IODisplayModeID CLASS::TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) 
 		if (w == modeList[i].width && h == modeList[i].height)
 			return modeList[i].mode_id;
 	return defaultMode;
-}
-
-UInt32 CLASS::getCurrentApertureSize() const
-{
-	return svga.getCurrentPitch() * svga.getCurrentHeight();
 }
 
 #pragma mark -
