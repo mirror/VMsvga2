@@ -32,6 +32,7 @@
 #include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2GLContext.h"
+#include "ACMethods.h"
 
 #define CLASS VMsvga2GLContext
 #define super IOUserClient
@@ -43,17 +44,7 @@ OSDefineMetaClassAndStructors(VMsvga2GLContext, IOUserClient);
 #define GLLog(log_level, fmt, ...)
 #endif
 
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
-#define NUM_GL_LOW_METHODS 21
-#define NUM_GL_HIGH_METHODS 11
-#else
-#define NUM_GL_LOW_METHODS 17
-#define NUM_GL_HIGH_METHODS 13
-#endif
-#define NUM_GL_METHODS (NUM_GL_LOW_METHODS + NUM_GL_HIGH_METHODS)
-#define VM_METHODS_START NUM_GL_METHODS
-
-static IOExternalMethod iofbFuncsCache[NUM_GL_METHODS] =
+static IOExternalMethod iofbFuncsCache[kIOVMGLNumMethods] =
 {
 // Note: methods from IONVGLContext
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface), kIOUCScalarIScalarO, 4, 0},
@@ -161,17 +152,21 @@ struct sIOGLContextGetDataBuffer
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
-	if (index >= NUM_GL_LOW_METHODS)
+	if (index >= kIOVMGLGetQueryBuffer)
 		GLLog(2, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
-	if (!targetP || index >= NUM_GL_METHODS)
+	if (!targetP || index >= kIOVMGLNumMethods)
 		return 0;
-	if (index >= VM_METHODS_START) {
+#if 0
+	if (index >= kIOVMGLNumMethods) {
 		if (m_provider)
 			*targetP = m_provider;
 		else
 			return 0;
 	} else
 		*targetP = this;
+#else
+	*targetP = this;
+#endif
 	return &m_funcs_cache[index];
 }
 

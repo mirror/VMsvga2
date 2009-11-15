@@ -57,22 +57,12 @@ static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 {0, reinterpret_cast<IOMethod>(&CLASS::get_surface_info1), kIOUCScalarIStructO, 2, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::swap_surface), kIOUCScalarIScalarO, 1, 1},
 {0, reinterpret_cast<IOMethod>(&CLASS::scale_surface), kIOUCScalarIScalarO, 3, 0},
-#if 1
-{0, reinterpret_cast<IOMethod>(&CLASS::lock_memory), kIOUCScalarIScalarO, 1, 2},
-#else
-{0, reinterpret_cast<IOMethod>(&CLASS::lock_memory), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},	// OS 10.6 format
-#endif
+{0, reinterpret_cast<IOMethod>(&CLASS::lock_memory), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::unlock_memory), kIOUCScalarIScalarO, 1, 1},
 {0, reinterpret_cast<IOMethod>(&CLASS::finish), kIOUCScalarIScalarO, 1, 0},
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
-{0, reinterpret_cast<IOMethod>(&CLASS::declare_image), kIOUCScalarIScalarO, 3, 1},
-{0, reinterpret_cast<IOMethod>(&CLASS::create_image), kIOUCScalarIScalarO, 2, 2},
-{0, reinterpret_cast<IOMethod>(&CLASS::create_transfer), kIOUCScalarIScalarO, 2, 2},
-#else
 {0, reinterpret_cast<IOMethod>(&CLASS::declare_image), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::create_image), kIOUCScalarIStructO, 2, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::create_transfer), kIOUCScalarIStructO, 2, kIOUCVariableStructureSize},
-#endif
 {0, reinterpret_cast<IOMethod>(&CLASS::delete_image), kIOUCScalarIScalarO, 1, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::wait_image), kIOUCScalarIScalarO, 1, 0},
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface_paging_options), kIOUCStructIStructO, 12, 12},
@@ -81,8 +71,6 @@ static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 // Note: Methods from NV2DContext
 {0, reinterpret_cast<IOMethod>(&CLASS::read_configs), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::read_config_Ex), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
-{0, reinterpret_cast<IOMethod>(&CLASS::write_configs), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
-{0, reinterpret_cast<IOMethod>(&CLASS::write_config_Ex), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::get_surface_info2), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
 {0, reinterpret_cast<IOMethod>(&CLASS::kernel_printf), kIOUCScalarIStructI, 0, kIOUCVariableStructureSize},
 // Note: VM Methods
@@ -372,13 +360,9 @@ IOReturn CLASS::scale_surface(uintptr_t options, uintptr_t width, uintptr_t heig
 												 static_cast<UInt32>(height));
 }
 
-#if 1
-IOReturn CLASS::lock_memory(uintptr_t options, mach_vm_address_t* address, mach_vm_size_t* rowBytes)
-#else
 IOReturn CLASS::lock_memory(uintptr_t options, UInt64* struct_out, size_t* struct_out_size)
-#endif
 {
-	if (!address || !rowBytes)
+	if (!struct_out || !struct_out_size || *struct_out_size < 2U * sizeof *struct_out)
 		return kIOReturnBadArgument;
 	if (!bTargetIsCGSSurface) {
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
@@ -386,7 +370,7 @@ IOReturn CLASS::lock_memory(uintptr_t options, UInt64* struct_out, size_t* struc
 	}
 	if (!surface_client)
 		return kIOReturnNotReady;
-	return surface_client->context_lock_memory(m_owning_task, address, rowBytes);
+	return surface_client->context_lock_memory(m_owning_task, &struct_out[0], &struct_out[1]);
 }
 
 IOReturn CLASS::unlock_memory(uintptr_t options, io_user_scalar_t* swapFlags)
@@ -411,29 +395,17 @@ IOReturn CLASS::finish(uintptr_t options)
 	return kIOReturnSuccess;
 }
 
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
-IOReturn CLASS::declare_image(uintptr_t, uintptr_t, uintptr_t, io_user_scalar_t*)
-#else
 IOReturn CLASS::declare_image(UInt64 const*, UInt64*, size_t, size_t*)
-#endif
 {
 	return kIOReturnUnsupported;
 }
 
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
-IOReturn CLASS::create_image(uintptr_t, uintptr_t, io_user_scalar_t*, io_user_scalar_t*)
-#else
 IOReturn CLASS::create_image(uintptr_t, uintptr_t, UInt64*, size_t*)
-#endif
 {
 	return kIOReturnUnsupported;
 }
 
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
-IOReturn CLASS::create_transfer(uintptr_t, uintptr_t, io_user_scalar_t*, io_user_scalar_t*)
-#else
 IOReturn CLASS::create_transfer(uintptr_t, uintptr_t, UInt64*, size_t*)
-#endif
 {
 	return kIOReturnUnsupported;
 }
@@ -509,16 +481,6 @@ IOReturn CLASS::read_config_Ex(UInt32 const* input_struct, UInt32* output_struct
 			return kIOReturnUnsupported;
 	}
 	return kIOReturnSuccess;
-}
-
-IOReturn CLASS::write_configs(UInt32 const*, size_t)
-{
-	return kIOReturnUnsupported;
-}
-
-IOReturn CLASS::write_config_Ex(UInt32 const*, size_t)
-{
-	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::get_surface_info2(UInt32 const*, UInt32*, size_t, size_t*)

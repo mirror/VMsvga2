@@ -29,6 +29,61 @@
 #ifndef __ACMETHODS_H__
 #define __ACMETHODS_H__
 
+enum eIOVMGLMethods {
+	kIOVMGLSetSurface,
+	kIOVMGLSetSwapRect,
+	kIOVMGLSetSwapInterval,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+	kIOVMGLGetConfig,
+#endif
+	kIOVMGLGetSurfaceSize,
+	kIOVMGLGetSurfaceInfo,
+	kIOVMGLReadBuffer,
+	kIOVMGLFinish,
+	kIOVMGLWaitForStamp,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+	kIOVMGLNewTexture,
+	kIOVMGLDeleteTexture,
+#endif
+	kIOVMGLBecomeGlobalShared,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+	kIOVMGLPageOffTexture,
+#endif
+	kIOVMGLPurgeTexture,
+	kIOVMGLSetSurfaceVolatileState,
+	kIOVMGLSetSurfaceGetConfigStatus,
+	kIOVMGLReclaimResources,
+	kIOVMGLGetDataBuffer,
+	kIOVMGLSetStereo,
+	kIOVMGLPurgeAccelerator,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+	kIOVMGLGetChannelMemory,
+#else
+	kIOVMGLSubmitCommandBuffer,
+#endif
+
+	kIOVMGLGetQueryBuffer,
+	kIOVMGLGetNotifiers,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
+	kIOVMGLNewHeapObject,
+#endif
+	kIOVMGLKernelPrintf,
+	kIOVMGLNvRmConfigGet,
+	kIOVMGLNvRmConfigGetEx,
+	kIOVMGLNvClientRequest,
+	kIOVMGLPageoffSurfaceTexture,
+	kIOVMGLGetDataBufferWithOffset,
+	kIOVMGLNvRmControl,
+	kIOVMGLGetPowerState,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+	kIOVMGLSetWatchdogTimer,
+	kIOVMGLGetHandleIndex,
+	kIOVMGLForceTextureLargePages,
+#endif
+
+	kIOVMGLNumMethods
+};
+
 enum eIOVM2DMethods {
 	kIOVM2DSetSurface,
 	kIOVM2DGetConfig,
@@ -49,8 +104,6 @@ enum eIOVM2DMethods {
 
 	kIOVM2DReadConfigs,
 	kIOVM2DReadConfigEx,
-	kIOVM2DWriteConfigs,
-	kIOVM2DWriteConfigEx,
 	kIOVM2DGetSurfaceInfo2,
 	kIOVM2DKernelPrintf,
 
@@ -61,6 +114,41 @@ enum eIOVM2DMethods {
 	kIOVM2DUpdateFramebuffer,
 
 	kIOVM2DNumMethods
+};
+
+enum eIOVMDVDMethods {
+	kIOVMDVDNumMethods
+};
+
+enum eIOVMDeviceMethods {
+	kIOVMDeviceCreateShared,
+	kIOVMDeviceGetConfig,
+	kIOVMDeviceGetSurfaceInfo,
+	kIOVMDeviceGetName,
+	kIOVMDeviceWaitForStamp,
+	kIOVMDeviceNewTexture,
+	kIOVMDeviceDeleteTexture,
+	kIOVMDevicePageOffTexture,
+	kIOVMDeviceGetChannelMemory,
+
+	kIOVMDeviceKernelPrintf,
+	kIOVMDeviceNvRmConfigGet,
+	kIOVMDeviceNvRmConfigGetEx,
+	kIOVMDeviceNvRmControl,
+
+	kIOVMDeviceNumMethods
+};
+
+enum eIOVMOCDMethods {
+	kIOVMOCDFinish,
+	kIOVMOCDWaitForStamp,
+
+	kIOVMOCDCheckErrorNotifier,
+	kIOVMOCDMarkTextureForOCDUse,
+	kIOVMOCDFreeEvent,
+	kIOVMOCDGetHandleIndex,
+
+	kIOVMOCDNumMethods
 };
 
 #endif /* __ACMETHODS_H__ */

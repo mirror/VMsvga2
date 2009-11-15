@@ -32,6 +32,7 @@
 #include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Device.h"
+#include "ACMethods.h"
 
 #define CLASS VMsvga2Device
 #define super IOUserClient
@@ -43,10 +44,7 @@ OSDefineMetaClassAndStructors(VMsvga2Device, IOUserClient);
 #define DVLog(log_level, fmt, ...)
 #endif
 
-#define NUM_DV_METHODS 13
-#define VM_METHODS_START 13
-
-static IOExternalMethod iofbFuncsCache[NUM_DV_METHODS] =
+static IOExternalMethod iofbFuncsCache[kIOVMDeviceNumMethods] =
 {
 // IONVDevice
 {0, reinterpret_cast<IOMethod>(&CLASS::create_shared), kIOUCScalarIScalarO, 0, 0},
@@ -71,17 +69,21 @@ static IOExternalMethod iofbFuncsCache[NUM_DV_METHODS] =
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
-	if (index >= NUM_DV_METHODS)
+	if (index >= kIOVMDeviceNumMethods)
 		DVLog(2, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
-	if (!targetP || index >= NUM_DV_METHODS)
+	if (!targetP || index >= kIOVMDeviceNumMethods)
 		return 0;
-	if (index >= VM_METHODS_START) {
+#if 0
+	if (index >= kIOVMDeviceNumMethods) {
 		if (m_provider)
 			*targetP = m_provider;
 		else
 			return 0;
 	} else
 		*targetP = this;
+#else
+	*targetP = this;
+#endif
 	return &m_funcs_cache[index];
 }
 

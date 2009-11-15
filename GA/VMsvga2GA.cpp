@@ -582,8 +582,8 @@ static IOReturn vmLockSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	SurfaceInfo* si;
 	IOReturn rc;
 	uint64_t input;
-	uint64_t output[2];
-	uint32_t output_cnt;
+	uint64_t struct_out[2];
+	size_t struct_out_cnt;
 
 	GALog(2, "%s(%p, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, surface, address);
 
@@ -599,16 +599,16 @@ static IOReturn vmLockSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 		return kIOReturnSuccess;
 	}
 	input = options;
-	output_cnt = 2;
+	struct_out_cnt = sizeof struct_out;
 	rc = IOConnectCallMethod(me->_context, kIOVM2DLockMemory,
 							 &input, 1,
 							 0, 0,
-							 &output[0], &output_cnt,
-							 0, 0);
+							 0, 0,
+							 &struct_out[0], &struct_out_cnt);
 	if (rc != kIOReturnSuccess)
 		return rc;
-	*address = static_cast<vm_address_t>(output[0]);
-	surface->rowBytes = static_cast<UInt32>(output[1]);
+	*address = static_cast<vm_address_t>(struct_out[0]);
+	surface->rowBytes = static_cast<UInt32>(struct_out[1]);
 	/*
 	 * It took me over a week to come up with the following line because
 	 *   QuickTime refuses to run under gdb -- Zenith432, 8/27/2009

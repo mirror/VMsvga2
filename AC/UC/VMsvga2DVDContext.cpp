@@ -31,6 +31,7 @@
 #include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2DVDContext.h"
+#include "ACMethods.h"
 
 #define CLASS VMsvga2DVDContext
 #define super IOUserClient
@@ -42,10 +43,7 @@ OSDefineMetaClassAndStructors(VMsvga2DVDContext, IOUserClient);
 #define DVDLog(log_level, fmt, ...)
 #endif
 
-#define NUM_DVD_METHODS 0
-#define VM_METHODS_START 0
-
-static IOExternalMethod iofbFuncsCache[NUM_DVD_METHODS] =
+static IOExternalMethod iofbFuncsCache[kIOVMDVDNumMethods] =
 {
 // TBD: IONVDVDContext
 // TBD: NVDVDContext
@@ -58,15 +56,19 @@ static IOExternalMethod iofbFuncsCache[NUM_DVD_METHODS] =
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
 	DVDLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
-	if (!targetP || index >= NUM_DVD_METHODS)
+	if (!targetP || index >= kIOVMDVDNumMethods)
 		return 0;
-	if (index >= VM_METHODS_START) {
+#if 0
+	if (index >= kIOVMDVDNumMethods) {
 		if (m_provider)
 			*targetP = m_provider;
 		else
 			return 0;
 	} else
 		*targetP = this;
+#else
+	*targetP = this;
+#endif
 	return &m_funcs_cache[index];
 }
 

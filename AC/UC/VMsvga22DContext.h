@@ -91,22 +91,12 @@ public:
 	IOReturn get_surface_info1(uintptr_t, eIOContextModeBits, void *, size_t*);
 	IOReturn swap_surface(uintptr_t options, io_user_scalar_t* swapFlags);
 	IOReturn scale_surface(uintptr_t options, uintptr_t width, uintptr_t height);
-#if 1
-	IOReturn lock_memory(uintptr_t options, mach_vm_address_t* address, mach_vm_size_t* rowBytes);
-#else
 	IOReturn lock_memory(uintptr_t options, UInt64* struct_out, size_t* struct_out_size);
-#endif
 	IOReturn unlock_memory(uintptr_t options, io_user_scalar_t* swapFlags);
 	IOReturn finish(uintptr_t options);
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
-	IOReturn declare_image(uintptr_t, uintptr_t, uintptr_t, io_user_scalar_t*);
-	IOReturn create_image(uintptr_t, uintptr_t, io_user_scalar_t*, io_user_scalar_t*);
-	IOReturn create_transfer(uintptr_t, uintptr_t, io_user_scalar_t*, io_user_scalar_t*);
-#else
 	IOReturn declare_image(UInt64 const*, UInt64*, size_t, size_t*);
 	IOReturn create_image(uintptr_t, uintptr_t, UInt64*, size_t*);
 	IOReturn create_transfer(uintptr_t, uintptr_t, UInt64*, size_t*);
-#endif
 	IOReturn delete_image(uintptr_t image_id);
 	IOReturn wait_image(uintptr_t image_id);
 	IOReturn set_surface_paging_options(IOSurfacePagingControlInfoStruct const*, IOSurfacePagingControlInfoStruct*, size_t, size_t*);
@@ -118,8 +108,6 @@ public:
 	 */
 	IOReturn read_configs(UInt32 const* input_struct, UInt32* output_struct, size_t input_struct_size, size_t* output_struct_size);
 	IOReturn read_config_Ex(UInt32 const* input_struct, UInt32* output_struct, size_t input_struct_size, size_t* output_struct_size);
-	IOReturn write_configs(UInt32 const*, size_t);
-	IOReturn write_config_Ex(UInt32 const*, size_t);
 	IOReturn get_surface_info2(UInt32 const*, UInt32*, size_t, size_t*);
 	IOReturn kernel_printf(char const*, size_t);
 };

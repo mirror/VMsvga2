@@ -31,6 +31,7 @@
 #include "Vlog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2OCDContext.h"
+#include "ACMethods.h"
 
 #define CLASS VMsvga2OCDContext
 #define super IOUserClient
@@ -42,10 +43,7 @@ OSDefineMetaClassAndStructors(VMsvga2OCDContext, IOUserClient);
 #define OCDLog(log_level, fmt, ...)
 #endif
 
-#define NUM_OCD_METHODS 6
-#define VM_METHODS_START 6
-
-static IOExternalMethod iofbFuncsCache[NUM_OCD_METHODS] =
+static IOExternalMethod iofbFuncsCache[kIOVMOCDNumMethods] =
 {
 // IONVOCDContext
 	{0, reinterpret_cast<IOMethod>(&CLASS::finish), kIOUCScalarIScalarO, 0, 0},
@@ -64,15 +62,19 @@ static IOExternalMethod iofbFuncsCache[NUM_OCD_METHODS] =
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
 	OCDLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
-	if (!targetP || index >= NUM_OCD_METHODS)
+	if (!targetP || index >= kIOVMOCDNumMethods)
 		return 0;
-	if (index >= VM_METHODS_START) {
+#if 0
+	if (index >= kIOVMOCDNumMethods) {
 		if (m_provider)
 			*targetP = m_provider;
 		else
 			return 0;
 	} else
 		*targetP = this;
+#else
+	*targetP = this;
+#endif
 	return &m_funcs_cache[index];
 }
 
