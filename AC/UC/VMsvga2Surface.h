@@ -49,10 +49,11 @@ private:
 	 * Flags
 	 */
 	unsigned bHaveID:1;				// covers everything under "ID stuff"
-	unsigned bHaveSVGA3D:1;
+	unsigned bHaveMasterSurface:1;
 	unsigned bVideoMode:1;
 	unsigned bDirectBlit:1;
 	unsigned bHaveScreenObject:1;
+	unsigned bSkipWriteLockOnce:1;
 
 	/*
 	 * Locking stuff
@@ -153,9 +154,9 @@ private:
 	bool isIdentityScale() const;
 	void Init();
 	void Cleanup();
-	void clearLastShape();
+	void clearLastRegion();
 	void calculateSurfaceInformation(IOAccelSurfaceInformation* info);
-	void calculateScaleParameters();
+	void calculateScaleParameters(bool bFromGFB = false);
 	void clipRegionToBuffer(IOAccelDeviceRegion* region,
 							SInt32 deltaX,
 							SInt32 deltaY);

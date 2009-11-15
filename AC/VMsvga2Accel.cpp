@@ -1473,6 +1473,8 @@ IOReturn CLASS::getScreenInfo(IOAccelSurfaceReadData* info)
 		return kIOReturnNoDevice;
 	bzero(info, sizeof *info);
 	m_framebuffer->lockDevice();
+	info->x = m_svga->getCurrentFBOffset();
+	info->y = m_svga->getCurrentFBSize();
 	info->w = m_svga->getCurrentWidth();
 	info->h = m_svga->getCurrentHeight();
 #if IOACCELTYPES_10_5 || (IOACCEL_TYPES_REV < 12 && !defined(kIODescriptionKey))

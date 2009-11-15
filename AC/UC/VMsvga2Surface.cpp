@@ -94,7 +94,7 @@ union DefineRegion
 	IOAccelDeviceRegion r;
 };
 
-static inline vm_size_t round_up_to_power2(vm_size_t s, vm_size_t power2)
+static inline UInt32 round_up_to_power2(UInt32 s, UInt32 power2)
 {
 	return (s + power2 - 1) & ~(power2 - 1);
 }
@@ -260,7 +260,7 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
 
 bool CLASS::haveFrontBuffer() const
 {
-	return bHaveScreenObject != 0 || bHaveSVGA3D != 0;
+	return bHaveScreenObject != 0 || bHaveMasterSurface != 0;
 }
 
 bool CLASS::isBackingValid() const
@@ -304,14 +304,16 @@ void CLASS::Cleanup()
 		surface_video_off();
 	}
 	releaseBacking();
-	clearLastShape();
-}
-
-void CLASS::clearLastShape()
-{
+	clearLastRegion();
 	if (m_last_shape) {
 		m_last_shape->release();
 		m_last_shape = 0;
+	}
+}
+
+void CLASS::clearLastRegion()
+{
+	if (m_last_region) {
 		m_last_region = 0;
 		m_framebufferIndex = 0;
 	}
@@ -335,30 +337,27 @@ void CLASS::calculateSurfaceInformation(IOAccelSurfaceInformation* info)
 	info->height = static_cast<UInt32>(m_scale.buffer.h);
 	info->rowBytes = m_scale.reserved[1];
 	info->pixelFormat = m_pixel_format;
+	info->colorTemperature[0] = 0x1CCCCU;	// from GeForce.kext
 }
 
-void CLASS::calculateScaleParameters()
+/*
+ * m_scale.reserved[0] - Byte size of source rounded up nearest PAGE_SIZE
+ * m_scale.reserved[1] - Source pitch
+ * m_scale.reserved[2] - buffer byte offset within source
+ */
+void CLASS::calculateScaleParameters(bool bFromGFB)
 {
-	if (isClientBackingValid()) {
-		m_scale.reserved[0] = static_cast<UInt32>(round_up_to_power2(m_client_backing.size, PAGE_SIZE));
+	if (bFromGFB) {
+		m_scale.reserved[0] = static_cast<UInt32>(m_screenInfo.y);
+		m_scale.reserved[1] = m_screenInfo.client_row_bytes;
+	} else if (isClientBackingValid()) {
+		m_scale.reserved[0] = static_cast<UInt32>(m_client_backing.size);
 		m_scale.reserved[1] = static_cast<UInt32>(m_client_backing.rowbytes);
-		goto finishup;
+	} else {
+		m_scale.reserved[1] = static_cast<UInt32>(m_scale.source.w) * m_bytes_per_pixel;
+		m_scale.reserved[0] = static_cast<UInt32>(m_scale.source.h) * m_scale.reserved[1];
 	}
-	/*
-	 * Byte size of source rounded up nearest PAGE_SIZE
-	 */
-	m_scale.reserved[0] = static_cast<UInt32>(round_up_to_power2(static_cast<vm_size_t>(m_scale.source.w) *
-																 static_cast<vm_size_t>(m_scale.source.h) *
-																 m_bytes_per_pixel,
-																 PAGE_SIZE));
-	/*
-	 * Source pitch
-	 */
-	m_scale.reserved[1] = static_cast<UInt32>(m_scale.source.w) * m_bytes_per_pixel;
-	/*
-	 * buffer byte offset within source
-	 */
-finishup:
+	m_scale.reserved[0] = round_up_to_power2(m_scale.reserved[0], PAGE_SIZE);
 	m_scale.reserved[2] = m_scale.buffer.y * m_scale.reserved[1] + m_scale.buffer.x * m_bytes_per_pixel;
 }
 
@@ -524,8 +523,8 @@ void CLASS::Start3D()
 {
 	bHaveScreenObject = m_provider->HaveScreen();
 	if (!bHaveScreenObject) {
-		bHaveSVGA3D = m_provider->retainMasterSurface();
-		if (!bHaveSVGA3D)
+		bHaveMasterSurface = m_provider->retainMasterSurface();
+		if (!bHaveMasterSurface)
 			return;
 	}
 	m_aux_surface_id[0] = m_provider->AllocSurfaceID();
@@ -551,12 +550,12 @@ void CLASS::Cleanup3D()
 {
 	if (!m_provider || !haveFrontBuffer())
 		return;
-	if (bHaveSVGA3D)
+	if (bHaveMasterSurface)
 		m_provider->releaseMasterSurface();
 	m_provider->FreeSurfaceID(m_aux_surface_id[0]);
 	m_provider->FreeSurfaceID(m_aux_surface_id[1]);
 	m_provider->FreeContextID(m_aux_context_id);
-	bHaveSVGA3D = false;
+	bHaveMasterSurface = false;
 	bHaveScreenObject = false;
 }
 
@@ -1082,8 +1081,13 @@ IOReturn CLASS::surface_write_lock_options(eIOAccelSurfaceLockBits options, IOAc
 	if (!bHaveID || !isSourceValid())
 		return kIOReturnNotReady;
 	bzero(info, *infoSize);
+	if (bSkipWriteLockOnce) {
+		bSkipWriteLockOnce = false;
+		goto skip;
+	}
 	if (OSTestAndSet(vmSurfaceLockWrite, &bIsLocked))
 		return kIOReturnCannotLock;
+skip:
 	if (!allocBacking() ||
 		(!isClientBackingValid() && !mapBacking(m_owning_task, 0))) {
 		OSTestAndClear(vmSurfaceLockWrite, &bIsLocked);
@@ -1150,26 +1154,30 @@ IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
 		case kIOAccelSurfaceModeColorDepth1555:
 			m_surfaceFormat = SVGA3D_X1R5G5B5;
 			m_bytes_per_pixel = sizeof(UInt16);
-			m_pixel_format = kIO16LE555PixelFormat;
+			m_pixel_format = kIOAccelSurfaceModeColorDepth1555;
 			break;
 		case kIOAccelSurfaceModeColorDepth8888:
 			m_surfaceFormat = SVGA3D_X8R8G8B8;
 			m_bytes_per_pixel = sizeof(UInt32);
-			m_pixel_format = kIO24BGRPixelFormat;
+			m_pixel_format = kIOAccelSurfaceModeColorDepth8888;
 			break;
 		case kIOAccelSurfaceModeColorDepthBGRA32:
 			m_surfaceFormat = SVGA3D_A8R8G8B8;
 			m_bytes_per_pixel = sizeof(UInt32);
-			m_pixel_format = kIO32BGRAPixelFormat;
+			m_pixel_format = kIOAccelSurfaceModeColorDepth8888;
 			break;
 		case kIOAccelSurfaceModeColorDepthYUV:
-		case kIOAccelSurfaceModeColorDepthYUV9:
-		case kIOAccelSurfaceModeColorDepthYUV12:
+			m_surfaceFormat = SVGA3D_YUY2;
+			m_bytes_per_pixel = sizeof(UInt16);
+			m_pixel_format = kIOYUVSPixelFormat;
+			break;
 		case kIOAccelSurfaceModeColorDepthYUV2:
-			m_surfaceFormat = SVGA3D_BUMPL8V8U8;
-			m_bytes_per_pixel = sizeof(UInt32);
+			m_surfaceFormat = SVGA3D_UYVY;
+			m_bytes_per_pixel = sizeof(UInt16);
 			m_pixel_format = kIO2vuyPixelFormat;
 			break;
+		case kIOAccelSurfaceModeColorDepthYUV9:
+		case kIOAccelSurfaceModeColorDepthYUV12:
 		default:
 			return kIOReturnUnsupported;
 	}
@@ -1216,9 +1224,14 @@ IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
 		if (m_surfaceFormat == SVGA3D_X8R8G8B8 && isIdentityScale()) {
 			DMA_type = 3;	// direct
 		} else {
+			if (!m_provider->Have3D()) {
+				SFLog(1, "%s: called for SVGAScreen w/o SVGA3D, surface format == %d - unsupported\n",
+					  __FUNCTION__, m_surfaceFormat);
+				return kIOReturnUnsupported;
+			}
 			DMA_type = 4;	// via 3D
 		}
-	} else if (bHaveSVGA3D) {
+	} else if (bHaveMasterSurface) {
 		/*
 		 * Note: conditions for direct blit:
 		 *   surfaceFormat same
@@ -1322,11 +1335,13 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 											 IOAccelDeviceRegion const* rgn,
 											 size_t rgnSize)
 {
+	bool bAllocShapeOk, bFromGFB;
+
 #if 0
 	int const expectedOptions = kIOAccelSurfaceShapeIdentityScaleBit | kIOAccelSurfaceShapeFrameSyncBit;
 #endif
 
-	SFLog(3, "%s(0x%x, %lu, 0x%llx, %lu, %lu, %p, %lu)\n",
+	SFLog(3, "%s(0x%x, %lu, 0x%llx, %ld, %lu, %p, %lu)\n",
 		  __FUNCTION__,
 		  options,
 		  framebufferIndex,
@@ -1338,6 +1353,11 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 
 	if (!rgn || rgnSize < IOACCEL_SIZEOF_DEVICE_REGION(rgn))
 		return kIOReturnBadArgument;
+
+	if (rgnSize > 4096U) {	// sanity check
+		SFLog(1, "%s: rgnSize == %lu too large, rejecting\n", __FUNCTION__, rgnSize);
+		return kIOReturnNoSpace;
+	}
 
 #if LOGGING_LEVEL >= 1
 	if (m_log_level >= 3) {
@@ -1360,7 +1380,7 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 	}
 #endif
 
-	clearLastShape();
+	clearLastRegion();
 	bzero(&m_client_backing, sizeof m_client_backing);
 #if 0
 	if (!(options & kIOAccelSurfaceShapeNonBlockingBit))	// driver doesn't support waiting on locks
@@ -1387,8 +1407,12 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 		m_client_backing.rowbytes = rowbytes;
 		m_client_backing.size = backingLength;
 	}
-	m_last_shape = OSData::withBytes(rgn, static_cast<unsigned>(rgnSize));
 	if (!m_last_shape) {
+		m_last_shape = OSData::withBytes(rgn, static_cast<unsigned>(rgnSize));
+		bAllocShapeOk = (m_last_shape != 0);
+	} else
+		bAllocShapeOk = m_last_shape->initWithBytes(rgn, static_cast<unsigned>(rgnSize));
+	if (!bAllocShapeOk) {
 		bzero(&m_client_backing, sizeof m_client_backing);
 		return kIOReturnNoMemory;
 	}
@@ -1403,14 +1427,23 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 			m_scale.buffer.y = 0;
 			m_scale.buffer.w = m_scale.source.w;
 			m_scale.buffer.h = m_scale.source.h;
+			bFromGFB = false;
 		} else {
 			memcpy(&m_scale.buffer, &rgn->bounds, sizeof rgn->bounds);
 			m_scale.source.w = static_cast<SInt16>(m_screenInfo.w);
 			m_scale.source.h = static_cast<SInt16>(m_screenInfo.h);
+			bFromGFB = true;
 		}
-		calculateScaleParameters();
+		calculateScaleParameters(bFromGFB);
 	}
 	videoReshape();
+	/*
+	 * TBD: this is ad-hoc code to prevent
+	 *   a deadlock in the WindowServer
+	 *   during Window Grab.
+	 */
+	if (m_wID == 1U && options == 0x5U)
+		bSkipWriteLockOnce = true;
 	return kIOReturnSuccess;
 }
 
@@ -1428,7 +1461,7 @@ IOReturn CLASS::context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pix
 		if (apple_pixel_format == kIO32BGRAPixelFormat) {
 			m_surfaceFormat = SVGA3D_A8R8G8B8;
 			m_bytes_per_pixel = sizeof(UInt32);
-			m_pixel_format = apple_pixel_format;
+			m_pixel_format = kIOAccelSurfaceModeColorDepth8888;
 		}
 		if (!haveFrontBuffer())
 			Start3D();
@@ -1562,12 +1595,26 @@ IOReturn CLASS::context_copy_region(intptr_t destX,
 										region,
 										&extra,
 										&m_backing.last_DMA_fence);
-	} else if (bHaveSVGA3D) {
+	} else if (bHaveMasterSurface) {
+#if 0
+		/*
+		 * Note: This does not work if offset comes out negative.
+		 */
 		extra.mem_offset_in_bar1 +=
 			extra.dstDeltaY * static_cast<SInt32>(extra.mem_pitch) +
 			extra.dstDeltaX * static_cast<SInt32>(m_bytes_per_pixel);
 		extra.dstDeltaX = 0;
 		extra.dstDeltaY = 0;
+#else
+		/*
+		 * TBD: In Workstation 6.5, the coordinates are reversed,
+		 *   so it's no longer supported.
+		 */
+		extra.srcDeltaX = extra.dstDeltaX;
+		extra.srcDeltaY = extra.dstDeltaY;
+		extra.dstDeltaX = 0;
+		extra.dstDeltaY = 0;
+#endif
 		rc = m_provider->surfaceDMA2D(m_provider->getMasterSurfaceID(),
 									  SVGA3D_READ_HOST_VRAM,
 									  region,
