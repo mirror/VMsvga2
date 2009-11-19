@@ -44,7 +44,7 @@
 		</dict>
 	</dict>
 	<key>OSBundleCompatibleVersion</key>
-	<string>${COMPATIBLE_PROJECT_VERSION}</string>
+	<string>${DYLIB_COMPATIBILITY_VERSION}</string>
 	<key>OSBundleLibraries</key>
 	<dict>
 		<key>net.osx86.driver.VMsvga2</key>
