@@ -83,7 +83,6 @@ private:
 	/*
 	 * AutoSync area
 	 */
-	UInt32 m_updates_counter;
 	FenceTracker<AUTO_SYNC_PRESENT_FENCE_COUNT> m_present_tracker;
 
 	/*
@@ -149,10 +148,7 @@ public:
 					  uintptr_t color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t rectsSize);
-#if 0
-	IOReturn UpdateFramebuffer(UInt32 const* rect);	// rect is an array of 4 UInt32 - x, y, width, height
-#endif
-	IOReturn UpdateFramebufferAutoRing(UInt32 const* rect);	// rect same as above
+	IOReturn UpdateFramebufferAutoRing(UInt32 const* rect);	// rect is an array of 4 UInt32 - x, y, width, height
 	IOReturn CopyRegion(UInt32 framebufferIndex,
 						intptr_t destX,
 						intptr_t destY,

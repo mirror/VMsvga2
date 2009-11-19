@@ -41,8 +41,6 @@
 #include "VMsvga2Allocator.h"
 #include "VMsvga2.h"
 
-#define UPDATES_COUNTER_THRESHOLD 10
-
 #define CLASS VMsvga2Accel
 #define super IOAccelerator
 OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
@@ -776,22 +774,6 @@ IOReturn CLASS::RectFill(UInt32 framebufferIndex,
 	return rc ? kIOReturnSuccess : kIOReturnNoMemory;
 }
 
-#if 0
-IOReturn CLASS::UpdateFramebuffer(UInt32 const* rect)
-{
-	if (!rect)
-		return kIOReturnBadArgument;
-	if (HaveFrontBuffer())
-		return kIOReturnSuccess;
-	if (!m_framebuffer)
-		return kIOReturnNoDevice;
-	m_framebuffer->lockDevice();
-	m_svga->UpdateFramebuffer2(rect);
-	m_framebuffer->unlockDevice();
-	return kIOReturnSuccess;
-}
-#endif
-
 IOReturn CLASS::UpdateFramebufferAutoRing(UInt32 const* rect)
 {
 	if (!rect)
@@ -800,13 +782,9 @@ IOReturn CLASS::UpdateFramebufferAutoRing(UInt32 const* rect)
 		return kIOReturnSuccess;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
-	++m_updates_counter;
-	if (m_updates_counter == UPDATES_COUNTER_THRESHOLD)
-		m_updates_counter = 0;
 	m_framebuffer->lockDevice();
 	m_svga->UpdateFramebuffer2(rect);
-	if (!m_updates_counter)
-		m_svga->RingDoorBell();
+	m_svga->RingDoorBell();
 	m_framebuffer->unlockDevice();
 #ifdef TIMING
 	timeSyncs();
