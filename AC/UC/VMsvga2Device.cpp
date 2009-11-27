@@ -177,13 +177,13 @@ IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_s
 {
 	DVLog(2, "%s(out1, out2, out3, out4, out5)\n", __FUNCTION__);
 	if (c1)
-		*c1 = 0x4051;
+		*c1 = 0;
 	if (c2)
-		*c2 = 0x4052;
+		*c2 = 0;
 	if (c3)
 		*c3 = 128 * 1024 * 1024;	// TBD: VRAM size
 	if (c4)
-		*c4 = 0x4054;
+		*c4 = 128 * 1024 * 1024;	// TBD: VRAM size
 	if (c5)
 		*c5 = 0x4055;
 	return kIOReturnSuccess;

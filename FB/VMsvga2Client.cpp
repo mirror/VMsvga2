@@ -138,15 +138,19 @@ bool VMsvga2Client::start(IOService* provider)
 		LogPrintf(1, "%s: NULL provider return false\n", __FUNCTION__);
 		return false;
 	}
+	if (!super::start(provider)) {
+		LogPrintf(1, "%s: failed to start super\n", __FUNCTION__);
+		return false;
+	}
 #if 0
 	m_log_level = m_provider->m_log_level;
 #else	// Added
-	OSNumber* n = OSDynamicCast(OSNumber, m_provider->getProperty("VMwareSVGALogLevel"));
+	OSNumber* n = OSDynamicCast(OSNumber, m_provider->getProperty("VMwareSVGAFBLogLevel"));
 	if (n)
 		m_log_level = static_cast<VMFBIOLog>(n->unsigned32BitValue());
 #endif
 	LogPrintf(4, "%s\n", __FUNCTION__);
-	return super::start(provider);
+	return true;
 }
 
 void VMsvga2Client::stop(IOService* provider)

@@ -282,7 +282,7 @@ IOReturn CLASS::set_swap_interval(intptr_t c1, intptr_t c2)
 IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3)
 {
 	GLLog(2, "%s(out1, out2, out3)\n", __FUNCTION__);
-	*c1 = 0x4071;
+	*c1 = 0;
 	*c2 = 128 * 1024 * 1024;
 	*c3 = 0x4073;
 	return kIOReturnSuccess;

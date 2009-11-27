@@ -81,7 +81,6 @@ private:
 	bool m_intr_enabled;
 	bool m_accel_updates;
 	thread_call_t m_refresh_call;
-	UInt32 m_refresh_fence_count;
 	UInt32 m_refresh_quantum_ms;
 	UInt32 m_num_active_modes;
 	/*

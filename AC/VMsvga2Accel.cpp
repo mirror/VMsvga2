@@ -451,6 +451,8 @@ bool CLASS::start(IOService* provider)
 		m_framebuffer->setProperty(kIOAccelIndexKey, 0ULL, 32U);
 		m_framebuffer->setProperty(kIOAccelRevisionKey, static_cast<UInt64>(kCurrentGraphicsInterfaceRevision), 32U);
 	}
+	setProperty(kIOAccelRevisionKey, static_cast<UInt64>(kCurrentGraphicsInterfaceRevision), 32U);
+	setProperty("AccelCaps", 3ULL, 32U);
 #ifdef FB_NOTIFIER
 	m_fbNotifier = m_framebuffer->addFramebufferNotification(OSMemberFunctionCast(IOFramebufferNotificationHandler, this, &CLASS::fbNotificationHandler), this, 0);
 	if (!m_fbNotifier)

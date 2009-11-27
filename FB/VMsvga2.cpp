@@ -35,6 +35,7 @@
 #include <stdarg.h>
 #include <IOKit/pci/IOPCIDevice.h>
 #include <IOKit/IOTimerEventSource.h>
+#include <IOKit/IODeviceTreeSupport.h>
 #include "VMsvga2.h"
 #include "vmw_options_fb.h"
 
@@ -50,8 +51,6 @@ OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 #define LOGPRINTF_PREFIX_LEN (sizeof LOGPRINTF_PREFIX_STR - 1)
 #define LOGPRINTF_PREFIX_SKIP 4				// past "log "
 #define LOGPRINTF_BUF_SIZE 256
-
-#define REFRESH_FENCE_THRESHOLD 10
 
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1056
 /*
@@ -467,13 +466,9 @@ IOReturn CLASS::setupForCurrentConfig()
 
 void CLASS::refreshTimerAction(IOTimerEventSource* sender)
 {
-	++m_refresh_fence_count;
-	if (m_refresh_fence_count == REFRESH_FENCE_THRESHOLD)
-		m_refresh_fence_count = 0;
 	IOLockLock(m_iolock);
 	svga.UpdateFullscreen();
-	if (!m_refresh_fence_count)
-		svga.RingDoorBell();
+	svga.RingDoorBell();
 	IOLockUnlock(m_iolock);
 	if (!m_accel_updates)
 		scheduleRefreshTimer();
@@ -507,7 +502,6 @@ void CLASS::cancelRefreshTimer()
 
 void CLASS::setupRefreshTimer()
 {
-	m_refresh_fence_count = 0;
 	m_refresh_call = thread_call_allocate(&_RefreshTimerAction, this);
 }
 
@@ -528,11 +522,16 @@ bool CLASS::start(IOService* provider)
 	UInt32 boot_arg, max_w, max_h;
 	UInt16 vendor_id, device_id, subvendor_id, subsystem_id;
 	UInt8 revision_id;
+	OSString* o_name;	// Added
 	OSData* o_edid;		// Added
 
 	m_provider = OSDynamicCast(IOPCIDevice, provider);
 	if (!m_provider)
 		return false;
+	if (!super::start(provider)) {
+		LogPrintf(1, "%s: failed to start super\n", __FUNCTION__);
+		return false;
+	}
 	IOLog("IOFB: start\n");
 	VMLog_SendString("log IOFB: start\n");
 	m_log_level = 1;
@@ -557,6 +556,14 @@ bool CLASS::start(IOService* provider)
 		memcpy(&edid, o_edid->getBytesNoCopy(), o_edid->getLength());
 		have_edid = true;
 	}
+	o_name = OSDynamicCast(OSString, getProperty("IOHardwareModel"));
+	if (o_name) {
+		o_edid = OSData::withBytes(o_name->getCStringNoCopy(), o_name->getLength() + 1);
+		if (o_edid) {
+			provider->setProperty(gIODTModelKey, o_edid);
+			o_edid->release();
+		}
+	}
 	/*
 	 * End Added
 	 */
@@ -574,8 +581,7 @@ bool CLASS::start(IOService* provider)
 	 */
 	if (m_provider->getFunctionNumber()) {
 		LogPrintf(1, "%s: failed to get PCI function number\n", __FUNCTION__);
-		Cleanup();
-		return false;
+		goto fail;
 	}
 	vendor_id = m_provider->configRead16(kIOPCIConfigVendorID);
 	device_id = m_provider->configRead16(kIOPCIConfigDeviceID);
@@ -588,13 +594,11 @@ bool CLASS::start(IOService* provider)
 	m_bar1 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
 	if (!m_bar1) {
 		LogPrintf(1, "%s: failed to get device map BAR1 registers\n", __FUNCTION__);
-		Cleanup();
-		return false;
+		goto fail;
 	}
 	m_bar1->retain();
 	if (!svga.Init(m_provider, m_log_level)) {
-		Cleanup();
-		return false;
+		goto fail;
 	}
 	/*
 	 * Begin Added
@@ -616,8 +620,7 @@ bool CLASS::start(IOService* provider)
 											 kIOMapAnywhere);
 	if (!m_bar1_map) {
 		LogPrintf(1, "%s: failed to get memory map BAR1 registers\n", __FUNCTION__);
-		Cleanup();
-		return false;
+		goto fail;
 	}
 	m_bar1_ptr = m_bar1_map->getVirtualAddress();
 #ifdef TESTING
@@ -626,8 +629,7 @@ bool CLASS::start(IOService* provider)
 	svga.WriteReg(SVGA_REG_ID, SVGA_ID_2);
 	if (svga.ReadReg(SVGA_REG_ID) != SVGA_ID_2) {
 		LogPrintf(1, "%s: REG ID=0x%08lx is wrong version\n", __FUNCTION__, SVGA_ID_2);
-		Cleanup();
-		return false;
+		goto fail;
 	}
 	LogPrintf(3, "%s: REG ID=0x%08lx\n", __FUNCTION__, SVGA_ID_2);
 	/*
@@ -652,16 +654,14 @@ bool CLASS::start(IOService* provider)
 	if (!m_restore_call) {
 		LogPrintf(1, "%s: Failed to allocate timer.\n", __FUNCTION__);
 #if 0	// Note: not a critical error
-		Cleanup();
-		return false;
+		goto fail;
 #endif
 	}
 	m_custom_switch = 0;
 	if (checkOptionFB(VMW_OPTION_FB_FIFO_INIT)) {	// Added
 		if (!svga.FIFOInit()) {
 			LogPrintf(1, "%s: failed FIFOInit()\n", __FUNCTION__);
-			Cleanup();
-			return false;
+			goto fail;
 		}
 		if (!svga.HasCapability(SVGA_CAP_TRACES) && checkOptionFB(VMW_OPTION_FB_REFRESH_TIMER))	// Added
 			setupRefreshTimer();																// Added
@@ -669,21 +669,20 @@ bool CLASS::start(IOService* provider)
 	m_iolock = IOLockAlloc();
 	if (!m_iolock) {
 		LogPrintf(1, "%s: failed fifoLock alloc\n", __FUNCTION__);
-		Cleanup();
-		return false;
+		goto fail;
 	}
 	m_display_mode = TryDetectCurrentDisplayMode(3);
 	m_depth_mode = 0;
 #if 0
 	m_aperture_size = svga.getCurrentFBSize();
 #endif
-	if (!super::start(provider)) {
-		LogPrintf(1, "%s: failed to start super\n", __FUNCTION__);
-		Cleanup();
-		return false;
-	}
 	scheduleRefreshTimer(1000U /* m_refresh_quantum_ms */);		// Added
 	return true;
+
+fail:
+	Cleanup();
+	super::stop(provider);
+	return false;
 }
 
 void CLASS::stop(IOService* provider)

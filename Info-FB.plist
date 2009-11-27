@@ -38,6 +38,8 @@
 			<string>VMsvga2Client</string>
 			<key>IOSourceVersion</key>
 			<string>1.0.0.0</string>
+			<key>IOHardwareModel</key>
+			<string>VMware SVGA II</string>
 		</dict>
 	</dict>
 	<key>OSBundleCompatibleVersion</key>
