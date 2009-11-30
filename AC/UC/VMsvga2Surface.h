@@ -236,13 +236,13 @@ public:
 	IOReturn context_lock_memory(task_t context_owning_task,
 								 mach_vm_address_t* address,
 								 mach_vm_size_t* rowBytes);
-	IOReturn context_unlock_memory(io_user_scalar_t* swapFlags);
+	IOReturn context_unlock_memory(UInt32* swapFlags);
 	IOReturn context_copy_region(intptr_t destX,
 								 intptr_t destY,
 								 IOAccelDeviceRegion const* region,
 								 size_t regionSize);
 	IOReturn surface_video_off();
-	IOReturn surface_flush_video(io_user_scalar_t* swapFlags);
+	IOReturn surface_flush_video(UInt32* swapFlags);
 
 	/*
 	 * IOAccelSurfaceConnect
@@ -273,7 +273,7 @@ public:
 	IOReturn surface_read_unlock();
 	IOReturn surface_write_lock(IOAccelSurfaceInformation* info, size_t* infoSize);
 	IOReturn surface_write_unlock();
-	IOReturn surface_control(uintptr_t selector, uintptr_t arg, io_user_scalar_t* result);
+	IOReturn surface_control(uintptr_t selector, uintptr_t arg, UInt32* result);
 	IOReturn set_shape_backing_length(eIOAccelSurfaceShapeBits options,
 									  uintptr_t framebufferIndex,
 									  IOVirtualAddress backing,

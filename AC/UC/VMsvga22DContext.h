@@ -86,28 +86,34 @@ public:
 	/*
 	 * IONV2DContext
 	 */
-	IOReturn set_surface(uintptr_t surface_id, eIOContextModeBits options, void* output_struct, size_t* output_struct_size);
-	IOReturn get_config(io_user_scalar_t* config_1, io_user_scalar_t* config_2);
-	IOReturn get_surface_info1(uintptr_t, eIOContextModeBits, void *, size_t*);
-	IOReturn swap_surface(uintptr_t options, io_user_scalar_t* swapFlags);
+	IOReturn set_surface(uintptr_t surface_id, eIOContextModeBits options, void* struct_out, size_t* struct_out_size);
+	IOReturn get_config(UInt32* config_1, UInt32* config_2);
+	IOReturn get_surface_info1(uintptr_t, eIOContextModeBits, void*, size_t*);
+	IOReturn swap_surface(uintptr_t options, UInt32* swapFlags);
 	IOReturn scale_surface(uintptr_t options, uintptr_t width, uintptr_t height);
 	IOReturn lock_memory(uintptr_t options, UInt64* struct_out, size_t* struct_out_size);
-	IOReturn unlock_memory(uintptr_t options, io_user_scalar_t* swapFlags);
+	IOReturn unlock_memory(uintptr_t options, UInt32* swapFlags);
 	IOReturn finish(uintptr_t options);
 	IOReturn declare_image(UInt64 const*, UInt64*, size_t, size_t*);
 	IOReturn create_image(uintptr_t, uintptr_t, UInt64*, size_t*);
 	IOReturn create_transfer(uintptr_t, uintptr_t, UInt64*, size_t*);
 	IOReturn delete_image(uintptr_t image_id);
 	IOReturn wait_image(uintptr_t image_id);
-	IOReturn set_surface_paging_options(IOSurfacePagingControlInfoStruct const*, IOSurfacePagingControlInfoStruct*, size_t, size_t*);
-	IOReturn set_surface_vsync_options(IOSurfaceVsyncControlInfoStruct const*, IOSurfaceVsyncControlInfoStruct*, size_t, size_t*);
+	IOReturn set_surface_paging_options(IOSurfacePagingControlInfoStruct const*,
+										IOSurfacePagingControlInfoStruct*,
+										size_t,
+										size_t*);
+	IOReturn set_surface_vsync_options(IOSurfaceVsyncControlInfoStruct const*,
+									   IOSurfaceVsyncControlInfoStruct*,
+									   size_t,
+									   size_t*);
 	IOReturn set_macrovision(uintptr_t new_state);
 
 	/*
 	 * NV2DContext
 	 */
-	IOReturn read_configs(UInt32 const* input_struct, UInt32* output_struct, size_t input_struct_size, size_t* output_struct_size);
-	IOReturn read_config_Ex(UInt32 const* input_struct, UInt32* output_struct, size_t input_struct_size, size_t* output_struct_size);
+	IOReturn read_configs(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn read_config_Ex(UInt32 const*, UInt32*, size_t, size_t*);
 	IOReturn get_surface_info2(UInt32 const*, UInt32*, size_t, size_t*);
 	IOReturn kernel_printf(char const*, size_t);
 };

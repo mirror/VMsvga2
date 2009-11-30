@@ -265,14 +265,17 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 #pragma mark IONV2DContext Methods
 #pragma mark -
 
-IOReturn CLASS::set_surface(uintptr_t surface_id, eIOContextModeBits options, void* output_struct, size_t* output_struct_size)
+IOReturn CLASS::set_surface(uintptr_t surface_id,
+							eIOContextModeBits options,
+							void* struct_out,
+							size_t* struct_out_size)
 {
 	UInt32 vmware_pixel_format, apple_pixel_format;
 	IOReturn rc;
 
-	if (!output_struct || !output_struct_size)
+	if (!struct_out || !struct_out_size)
 		return kIOReturnBadArgument;
-	bzero(output_struct, *output_struct_size);
+	bzero(struct_out, *struct_out_size);
 	if (surface_client) {
 		surface_client->release();
 		surface_client = 0;
@@ -315,7 +318,7 @@ IOReturn CLASS::set_surface(uintptr_t surface_id, eIOContextModeBits options, vo
 	return surface_client->context_set_surface(vmware_pixel_format, apple_pixel_format);
 }
 
-IOReturn CLASS::get_config(io_user_scalar_t* config_1, io_user_scalar_t* config_2)
+IOReturn CLASS::get_config(UInt32* config_1, UInt32* config_2)
 {
 	if (!config_1 || !config_2)
 		return kIOReturnBadArgument;
@@ -324,18 +327,19 @@ IOReturn CLASS::get_config(io_user_scalar_t* config_1, io_user_scalar_t* config_
 	 * TBD: transfer m_provider->getOptionsGA() as well
 	 */
 	if (m_provider)
-		*config_2 = static_cast<io_user_scalar_t>(m_provider->getLogLevelGA());
+		*config_2 = static_cast<UInt32>(m_provider->getLogLevelGA());
 	else
 		*config_2 = 0;
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_info1(uintptr_t, eIOContextModeBits, void *, size_t*)
+IOReturn CLASS::get_surface_info1(uintptr_t c1, eIOContextModeBits c2, void* struct_out, size_t* struct_out_size)
 {
+	TDLog(2, "%s(%lu, %lu, %p, %lu)\n", __FUNCTION__, c1, c2, struct_out, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::swap_surface(uintptr_t options, io_user_scalar_t* swapFlags)
+IOReturn CLASS::swap_surface(uintptr_t options, UInt32* swapFlags)
 {
 	if (!bTargetIsCGSSurface) {
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
@@ -373,7 +377,7 @@ IOReturn CLASS::lock_memory(uintptr_t options, UInt64* struct_out, size_t* struc
 	return surface_client->context_lock_memory(m_owning_task, &struct_out[0], &struct_out[1]);
 }
 
-IOReturn CLASS::unlock_memory(uintptr_t options, io_user_scalar_t* swapFlags)
+IOReturn CLASS::unlock_memory(uintptr_t options, UInt32* swapFlags)
 {
 	if (!bTargetIsCGSSurface) {
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
@@ -395,43 +399,60 @@ IOReturn CLASS::finish(uintptr_t options)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::declare_image(UInt64 const*, UInt64*, size_t, size_t*)
+IOReturn CLASS::declare_image(UInt64 const* struct_in,
+							  UInt64* struct_out,
+							  size_t struct_in_size,
+							  size_t* struct_out_size)
 {
+	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::create_image(uintptr_t, uintptr_t, UInt64*, size_t*)
+IOReturn CLASS::create_image(uintptr_t c1, uintptr_t c2, UInt64* struct_out, size_t* struct_out_size)
 {
+	TDLog(2, "%s(%lu, %lu, %p, %lu)\n", __FUNCTION__, c1, c2, struct_out, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::create_transfer(uintptr_t, uintptr_t, UInt64*, size_t*)
+IOReturn CLASS::create_transfer(uintptr_t c1, uintptr_t c2, UInt64* struct_out, size_t* struct_out_size)
 {
+	TDLog(2, "%s(%lu, %lu, %p, %lu)\n", __FUNCTION__, c1, c2, struct_out, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::delete_image(uintptr_t image_id)
 {
+	TDLog(2, "%s(%lu)\n", __FUNCTION__, image_id);
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::wait_image(uintptr_t image_id)
 {
+	TDLog(2, "%s(%lu)\n", __FUNCTION__, image_id);
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::set_surface_paging_options(IOSurfacePagingControlInfoStruct const*, IOSurfacePagingControlInfoStruct*, size_t, size_t*)
+IOReturn CLASS::set_surface_paging_options(IOSurfacePagingControlInfoStruct const* struct_in,
+										   IOSurfacePagingControlInfoStruct* struct_out,
+										   size_t struct_in_size,
+										   size_t* struct_out_size)
 {
+	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::set_surface_vsync_options(IOSurfaceVsyncControlInfoStruct const*, IOSurfaceVsyncControlInfoStruct*, size_t, size_t*)
+IOReturn CLASS::set_surface_vsync_options(IOSurfaceVsyncControlInfoStruct const* struct_in,
+										  IOSurfaceVsyncControlInfoStruct* struct_out,
+										  size_t struct_in_size,
+										  size_t* struct_out_size)
 {
+	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::set_macrovision(uintptr_t new_state)
 {
+	TDLog(3, "%s(%lu)\n", __FUNCTION__, new_state);
 	return kIOReturnSuccess;
 }
 
@@ -439,43 +460,51 @@ IOReturn CLASS::set_macrovision(uintptr_t new_state)
 #pragma mark NV2DContext Methods
 #pragma mark -
 
-IOReturn CLASS::read_configs(UInt32 const* input_struct, UInt32* output_struct, size_t input_struct_size, size_t* output_struct_size)
+IOReturn CLASS::read_configs(UInt32 const* struct_in,
+							 UInt32* struct_out,
+							 size_t struct_in_size,
+							 size_t* struct_out_size)
 {
-	if (!input_struct || !output_struct || !output_struct_size)
+	TDLog(3, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	if (!struct_in || !struct_out || !struct_out_size)
 		return kIOReturnBadArgument;
-	if (input_struct_size < sizeof(UInt32) || *output_struct_size < sizeof(UInt32))
+	if (struct_in_size < sizeof(UInt32) || *struct_out_size < sizeof(UInt32))
 		return kIOReturnBadArgument;
-	if (*input_struct == 2)
-		*output_struct = 2;
+	if (*struct_in == 2)
+		*struct_out = 2;
 	else
-		*output_struct = 0;
+		*struct_out = 0;
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::read_config_Ex(UInt32 const* input_struct, UInt32* output_struct, size_t input_struct_size, size_t* output_struct_size)
+IOReturn CLASS::read_config_Ex(UInt32 const* struct_in,
+							   UInt32* struct_out,
+							   size_t struct_in_size,
+							   size_t* struct_out_size)
 {
-	if (!input_struct || !output_struct || !output_struct_size)
+	TDLog(3, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	if (!struct_in || !struct_out || !struct_out_size)
 		return kIOReturnBadArgument;
-	if (input_struct_size < 2U * sizeof(UInt32))
+	if (struct_in_size < 2U * sizeof(UInt32))
 		return kIOReturnBadArgument;
-	bzero(output_struct, *output_struct_size);
-	switch (input_struct[0]) {
+	bzero(struct_out, *struct_out_size);
+	switch (struct_in[0]) {
 		case 144:
 			/*
 			 * GetBeamPosition
 			 */
-			if (*output_struct_size < 2U * sizeof(UInt32))
+			if (*struct_out_size < 2U * sizeof(UInt32))
 				return kIOReturnBadArgument;
-			output_struct[1] = 0;
+			struct_out[1] = 0;
 			break;
 		case 288:
 			/*
 			 * SetSurface
 			 */
-			if (*output_struct_size < 3U * sizeof(UInt32))
+			if (*struct_out_size < 3U * sizeof(UInt32))
 				return kIOReturnBadArgument;
-			output_struct[0] = 64;
-			output_struct[2] = 16;
+			struct_out[0] = 64;
+			struct_out[2] = 16;
 			break;
 		default:
 			return kIOReturnUnsupported;
@@ -483,12 +512,17 @@ IOReturn CLASS::read_config_Ex(UInt32 const* input_struct, UInt32* output_struct
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_info2(UInt32 const*, UInt32*, size_t, size_t*)
+IOReturn CLASS::get_surface_info2(UInt32 const* struct_in,
+								  UInt32* struct_out,
+								  size_t struct_in_size,
+								  size_t* struct_out_size)
 {
+	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::kernel_printf(char const*, size_t)
+IOReturn CLASS::kernel_printf(char const* str, size_t str_size)
 {
-	return kIOReturnUnsupported;
+	TDLog(2, "%s: %s\n", __FUNCTION__, str);
+	return kIOReturnSuccess;
 }

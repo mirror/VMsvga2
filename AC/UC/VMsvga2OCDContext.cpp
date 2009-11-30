@@ -56,12 +56,22 @@ static IOExternalMethod iofbFuncsCache[kIOVMOCDNumMethods] =
 };
 
 #pragma mark -
+#pragma mark struct definitions
+#pragma mark -
+
+struct NvNotificationRec
+{
+	UInt32 data[4];
+};
+
+#pragma mark -
 #pragma mark IOUserClient Methods
 #pragma mark -
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
-	OCDLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
+	if (index >= kIOVMOCDNumMethods)
+		OCDLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
 	if (!targetP || index >= kIOVMOCDNumMethods)
 		return 0;
 #if 0
@@ -146,11 +156,13 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
 
 IOReturn CLASS::finish()
 {
+	OCDLog(2, "%s()\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::wait_for_stamp(uintptr_t)
+IOReturn CLASS::wait_for_stamp(uintptr_t c1)
 {
+	OCDLog(2, "%s(%lu)\n", __FUNCTION__, c1);
 	return kIOReturnUnsupported;
 }
 
@@ -158,22 +170,28 @@ IOReturn CLASS::wait_for_stamp(uintptr_t)
 #pragma mark NVOCDContext Methods
 #pragma mark -
 
-IOReturn CLASS::check_error_notifier(struct NvNotificationRec volatile*, size_t* struct_out_size)
+IOReturn CLASS::check_error_notifier(struct NvNotificationRec volatile* struct_out, size_t* struct_out_size)
 {
+	OCDLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_out, *struct_out_size);
+	if (*struct_out_size < sizeof *struct_out)
+		return kIOReturnBadArgument;
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::mark_texture_for_ocd_use(uintptr_t)
+IOReturn CLASS::mark_texture_for_ocd_use(uintptr_t c1)
 {
+	OCDLog(2, "%s(%lu)\n", __FUNCTION__, c1);
 	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::FreeEvent()
 {
+	OCDLog(2, "%s()\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::GetHandleIndex(io_user_scalar_t*, io_user_scalar_t*)
+IOReturn CLASS::GetHandleIndex(UInt32*, UInt32*)
 {
+	OCDLog(2, "%s(out1, out2)\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }

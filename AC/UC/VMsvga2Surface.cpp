@@ -1309,10 +1309,9 @@ IOReturn CLASS::surface_write_unlock()
 	return surface_write_unlock_options(kIOAccelSurfaceLockInDontCare);
 }
 
-IOReturn CLASS::surface_control(uintptr_t selector, uintptr_t arg, io_user_scalar_t* result)
+IOReturn CLASS::surface_control(uintptr_t selector, uintptr_t arg, UInt32* result)
 {
-	SFLog(2, "%s(%lu, %lu, %u)\n",
-		  __FUNCTION__, selector, arg, result ? static_cast<unsigned>(*result) : 0);
+	SFLog(2, "%s(%lu, %lu, out)\n", __FUNCTION__, selector, arg);
 
 	return kIOReturnUnsupported;
 }
@@ -1525,7 +1524,7 @@ IOReturn CLASS::context_lock_memory(task_t context_owning_task, mach_vm_address_
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::context_unlock_memory(io_user_scalar_t* swapFlags)
+IOReturn CLASS::context_unlock_memory(UInt32* swapFlags)
 {
 	SFLog(3, "%s()\n", __FUNCTION__);
 
@@ -1653,7 +1652,7 @@ IOReturn CLASS::surface_video_off()
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::surface_flush_video(io_user_scalar_t* swapFlags)
+IOReturn CLASS::surface_flush_video(UInt32* swapFlags)
 {
 	SFLog(3, "%s()\n", __FUNCTION__);
 

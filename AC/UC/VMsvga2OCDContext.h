@@ -64,10 +64,10 @@ public:
 	/*
 	 * Methods from NVOCDContext
 	 */
-	IOReturn check_error_notifier(struct NvNotificationRec volatile*, size_t* struct_out_size);
+	IOReturn check_error_notifier(struct NvNotificationRec volatile*, size_t*);
 	IOReturn mark_texture_for_ocd_use(uintptr_t);
 	IOReturn FreeEvent();
-	IOReturn GetHandleIndex(io_user_scalar_t*, io_user_scalar_t*);
+	IOReturn GetHandleIndex(UInt32*, UInt32*);
 };
 
 #endif /* __VMSVGA2OCDCONTEXT_H__ */
