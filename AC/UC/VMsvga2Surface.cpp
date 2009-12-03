@@ -1313,7 +1313,40 @@ IOReturn CLASS::surface_control(uintptr_t selector, uintptr_t arg, UInt32* resul
 {
 	SFLog(2, "%s(%lu, %lu, out)\n", __FUNCTION__, selector, arg);
 
-	return kIOReturnUnsupported;
+	/*
+	 * Note: cases 4 & 5 have something to do with surface volatility.
+	 *   This function is called from several locations
+	 *   in CoreGraphics, and once from OpenGL.
+	 */
+	switch (selector) {
+		case 1:
+			/*
+			 * called from _CGXSynchronizeAcceleratedSurface, arg N/A, result ignored
+			 */
+			return kIOReturnSuccess;
+		case 4:
+			/*
+			 * called from CGLSetPBufferVolatileState, arg N/A, result passed to caller
+			 */
+			*result = 1;
+			return kIOReturnSuccess;
+		case 5:
+			/*
+			 * called from
+			 *   CGXBackingStorePerformCompression with arg == 1, result used
+			 *   destroyBackingSurface with arg == 0, result ignored
+			 *   synchronizeBackingSurface with arg == 0, result ignored
+			 *   allocateBackingSurface with arg == 1, result ignored
+			 *   CGXBackingStoreDataAccess with arg == 0, result ignored
+			 */
+			/*
+			 * remembers arg as a boolean value
+			 * sets result to either 0 or 1
+			 */
+			*result = 1;
+			return kIOReturnSuccess;
+	}
+	return kIOReturnBadArgument;
 }
 
 IOReturn CLASS::set_shape_backing_length(eIOAccelSurfaceShapeBits options,
