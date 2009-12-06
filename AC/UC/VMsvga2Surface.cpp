@@ -1579,15 +1579,15 @@ IOReturn CLASS::context_unlock_memory(UInt32* swapFlags)
  *   be possible to perform the whole blit in host VRAM only, which would make it
  *   more efficient.
  */
-IOReturn CLASS::context_copy_region(intptr_t destX,
-									intptr_t destY,
+IOReturn CLASS::context_copy_region(SInt32 destX,
+									SInt32 destY,
 									IOAccelDeviceRegion const* region,
 									size_t regionSize)
 {
 	IOReturn rc;
 	VMsvga2Accel::ExtraInfo extra;
 
-	SFLog(3, "%s(%ld, %ld, %p, %lu)\n", __FUNCTION__, destX, destY, region, regionSize);
+	SFLog(3, "%s(%d, %d, %p, %lu)\n", __FUNCTION__, destX, destY, region, regionSize);
 
 	if (!region || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(region))
 		return kIOReturnBadArgument;
@@ -1617,8 +1617,8 @@ IOReturn CLASS::context_copy_region(intptr_t destX,
 	bzero(&extra, sizeof extra);
 	extra.mem_offset_in_bar1 = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
-	extra.dstDeltaX = static_cast<SInt32>(destX) - region->bounds.x;
-	extra.dstDeltaY = static_cast<SInt32>(destY) - region->bounds.y;
+	extra.dstDeltaX = destX - region->bounds.x;
+	extra.dstDeltaY = destY - region->bounds.y;
 	clipRegionToBuffer(const_cast<IOAccelDeviceRegion*>(region),
 					   extra.dstDeltaX,
 					   extra.dstDeltaY);

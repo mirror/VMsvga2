@@ -602,14 +602,14 @@ IOReturn CLASS::SyncToFence(UInt32 fence)
 #pragma mark SVGA FIFO Acceleration Methods for 2D Context
 #pragma mark -
 
-IOReturn CLASS::useAccelUpdates(uintptr_t state, task_t owningTask)
+IOReturn CLASS::useAccelUpdates(bool state, task_t owningTask)
 {
 	if (m_updating_ga != 0 && m_updating_ga != owningTask)
 		return kIOReturnSuccess;
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
-	m_updating_ga = (state != 0) ? owningTask : 0;
-	m_framebuffer->useAccelUpdates(state != 0);
+	m_updating_ga = state ? owningTask : 0;
+	m_framebuffer->useAccelUpdates(state);
 	return kIOReturnSuccess;
 }
 
@@ -752,23 +752,22 @@ IOReturn CLASS::RectFill3D(UInt32 color,
 #endif
 
 IOReturn CLASS::RectFill(UInt32 framebufferIndex,
-						 uintptr_t color,
+						 UInt32 color,
 						 struct IOBlitRectangleStruct const* rects,
 						 size_t rectsSize)
 {
 	size_t i, count = rectsSize / sizeof(IOBlitRectangle);
-	UInt32 const color32 = static_cast<UInt32>(color);
 	bool rc;
 
 	if (!count || !rects)
 		return kIOReturnBadArgument;
 	ACLog(2, "%s: color == 0x%x, numRects == %lu, [%d, %d, %d, %d]\n",
-		  __FUNCTION__, color32, count, rects->x, rects->y, rects->width, rects->height);
+		  __FUNCTION__, color, count, rects->x, rects->y, rects->width, rects->height);
 	if (!m_framebuffer)
 		return kIOReturnNoDevice;
 	m_framebuffer->lockDevice();
 	for (i = 0; i < count; ++i) {
-		rc = m_svga->RectFill(color32, reinterpret_cast<UInt32 const*>(&rects[i]));
+		rc = m_svga->RectFill(color, reinterpret_cast<UInt32 const*>(&rects[i]));
 		if (!rc)
 			break;
 	}
@@ -795,8 +794,8 @@ IOReturn CLASS::UpdateFramebufferAutoRing(UInt32 const* rect)
 }
 
 IOReturn CLASS::CopyRegion(UInt32 framebufferIndex,
-						   intptr_t destX,
-						   intptr_t destY,
+						   SInt32 destX,
+						   SInt32 destY,
 						   void /* IOAccelDeviceRegion */ const* region,
 						   size_t regionSize)
 {
@@ -825,8 +824,8 @@ IOReturn CLASS::CopyRegion(UInt32 framebufferIndex,
 		copyRect[5] = rect->h;
 		rc = m_svga->RectCopy(&copyRect[0]);
 	} else {
-		deltaX = static_cast<SInt32>(destX) - rect->x;
-		deltaY = static_cast<SInt32>(destY) - rect->y;
+		deltaX = destX - rect->x;
+		deltaY = destY - rect->y;
 		for (i = 0; i < rgn->num_rects; ++i) {
 			rect = &rgn->rect[i];
 			copyRect[0] = rect->x;

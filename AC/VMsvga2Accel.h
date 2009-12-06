@@ -50,8 +50,8 @@ private:
 	SVGAScreen screen;
 	class IOPCIDevice* m_provider;
 	class VMsvga2* m_framebuffer;
-	class SVGADevice* m_svga;
-	class IODeviceMemory* m_bar1;
+	SVGADevice* m_svga;
+	IODeviceMemory* m_bar1;
 	class VMsvga2Allocator* m_allocator;
 	IOLock* m_iolock;
 #ifdef FB_NOTIFIER
@@ -131,7 +131,7 @@ public:
 	/*
 	 * Methods for supporting VMsvga22DContext
 	 */
-	IOReturn useAccelUpdates(uintptr_t state, task_t owningTask);
+	IOReturn useAccelUpdates(bool state, task_t owningTask);
 	IOReturn RectCopy(UInt32 framebufferIndex,
 					  struct IOBlitCopyRectangleStruct const* copyRects,
 					  size_t copyRectsSize);
@@ -145,13 +145,13 @@ public:
 						size_t numRects);
 #endif
 	IOReturn RectFill(UInt32 framebufferIndex,
-					  uintptr_t color,
+					  UInt32 color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t rectsSize);
 	IOReturn UpdateFramebufferAutoRing(UInt32 const* rect);	// rect is an array of 4 UInt32 - x, y, width, height
 	IOReturn CopyRegion(UInt32 framebufferIndex,
-						intptr_t destX,
-						intptr_t destY,
+						SInt32 destX,
+						SInt32 destY,
 						void /* IOAccelDeviceRegion */ const* region,
 						size_t regionSize);
 	struct FindSurface {

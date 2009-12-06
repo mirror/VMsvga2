@@ -193,7 +193,7 @@ IOReturn CLASS::useAccelUpdates(uintptr_t state)
 {
 	if (!m_provider)
 		return kIOReturnNotReady;
-	return m_provider->useAccelUpdates(state, m_owning_task);
+	return m_provider->useAccelUpdates(state != 0, m_owning_task);
 }
 
 IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects,
@@ -218,7 +218,7 @@ IOReturn CLASS::RectFill(uintptr_t color,
 	}
 	if (!m_provider)
 		return kIOReturnNotReady;
-	return m_provider->RectFill(framebufferIndex, color, rects, rectsSize);
+	return m_provider->RectFill(framebufferIndex, static_cast<UInt32>(color), rects, rectsSize);
 }
 
 IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
@@ -236,29 +236,30 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 	 *   WindowsServer blits by using surface_flush() and QuickTime blits with SwapSurface,
 	 *   so it's not really necessary.
 	 */
-	if (source_surface_id) {
-		TDLog(1, "%s: Copy from surface source (0x%lx) - unsupported\n", __FUNCTION__, source_surface_id);
+	if (static_cast<UInt32>(source_surface_id)) {
+		TDLog(1, "%s: Copy from surface source (0x%x) - unsupported\n",
+			  __FUNCTION__, static_cast<unsigned>(source_surface_id));
 		return kIOReturnUnsupported;
 	}
 	/*
 	 * Correct for truncation done by IOUserClient dispatcher
 	 */
-	destX = static_cast<intptr_t>(static_cast<SInt32>(destX));
-	destY = static_cast<intptr_t>(static_cast<SInt32>(destY));
+	SInt32 _destX = static_cast<SInt32>(destX);
+	SInt32 _destY = static_cast<SInt32>(destY);
 	if (!bTargetIsCGSSurface) {
 		/*
 		 * destination is framebuffer, use classic mode
 		 */
 		if (!m_provider)
 			return kIOReturnNotReady;
-		return m_provider->CopyRegion(framebufferIndex, destX, destY, region, regionSize);
+		return m_provider->CopyRegion(framebufferIndex, _destX, _destY, region, regionSize);
 	}
 	/*
 	 * destination is a surface
 	 */
 	if (!surface_client)
 		return kIOReturnNotReady;
-	return surface_client->context_copy_region(destX, destY, region, regionSize);
+	return surface_client->context_copy_region(_destX, _destY, region, regionSize);
 }
 
 #pragma mark -

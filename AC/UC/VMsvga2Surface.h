@@ -237,8 +237,8 @@ public:
 								 mach_vm_address_t* address,
 								 mach_vm_size_t* rowBytes);
 	IOReturn context_unlock_memory(UInt32* swapFlags);
-	IOReturn context_copy_region(intptr_t destX,
-								 intptr_t destY,
+	IOReturn context_copy_region(SInt32 destX,
+								 SInt32 destY,
 								 IOAccelDeviceRegion const* region,
 								 size_t regionSize);
 	IOReturn surface_video_off();
