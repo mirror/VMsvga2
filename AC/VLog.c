@@ -28,7 +28,12 @@
 
 #include <stdarg.h>
 #include <string.h>
+#ifdef KERNEL
 #include <libkern/libkern.h>
+#include <IOKit/IOLib.h>
+#else
+#include <stdio.h>
+#endif
 #include "VLog.h"
 
 #define VLOG_BUF_SIZE 256
@@ -44,5 +49,8 @@ void VLog(char const* prefix_str, char const* fmt, ...)
 	l += strlcpy(&print_buf[l], prefix_str, sizeof print_buf - l);
 	vsnprintf(&print_buf[l], sizeof print_buf - l, fmt, ap);
 	va_end(ap);
+#if defined(KERNEL) && defined(VLOG_LOCAL)
+	IOLog("%s", &print_buf[4]);
+#endif
 	VMLog_SendString(&print_buf[0]);
 }

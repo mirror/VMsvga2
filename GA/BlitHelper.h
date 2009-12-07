@@ -29,15 +29,17 @@
 #ifndef __BLITHELPER_H__
 #define __BLITHELPER_H__
 
+#define GA_HIDDEN __attribute__((visibility("hidden")))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-IOReturn useAccelUpdates(io_connect_t context, int state);
-IOReturn RectCopy(io_connect_t context, void const* copyRects, size_t copyRectsSize);
-IOReturn RectFill(io_connect_t context, uintptr_t color, void const* rects, size_t rectsSize);
-IOReturn UpdateFramebuffer(io_connect_t context, UInt32 const* rect);
-IOReturn CopyRegion(io_connect_t context, uintptr_t source_surface_id, intptr_t destX, intptr_t destY, void const* region, size_t regionSize);
+IOReturn useAccelUpdates(io_connect_t context, int state) GA_HIDDEN;
+IOReturn RectCopy(io_connect_t context, void const* copyRects, size_t copyRectsSize) GA_HIDDEN;
+IOReturn RectFill(io_connect_t context, uintptr_t color, void const* rects, size_t rectsSize) GA_HIDDEN;
+IOReturn UpdateFramebuffer(io_connect_t context, UInt32 const* rect) GA_HIDDEN;
+IOReturn CopyRegion(io_connect_t context, uintptr_t source_surface_id, intptr_t destX, intptr_t destY, void const* region, size_t regionSize) GA_HIDDEN;
 
 #ifdef __cplusplus
 }

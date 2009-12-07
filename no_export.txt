@@ -4,9 +4,3 @@ _customMode
 _modeList
 _vmw_options_fb
 _vmw_options_ac
-_RectCopy
-_RectFill
-_SyncFIFO
-_UpdateFramebuffer
-_useAccelUpdates
-_CopyRegion

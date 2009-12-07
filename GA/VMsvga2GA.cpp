@@ -53,16 +53,13 @@ extern "C" {
 #include "VMsvga2GA.h"
 #include "BlitHelper.h"
 #include "ACMethods.h"
+#include "VLog.h"
 
 #define kVMGAFactoryID \
 	(CFUUIDGetConstantUUIDWithBytes(NULL, 0x03, 0x46, 0x3B, 0x45, 0x6F, 0xDD, 0x47, 0x49, 0xB6, 0xB7, 0x15, 0xEB, 0x76, 0xBA, 0xA2, 0x2F))
 
-#define VLOG_PREFIX_STR "log IOGA: "
-#define VLOG_PREFIX_LEN (sizeof VLOG_PREFIX_STR - 1)
-#define VLOG_BUF_SIZE 256
-
 #if LOGGING_LEVEL >= 1
-#define GALog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog(fmt, ##__VA_ARGS__); } while(false)
+#define GALog(log_level, fmt, ...) do { if (log_level <= logLevel) VLog("GA: ", fmt, ##__VA_ARGS__); } while(false)
 #else
 #define GALog(log_level, fmt, ...)
 #endif
@@ -72,7 +69,7 @@ static int ga_initialized = 0;
 static io_connect_t this_ga_ctx;
 static struct _GAType* this_ga;
 #if LOGGING_LEVEL >= 1
-static int m_log_level = LOGGING_LEVEL;
+static int logLevel = LOGGING_LEVEL;
 #endif
 
 typedef struct _GAType {	// GeForceGA size 176
@@ -104,8 +101,6 @@ typedef struct _SurfaceInfo {
 extern "C" {
 #endif
 
-char VMLog_SendString(char const* str);
-static void VLog(char const* fmt, ...) /* __printflike(1, 2) */;
 #if LOGGING_LEVEL >= 1
 static void printSurface(int log_level, IOBlitSurface const* surface);
 #endif
@@ -119,25 +114,13 @@ void* VMsvga2GAFactory(CFAllocatorRef allocator, CFUUIDRef typeID);
 }
 #endif
 
-static void VLog(char const* fmt, ...)
-{
-	va_list ap;
-	char print_buf[VLOG_BUF_SIZE];
-
-	va_start(ap, fmt);
-	strlcpy(&print_buf[0], VLOG_PREFIX_STR, sizeof print_buf);
-	vsnprintf(&print_buf[VLOG_PREFIX_LEN], sizeof print_buf - VLOG_PREFIX_LEN, fmt, ap);
-	va_end(ap);
-	VMLog_SendString(&print_buf[0]);
-}
-
 #if LOGGING_LEVEL >= 1
 static void printSurface(int log_level, IOBlitSurface const* surface)
 {
 	size_t i;
 	unsigned v;
 
-	if (!surface || m_log_level < log_level)
+	if (!surface || logLevel < log_level)
 		return;
 	for (i = 0; i < sizeof(IOBlitSurface) / sizeof(UInt32); ++i) {
 		v = reinterpret_cast<UInt32 const*>(surface)[i];
@@ -245,7 +228,7 @@ static IOReturn vmStart(void* myInstance, CFDictionaryRef propertyTable, io_serv
 		goto cleanup;
 #if LOGGING_LEVEL >= 1
 	if (static_cast<int>(output[1]) >= 0)			// Added
-		m_log_level = static_cast<int>(output[1]);
+		logLevel = static_cast<int>(output[1]);
 #endif
 	input_struct = 2;
 	output_struct_cnt = sizeof output_struct;
@@ -896,7 +879,7 @@ static IOReturn vmCopy(void* myInstance, IOOptionBits options, IOBlitType type, 
 		return kIOReturnBadArgument;
 
 #if LOGGING_LEVEL >= 1
-	if (m_log_level >= 3)
+	if (logLevel >= 3)
 		for (IOItemCount i = 0; i < copy_rects->count; ++i) {
 			IOBlitCopyRectangle* copy_rect = &copy_rects->rects[i];
 			GALog(3, "%s:   Copy Rect %u == [%d, %d, %d, %d, %d, %d]\n",
@@ -944,7 +927,7 @@ static IOReturn vmFill(void* myInstance, IOOptionBits options, IOBlitType type, 
 		return kIOReturnBadArgument;
 
 #if LOGGING_LEVEL >= 1
-	if (m_log_level >= 3)
+	if (logLevel >= 3)
 		for (IOItemCount i = 0; i < rects->count; ++i) {
 			IOBlitRectangle* rect = &rects->rects[i];
 			GALog(3, "%s:   Fill Rect %u == [%d, %d, %d, %d]\n",
@@ -1004,7 +987,7 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 		return kIOReturnBadArgument;
 
 #if LOGGING_LEVEL >= 1
-	if (m_log_level >= 3) {
+	if (logLevel >= 3) {
 		IOAccelBounds* rect = &rgn->bounds;
 		GALog(3, "%s:   CopyRegion bounds == [%d, %d, %d, %d]\n", __FUNCTION__, rect->x, rect->y, rect->w, rect->h);
 		for (UInt32 i = 0; i < rgn->num_rects; ++i) {
