@@ -64,6 +64,9 @@ extern "C" {
 #define GALog(log_level, fmt, ...)
 #endif
 
+#define FMT_D(x) static_cast<int>(x)
+#define FMT_U(x) static_cast<unsigned>(x)
+
 static IOGraphicsAcceleratorInterface ga;
 static int ga_initialized = 0;
 static io_connect_t this_ga_ctx;
@@ -290,7 +293,7 @@ static IOReturn vmReset(void* myInstance, IOOptionBits options)
 {
 	GAType* me = static_cast<GAType*>(myInstance);
 
-	GALog(2, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, options);
+	GALog(2, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, FMT_U(options));
 
 	if (!me)
 		return kIOReturnBadArgument;
@@ -307,7 +310,7 @@ static IOReturn vmGetCapabilities(void* myInstance, FourCharCode select, CFTypeR
 	GAType* me = static_cast<GAType*>(myInstance);
 	uint64_t input;
 
-	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, select, capabilities);
+	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, FMT_U(select), capabilities);
 
 #ifdef SUPPORT_CGLS
 	if (select == IO_FOUR_CHAR_CODE('cgls') ||
@@ -333,7 +336,7 @@ static IOReturn vmGetCapabilities(void* myInstance, FourCharCode select, CFTypeR
 
 static IOReturn vmFlush(void* myInstance, IOOptionBits options)
 {
-	GALog(3, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, options);
+	GALog(3, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, FMT_U(options));
 
 #if 0
 	/*
@@ -383,7 +386,8 @@ static IOReturn vmSynchronize(void* myInstance, UInt32 options, UInt32 x, UInt32
 	 * Note: GeForceGA code does nothing
 	 */
 
-	GALog(3, "%s(%p, 0x%x, %u, %u, %u, %u)\n", __FUNCTION__, myInstance, options, x, y, w, h);
+	GALog(3, "%s(%p, 0x%x, %u, %u, %u, %u)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(x), FMT_U(y), FMT_U(w), FMT_U(h));
 
 	if (!(options & kIOBlitSynchronizeFlushHostWrites))
 		return kIOReturnSuccess;
@@ -402,7 +406,7 @@ static IOReturn vmSynchronize(void* myInstance, UInt32 options, UInt32 x, UInt32
 
 static IOReturn vmGetBeamPosition(void* myInstance, IOOptionBits options, SInt32* position)
 {
-	GALog(3, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, options, position);
+	GALog(3, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, FMT_U(options), position);
 
 	if (position)
 		*position = 0;
@@ -446,13 +450,14 @@ static IOReturn vmAllocateSurface(void* myInstance, IOOptionBits options, IOBlit
 	IOReturn rc;
 	UInt32 tmp[5];
 
-	GALog(2, "%s(%p, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, surface, cgsSurfaceID);
+	GALog(2, "%s(%p, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, FMT_U(options), surface, cgsSurfaceID);
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
 	if (!me->_context)
 		return kIOReturnNotReady;
-	GALog(2, "%s:  pixelFormat == 0x%x, width = %d, height = %d\n", __FUNCTION__, surface->pixelFormat, surface->size.width, surface->size.height);
+	GALog(2, "%s:  pixelFormat == 0x%x, width = %d, height = %d\n", __FUNCTION__,
+		  FMT_U(surface->pixelFormat), FMT_D(surface->size.width), FMT_D(surface->size.height));
 	if (me->_config_val_2 <= 79) {
 		max_w = 2046; max_h = 2047;
 	}
@@ -532,7 +537,7 @@ static IOReturn vmFreeSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	IOReturn rc;
 	uint64_t input;
 
-	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, options, surface);
+	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, FMT_U(options), surface);
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
@@ -568,7 +573,7 @@ static IOReturn vmLockSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	uint64_t struct_out[2];
 	size_t struct_out_cnt;
 
-	GALog(2, "%s(%p, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, surface, address);
+	GALog(2, "%s(%p, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, FMT_U(options), surface, address);
 
 	if (!me || !surface || !address)
 		return kIOReturnBadArgument;
@@ -609,7 +614,8 @@ static IOReturn vmUnlockSurface(void* myInstance, IOOptionBits options, IOBlitSu
 	uint64_t output;
 	uint32_t output_cnt;
 
-	GALog(2, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__, myInstance, options, surface, static_cast<unsigned>(swapFlags ? *swapFlags : 0));
+	GALog(2, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), surface, FMT_U(swapFlags ? *swapFlags : 0));
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
@@ -640,7 +646,8 @@ static IOReturn vmSwapSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	uint64_t input, output;
 	uint32_t output_cnt;
 
-	GALog(3, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__, myInstance, options, surface, static_cast<unsigned>(swapFlags ? *swapFlags : 0));
+	GALog(3, "%s(%p, 0x%x, %p, 0x%x)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), surface, FMT_U(swapFlags ? *swapFlags : 0));
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
@@ -673,7 +680,7 @@ static IOReturn vmSwapSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 
 static IOReturn vmSetDestination(void* myInstance, IOOptionBits options, IOBlitSurface* surface)
 {
-	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, options, surface);
+	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, FMT_U(options), surface);
 
 	if (options & kIOBlitSurfaceDestination)
 		options = 0x800U;
@@ -686,7 +693,8 @@ static IOReturn vmGetBlitter(void* myInstance, IOOptionBits options, IOBlitType 
 {
 	IOReturn rc;
 
-	GALog(2, "%s(%p, 0x%x, 0x%x, 0x%x, %p)\n", __FUNCTION__, myInstance, options, type, sourceType, blitter);
+	GALog(2, "%s(%p, 0x%x, 0x%x, 0x%x, %p)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(type), FMT_U(sourceType), blitter);
 
 	if (!blitter)
 		return kIOReturnBadArgument;
@@ -745,7 +753,7 @@ static IOReturn vmWaitComplete(void* myInstance, IOOptionBits options)
 	GAType* me = static_cast<GAType*>(myInstance);
 	uint64_t input;
 
-	GALog(3, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, options);
+	GALog(3, "%s(%p, 0x%x)\n", __FUNCTION__, myInstance, FMT_U(options));
 
 	if (!me)
 		return kIOReturnBadArgument;
@@ -768,7 +776,7 @@ static IOReturn vmWaitSurface(void* myInstance, IOOptionBits options, IOBlitSurf
 	SurfaceInfo* si;
 	uint64_t input;
 
-	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, options, surface);
+	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, FMT_U(options), surface);
 
 	if (!me || !surface)
 		return kIOReturnBadArgument;
@@ -797,7 +805,7 @@ static IOReturn vmSetSurface(void* myInstance, IOOptionBits options, IOBlitSurfa
 	UInt32 input_struct[2];
 	UInt32 output_struct[3];
 
-	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, options, surface);
+	GALog(2, "%s(%p, 0x%x, %p)\n", __FUNCTION__, myInstance, FMT_U(options), surface);
 
 	if (!me)
 		return kIOReturnBadArgument;
@@ -864,7 +872,8 @@ static IOReturn vmCopy(void* myInstance, IOOptionBits options, IOBlitType type, 
 	IOBlitCopyRectangles* copy_rects;
 	IOReturn rc;
 
-	GALog(3, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, type, sourceType, operation, source);
+	GALog(3, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(type), FMT_U(sourceType), operation, source);
 
 	if ((type & kIOBlitTypeOperationMask) != kIOBlitCopyOperation)
 		return kIOReturnUnsupported;
@@ -884,13 +893,13 @@ static IOReturn vmCopy(void* myInstance, IOOptionBits options, IOBlitType type, 
 			IOBlitCopyRectangle* copy_rect = &copy_rects->rects[i];
 			GALog(3, "%s:   Copy Rect %u == [%d, %d, %d, %d, %d, %d]\n",
 				  __FUNCTION__,
-				  i,
-				  copy_rect->sourceX,
-				  copy_rect->sourceY,
-				  copy_rect->x,
-				  copy_rect->y,
-				  copy_rect->width,
-				  copy_rect->height);
+				  FMT_U(i),
+				  FMT_D(copy_rect->sourceX),
+				  FMT_D(copy_rect->sourceY),
+				  FMT_D(copy_rect->x),
+				  FMT_D(copy_rect->y),
+				  FMT_D(copy_rect->width),
+				  FMT_D(copy_rect->height));
 		}
 #endif
 
@@ -907,7 +916,8 @@ static IOReturn vmFill(void* myInstance, IOOptionBits options, IOBlitType type, 
 	IOBlitRectangles* rects;
 	IOReturn rc;
 
-	GALog(3, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, type, sourceType, operation, source);
+	GALog(3, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(type), FMT_U(sourceType), operation, source);
 
 	if ((type & kIOBlitTypeOperationMask) != kIOBlitCopyOperation)
 		return kIOReturnUnsupported;
@@ -932,11 +942,11 @@ static IOReturn vmFill(void* myInstance, IOOptionBits options, IOBlitType type, 
 			IOBlitRectangle* rect = &rects->rects[i];
 			GALog(3, "%s:   Fill Rect %u == [%d, %d, %d, %d]\n",
 				  __FUNCTION__,
-				  i,
-				  rect->x,
-				  rect->y,
-				  rect->width,
-				  rect->height);
+				  FMT_U(i),
+				  FMT_D(rect->x),
+				  FMT_D(rect->y),
+				  FMT_D(rect->width),
+				  FMT_D(rect->height));
 		}
 #endif
 
@@ -954,7 +964,8 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 	IOAccelDeviceRegion* rgn;
 	IOReturn rc;
 
-	GALog(3, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, type, sourceType, operation, source);
+	GALog(3, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(type), FMT_U(sourceType), operation, source);
 
 	if ((type & kIOBlitTypeOperationMask) != kIOBlitTypeOperationType0)
 		return kIOReturnUnsupported;
@@ -979,9 +990,9 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 
 	GALog(3, "%s:   CopyRegion deltaX == %d, deltaY == %d, region->num_rects == %u\n",
 		  __FUNCTION__,
-		  copy_region->deltaX,
-		  copy_region->deltaY,
-		  rgn ? rgn->num_rects : static_cast<UInt32>(-1));
+		  FMT_D(copy_region->deltaX),
+		  FMT_D(copy_region->deltaY),
+		  FMT_U(rgn ? rgn->num_rects : 0xFFFFFFFFU));
 
 	if (!rgn)
 		return kIOReturnBadArgument;
@@ -992,7 +1003,7 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 		GALog(3, "%s:   CopyRegion bounds == [%d, %d, %d, %d]\n", __FUNCTION__, rect->x, rect->y, rect->w, rect->h);
 		for (UInt32 i = 0; i < rgn->num_rects; ++i) {
 			rect = &rgn->rect[i];
-			GALog(3, "%s:   CopyRegion rect %u == [%d, %d, %d, %d]\n", __FUNCTION__, i, rect->x, rect->y, rect->w, rect->h);
+			GALog(3, "%s:   CopyRegion rect %u == [%d, %d, %d, %d]\n", __FUNCTION__, FMT_U(i), rect->x, rect->y, rect->w, rect->h);
 		}
 	}
 #endif
@@ -1011,7 +1022,8 @@ static IOReturn vmCopyRegion(void* myInstance, IOOptionBits options, IOBlitType 
 
 static IOReturn vmMemCopy(void* myInstance, IOOptionBits options, IOBlitType type, IOBlitSourceType sourceType, IOBlitOperation* operation, void* source)
 {
-	GALog(2, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, type, sourceType, operation, source);
+	GALog(2, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(type), FMT_U(sourceType), operation, source);
 
 	/*
 	 * TBD: memory to framebuffer copy
@@ -1021,7 +1033,8 @@ static IOReturn vmMemCopy(void* myInstance, IOOptionBits options, IOBlitType typ
 
 static IOReturn vmMemCopyRegion(void* myInstance, IOOptionBits options, IOBlitType type, IOBlitSourceType sourceType, IOBlitOperation* operation, void* source)
 {
-	GALog(2, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__, myInstance, options, type, sourceType, operation, source);
+	GALog(2, "%s(%p, 0x%x, 0x%x, 0x%x, %p, %p)\n", __FUNCTION__,
+		  myInstance, FMT_U(options), FMT_U(type), FMT_U(sourceType), operation, source);
 
 	/*
 	 * TBD: not sure
