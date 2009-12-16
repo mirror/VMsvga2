@@ -44,28 +44,26 @@
 extern "C" {
 #endif
 
-typedef SInt32 VMFBIOLog;
-
 struct DisplayModeEntry
 {
-	SInt32 mode_id;
-	UInt32 width;
-	UInt32 height;
-	UInt32 flags;
+	int mode_id;
+	unsigned width;
+	unsigned height;
+	unsigned flags;
 };
 
 struct CustomModeData
 {
-	UInt32 flags;
-	UInt32 width;
-	UInt32 height;
+	unsigned flags;
+	unsigned width;
+	unsigned height;
 };
 
 extern DisplayModeEntry const modeList[NUM_DISPLAY_MODES];
 
 extern DisplayModeEntry customMode;
 
-char VMLog_SendString(char const* str);
+extern __attribute__((visibility("hidden"))) int logLevelFB;
 
 #ifdef __cplusplus
 }

@@ -36,31 +36,14 @@
 #define _VMSVGA2CLIENT_H_
 
 #include <IOKit/IOUserClient.h>
-#include "common_fb.h"
-
-class VMsvga2;
 
 class VMsvga2Client: public IOUserClient
 {
 	OSDeclareDefaultStructors(VMsvga2Client);
 
-private:
-	task_t m_owning_task;				// offset 0x78
-	VMsvga2* m_provider;				// offset 0x7C
-	IOExternalMethod* m_funcs_cache;	// offset 0x80
-	VMFBIOLog m_log_level;				// offset 0x84
-
-	void LogPrintf(VMFBIOLog log_level, char const* fmt, ...);
-
 public:
-	IOReturn clientDied();
 	IOExternalMethod* getTargetAndMethodForIndex(IOService** targetP, UInt32 index);
-	IOReturn closeUserClient();
 	IOReturn clientClose();
-	IOReturn openUserClient();
-	bool start(IOService* provider);
-	void stop(IOService* provider);
-	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
 };
 
 #endif /* _VMSVGA2CLIENT_H_ */

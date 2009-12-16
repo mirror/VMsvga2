@@ -34,6 +34,7 @@
 		E590EA9510CD311F0019BC36 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; settings = {COMPILER_FLAGS = "-mdynamic-no-pic"; }; };
 		E59CA8C810CD3586004727A0 /* VLog.c in Sources */ = {isa = PBXBuildFile; fileRef = 790CE24F1084E41B004D109E /* VLog.c */; };
 		E5CC19C410CC0EE400EC0343 /* VMsvga2GLDriver.c in Sources */ = {isa = PBXBuildFile; fileRef = E5CC19C210CC0EAD00EC0343 /* VMsvga2GLDriver.c */; };
+		E5F856F410D14232007CE57B /* VLog.c in Sources */ = {isa = PBXBuildFile; fileRef = 790CE24F1084E41B004D109E /* VLog.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -489,6 +490,7 @@
 				792AA6B70FFF858500B0B5B1 /* VMsvga2Client.cpp in Sources */,
 				79BD1DBC1005132C00D12B9A /* send.s in Sources */,
 				79D6E26B1008D086005D1591 /* modes.cpp in Sources */,
+				E5F856F410D14232007CE57B /* VLog.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -539,9 +541,14 @@
 		1DEB91DB08733DB10010E9CD /* ReleaseLeo */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"LOGGING_LEVEL=1",
+					VLOG_LOCAL,
+				);
 				INFOPLIST_FILE = "Info-FB.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2;
 				PRODUCT_NAME = VMsvga2;
+				STRIP_STYLE = "non-global";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = ReleaseLeo;
@@ -551,8 +558,8 @@
 			baseConfigurationReference = E52B43CA10B5B37F002470B4 /* Generic.xcconfig */;
 			buildSettings = {
 				ARCHS = i386;
-				CURRENT_PROJECT_VERSION = 1.2.2;
-				DYLIB_COMPATIBILITY_VERSION = 1.2.2;
+				CURRENT_PROJECT_VERSION = 1.2.3;
+				DYLIB_COMPATIBILITY_VERSION = 1.2.3;
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx10.5;
@@ -570,6 +577,7 @@
 				INFOPLIST_FILE = "Info-AC.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2Accel;
 				PRODUCT_NAME = VMsvga2Accel;
+				STRIP_STYLE = "non-global";
 				WARNING_CFLAGS = "-Wno-format";
 				WRAPPER_EXTENSION = kext;
 			};
@@ -578,15 +586,10 @@
 		79C4C559102F03CC00EF589E /* ReleaseLeo */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = (
-					i386,
-					x86_64,
-				);
 				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=1";
 				INFOPLIST_FILE = "Info-GA.plist";
 				MODULE_NAME = net.osx86.VMsvga2GA;
 				PRODUCT_NAME = VMsvga2GA;
-				WARNING_CFLAGS = "-Wno-format";
 				WRAPPER_EXTENSION = plugin;
 			};
 			name = ReleaseLeo;
@@ -596,11 +599,11 @@
 			baseConfigurationReference = E52B43CA10B5B37F002470B4 /* Generic.xcconfig */;
 			buildSettings = {
 				ARCHS = (
-					i386,
 					x86_64,
+					i386,
 				);
-				CURRENT_PROJECT_VERSION = 1.2.2;
-				DYLIB_COMPATIBILITY_VERSION = 1.2.2;
+				CURRENT_PROJECT_VERSION = 1.2.3;
+				DYLIB_COMPATIBILITY_VERSION = 1.2.3;
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx10.6;
@@ -611,9 +614,14 @@
 		E512D9AD1077F654002194CB /* ReleaseSnowLeo */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"LOGGING_LEVEL=1",
+					VLOG_LOCAL,
+				);
 				INFOPLIST_FILE = "Info-FB.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2;
 				PRODUCT_NAME = VMsvga2;
+				STRIP_STYLE = "non-global";
 				WRAPPER_EXTENSION = kext;
 			};
 			name = ReleaseSnowLeo;
@@ -628,6 +636,7 @@
 				INFOPLIST_FILE = "Info-AC.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2Accel;
 				PRODUCT_NAME = VMsvga2Accel;
+				STRIP_STYLE = "non-global";
 				WARNING_CFLAGS = "-Wno-format";
 				WRAPPER_EXTENSION = kext;
 			};
@@ -640,7 +649,6 @@
 				INFOPLIST_FILE = "Info-GA.plist";
 				MODULE_NAME = net.osx86.VMsvga2GA;
 				PRODUCT_NAME = VMsvga2GA;
-				WARNING_CFLAGS = "-Wno-format";
 				WRAPPER_EXTENSION = plugin;
 			};
 			name = ReleaseSnowLeo;

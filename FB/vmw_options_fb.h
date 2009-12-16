@@ -40,9 +40,9 @@
 extern "C" {
 #endif
 
-extern UInt32 vmw_options_fb;
+extern unsigned vmw_options_fb;
 
-static inline bool checkOptionFB(UInt32 mask)
+static inline int checkOptionFB(unsigned mask)
 {
 	return (vmw_options_fb & mask) != 0;
 }

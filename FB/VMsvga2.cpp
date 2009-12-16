@@ -38,6 +38,7 @@
 #include <IOKit/IODeviceTreeSupport.h>
 #include "VMsvga2.h"
 #include "vmw_options_fb.h"
+#include "VLog.h"
 
 #include "svga_apple_header.h"
 #include "svga_reg.h"
@@ -47,10 +48,14 @@
 #define super IOFramebuffer
 OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 
-#define LOGPRINTF_PREFIX_STR "log IOFB: "
-#define LOGPRINTF_PREFIX_LEN (sizeof LOGPRINTF_PREFIX_STR - 1)
-#define LOGPRINTF_PREFIX_SKIP 4				// past "log "
-#define LOGPRINTF_BUF_SIZE 256
+#if LOGGING_LEVEL >= 1
+#define LogPrintf(log_level, fmt, ...) do { if (log_level <= logLevelFB) VLog("IOFB: ", fmt, ##__VA_ARGS__); } while (false)
+#else
+#define LogPrintf(log_level, fmt, ...)
+#endif
+
+#define FMT_D(x) static_cast<int>(x)
+#define FMT_U(x) static_cast<unsigned>(x)
 
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1056
 /*
@@ -71,7 +76,9 @@ static UInt8 edid[128];
 
 static bool have_edid = false;
 
-UInt32 vmw_options_fb = 0;
+unsigned vmw_options_fb = 0;
+
+int logLevelFB = LOGGING_LEVEL;
 
 void CLASS::Cleanup()
 {
@@ -116,7 +123,7 @@ UInt64 CLASS::getPixelFormatsForDisplayMode(IODisplayModeID displayMode, IOIndex
 #pragma mark Private Methods
 #pragma mark -
 
-UInt32 CLASS::FindDepthMode(IOIndex depth)
+UInt CLASS::FindDepthMode(IOIndex depth)
 {
 	return depth ? 0 : 32;
 }
@@ -130,22 +137,6 @@ void CLASS::IOSelectToString(IOSelect io_select, char* output)
 	output[4] = '\0';
 }
 
-void CLASS::LogPrintf(VMFBIOLog log_level, char const* fmt, ...)
-{
-	va_list ap;
-	char print_buf[LOGPRINTF_BUF_SIZE];
-
-	if (log_level > m_log_level)
-		return;
-	va_start(ap, fmt);
-	strlcpy(&print_buf[0], LOGPRINTF_PREFIX_STR, sizeof print_buf);
-	vsnprintf(&print_buf[LOGPRINTF_PREFIX_LEN], sizeof print_buf - LOGPRINTF_PREFIX_LEN, fmt, ap);
-	va_end(ap);
-	IOLog("%s", &print_buf[LOGPRINTF_PREFIX_SKIP]);
-	if (!VMLog_SendString(&print_buf[0]))
-		IOLog("%s: SendString failed.\n", __FUNCTION__);
-}
-
 #pragma mark -
 #pragma mark Cursor Methods
 #pragma mark -
@@ -154,7 +145,7 @@ IOReturn CLASS::setCursorState(SInt32 x, SInt32 y, bool visible)
 {
 	if (!checkOptionFB(VMW_OPTION_FB_FIFO_INIT))
 		return kIOReturnUnsupported;
-	LogPrintf(4, "%s: xy=%d %d visi=%d\n", __FUNCTION__, x, y, visible ? 1 : 0);
+	LogPrintf(4, "%s: xy=%d %d visi=%d\n", __FUNCTION__, FMT_D(x), FMT_D(y), visible ? 1 : 0);
 	x += m_hotspot_x;
 	if (x < 0)
 		x = 0;
@@ -163,20 +154,20 @@ IOReturn CLASS::setCursorState(SInt32 x, SInt32 y, bool visible)
 		y = 0;
 	IOLockLock(m_iolock);
 	svga.setCursorState(
-		static_cast<UInt32>(x),
-		static_cast<UInt32>(y),
+		static_cast<UInt>(x),
+		static_cast<UInt>(y),
 		visible);
 	IOLockUnlock(m_iolock);
 	return kIOReturnSuccess /* kIOReturnUnsupported */;
 }
 
-void CLASS::ConvertAlphaCursor(UInt32* cursor, UInt32 width, UInt32 height)
+void CLASS::ConvertAlphaCursor(UInt* cursor, UInt width, UInt height)
 {
 	/*
 	 * Pre-multiply alpha cursor
 	 */
-	UInt32 i, pixel, alpha, r, g, b;
-	UInt32 num_pixels = width * height;
+	UInt i, pixel, alpha, r, g, b;
+	UInt num_pixels = width * height;
 #if 0
 	LogPrintf(4, "%s: %ux%u pixels @ %p\n", __FUNCTION__, width, height, cursor);
 #endif
@@ -229,7 +220,7 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	shmem = GetShmem(this);
 	if (shmem) {
 		if (shmem->version == kIOFBTenPtTwoShmemVersion) {
-			UInt32 u = (cursorImage != 0 ? 1 : 0);
+			UInt u = (cursorImage != 0 ? 1 : 0);
 			m_hotspot_x = shmem->hotSpot[u].x;
 			m_hotspot_y = shmem->hotSpot[u].y;
 #if 0
@@ -245,24 +236,24 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	}
 #endif
 	LogPrintf(5, "%s: cursor %p: desc %ux%u @ %u\n", __FUNCTION__,
-			  curi.hardwareCursorData, curd.width, curd.height, curd.bitDepth);
+			  curi.hardwareCursorData, FMT_U(curd.width), FMT_U(curd.height), FMT_U(curd.bitDepth));
 	if (!convertCursorImage(cursorImage, &curd, &curi)) {
 		svga.FIFOCommit(0);
 		IOLockUnlock(m_iolock);
 		LogPrintf(1, "%s: convertCursorImage() failed %ux%u\n", __FUNCTION__,
-				  curi.cursorWidth, curi.cursorHeight);
+				  FMT_U(curi.cursorWidth), FMT_U(curi.cursorHeight));
 		return kIOReturnUnsupported;
 	}
 	LogPrintf(5, "%s: cursor %p: info %ux%u\n", __FUNCTION__,
-			  curi.hardwareCursorData, curi.cursorWidth, curi.cursorHeight);
+			  curi.hardwareCursorData, FMT_U(curi.cursorWidth), FMT_U(curi.cursorHeight));
 #ifdef HAVE_CURSOR_HOTSPOT
 	LogPrintf(5, "%s: hotspots: %d vs %d (x), %d vs %d (y)\n", __FUNCTION__,			// Added
-			  m_hotspot_x, static_cast<int>(*p_hotspots), m_hotspot_y, static_cast<int>(p_hotspots[1]));
-	m_hotspot_x = static_cast<SInt32>(*p_hotspots);
-	m_hotspot_y = static_cast<SInt32>(p_hotspots[1]);
+			  m_hotspot_x, FMT_D(*p_hotspots), m_hotspot_y, FMT_D(p_hotspots[1]));
+	m_hotspot_x = *p_hotspots;
+	m_hotspot_y = p_hotspots[1];
 #endif
 	ConvertAlphaCursor(
-		reinterpret_cast<UInt32*>(curi.hardwareCursorData),
+		reinterpret_cast<UInt*>(curi.hardwareCursorData),
 		curi.cursorWidth,
 		curi.cursorHeight);
 	svga.EndDefineAlphaCursor(
@@ -315,7 +306,7 @@ DisplayModeEntry const* CLASS::FindDisplayMode(IODisplayModeID displayMode)
 	for (unsigned i = 0; i < NUM_DISPLAY_MODES; ++i)
 		if (modeList[i].mode_id == displayMode)
 			return &modeList[i];
-	LogPrintf(1, "%s: bad mode ID=%d\n", __FUNCTION__, displayMode);
+	LogPrintf(1, "%s: bad mode ID=%d\n", __FUNCTION__, FMT_D(displayMode));
 	return 0;
 }
 
@@ -329,7 +320,8 @@ IOReturn CLASS::getCurrentDisplayMode(IODisplayModeID* displayMode, IOIndex* dep
 		*displayMode = m_display_mode;
 	if (depth)
 		*depth = m_depth_mode;
-	LogPrintf(4, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__, m_display_mode, m_depth_mode);
+	LogPrintf(4, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__,
+			  FMT_D(m_display_mode), FMT_D(m_depth_mode));
 	return kIOReturnSuccess;
 }
 
@@ -350,7 +342,7 @@ IOItemCount CLASS::getDisplayModeCount()
 {
 	IOItemCount r;
 	r = m_custom_switch ? 1 : m_num_active_modes;
-	LogPrintf(4, "%s: mode count=%u\n", __FUNCTION__, r);
+	LogPrintf(4, "%s: mode count=%u\n", __FUNCTION__, FMT_U(r));
 	return r;
 }
 
@@ -373,10 +365,11 @@ IODeviceMemory* CLASS::getVRAMRange()
 #pragma mark Public Methods
 #pragma mark -
 
-UInt32 CLASS::getApertureSize(IODisplayModeID displayMode, IOIndex depth)
+UInt CLASS::getApertureSize(IODisplayModeID displayMode, IOIndex depth)
 {
 	IOPixelInformation pixelInfo;
-	LogPrintf(4, "%s: mode ID=%d, depth=%d\n", __FUNCTION__, displayMode, depth);
+	LogPrintf(4, "%s: mode ID=%d, depth=%d\n", __FUNCTION__,
+			  FMT_D(displayMode), FMT_D(depth));
 	getPixelInformation(displayMode, depth, kIOFBSystemAperture, &pixelInfo);
 	return pixelInfo.bytesPerRow * pixelInfo.activeHeight;
 }
@@ -387,11 +380,12 @@ UInt32 CLASS::getApertureSize(IODisplayModeID displayMode, IOIndex depth)
 
 IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 {
-	UInt32 fb_offset, fb_size;
+	UInt fb_offset, fb_size;
 	IODeviceMemory* mem;
 
 	if (aperture != kIOFBSystemAperture) {
-		LogPrintf(1, "%s: failed request for aperture=%d (%d)\n", __FUNCTION__, aperture, kIOFBSystemAperture);
+		LogPrintf(1, "%s: failed request for aperture=%d (%d)\n", __FUNCTION__,
+				  FMT_D(aperture), kIOFBSystemAperture);
 		return 0;
 	}
 	if (!m_bar1)
@@ -400,7 +394,8 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 	fb_offset = svga.getCurrentFBOffset();
 	fb_size = svga.getCurrentFBSize();
 	IOLockUnlock(m_iolock);
-	LogPrintf(4, "%s: aperture=%d, fb offset=%u, fb size=%u\n", __FUNCTION__, aperture, fb_offset, fb_size);
+	LogPrintf(4, "%s: aperture=%d, fb offset=%u, fb size=%u\n", __FUNCTION__,
+			  FMT_D(aperture), fb_offset, fb_size);
 	mem = IODeviceMemory::withSubRange(m_bar1, fb_offset, fb_size);
 	if (!mem)
 		LogPrintf(1, "%s: failed to create IODeviceMemory, aperture=%d\n", __FUNCTION__, kIOFBSystemAperture);
@@ -417,7 +412,7 @@ bool CLASS::isConsoleDevice()
 #pragma mark Custom Mode Methods
 #pragma mark -
 
-void CLASS::CustomSwitchStepWait(UInt32 value)
+void CLASS::CustomSwitchStepWait(UInt value)
 {
 	LogPrintf(4, "%s: value=%u.\n", __FUNCTION__, value);
 	while (m_custom_switch != value) {
@@ -430,7 +425,7 @@ void CLASS::CustomSwitchStepWait(UInt32 value)
 	LogPrintf(4, "%s: done waiting.\n", __FUNCTION__);
 }
 
-void CLASS::CustomSwitchStepSet(UInt32 value)
+void CLASS::CustomSwitchStepSet(UInt value)
 {
 	LogPrintf(4, "%s: value=%u.\n", __FUNCTION__, value);
 	m_custom_switch = value;
@@ -479,9 +474,9 @@ void CLASS::_RefreshTimerAction(thread_call_param_t param0, thread_call_param_t 
 	static_cast<CLASS*>(param0)->refreshTimerAction(0);
 }
 
-void CLASS::scheduleRefreshTimer(UInt32 milliSeconds)
+void CLASS::scheduleRefreshTimer(UInt milliSeconds)
 {
-	UInt64 deadline;
+	uint64_t deadline;
 
 	if (m_refresh_call) {
 		clock_interval_to_deadline(milliSeconds, kMillisecondScale, &deadline);
@@ -519,7 +514,7 @@ void CLASS::deleteRefreshTimer()
 
 bool CLASS::start(IOService* provider)
 {
-	UInt32 boot_arg, max_w, max_h;
+	UInt boot_arg, max_w, max_h;
 	UInt16 vendor_id, device_id, subvendor_id, subsystem_id;
 	UInt8 revision_id;
 	OSString* o_name;	// Added
@@ -534,13 +529,12 @@ bool CLASS::start(IOService* provider)
 	}
 	IOLog("IOFB: start\n");
 	VMLog_SendString("log IOFB: start\n");
-	m_log_level = 1;
 	if (PE_parse_boot_argn("vmw_log_fb", &boot_arg, sizeof boot_arg))
-		m_log_level = static_cast<VMFBIOLog>(boot_arg);
+		logLevelFB = static_cast<int>(boot_arg);
 	/*
 	 * Begin Added
 	 */
-	setProperty("VMwareSVGAFBLogLevel", static_cast<UInt64>(m_log_level), 32U);
+	setProperty("VMwareSVGAFBLogLevel", static_cast<UInt64>(logLevelFB), 32U);
 	vmw_options_fb = VMW_OPTION_FB_FIFO_INIT | VMW_OPTION_FB_REFRESH_TIMER | VMW_OPTION_FB_ACCEL;
 	if (PE_parse_boot_argn("vmw_options_fb", &boot_arg, sizeof boot_arg))
 		vmw_options_fb = boot_arg;
@@ -597,7 +591,8 @@ bool CLASS::start(IOService* provider)
 		goto fail;
 	}
 	m_bar1->retain();
-	if (!svga.Init(m_provider, m_log_level)) {
+	svga.Init();
+	if (!svga.Start(m_provider)) {
 		goto fail;
 	}
 	/*
@@ -745,7 +740,7 @@ IOReturn CLASS::getAttribute(IOSelect attribute, uintptr_t* value)
 		r = kIOReturnSuccess;
 	} else
 		r = super::getAttribute(attribute, value);
-	if (m_log_level >= 4) {
+	if (logLevelFB >= 4) {
 		IOSelectToString(attribute, &attr[0]);
 		if (value)
 			LogPrintf(4, "%s: attr=%s *value=0x%08lx ret=0x%08x\n", __FUNCTION__, &attr[0], *value, r);
@@ -795,14 +790,14 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 			r = super::getAttributeForConnection(connectIndex, attribute, value);
 			break;
 	}
-	if (m_log_level >= 4) {
+	if (logLevelFB >= 4) {
 		IOSelectToString(attribute, &attr[0]);
 		if (value)
 			LogPrintf(4, "%s: index=%d, attr=%s *value=0x%08lx ret=0x%08x\n", __FUNCTION__,
-					  connectIndex, &attr[0], *value, r);
+					  FMT_D(connectIndex), &attr[0], *value, r);
 		else
 			LogPrintf(4, "%s: index=%d, attr=%s ret=0x%08x\n", __FUNCTION__,
-					  connectIndex, &attr[0], r);
+					  FMT_D(connectIndex), &attr[0], r);
 	}
 	return r;
 }
@@ -813,7 +808,7 @@ IOReturn CLASS::setAttribute(IOSelect attribute, uintptr_t value)
 	char attr[5];
 
 	r = super::setAttribute(attribute, value);
-	if (m_log_level >= 4) {
+	if (logLevelFB >= 4) {
 		IOSelectToString(attribute, &attr[0]);
 		LogPrintf(4, "%s: attr=%s value=0x%08lx ret=0x%08x\n",
 				  __FUNCTION__, &attr[0], value, r);
@@ -845,10 +840,10 @@ IOReturn CLASS::setAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 			r = super::setAttributeForConnection(connectIndex, attribute, value);
 			break;
 	}
-	if (m_log_level >= 4) {
+	if (logLevelFB >= 4) {
 		IOSelectToString(attribute, &attr[0]);
 		LogPrintf(4, "%s: index=%d, attr=%s value=0x%08lx ret=0x%08x\n", __FUNCTION__,
-				  connectIndex, &attr[0], value, r);
+				  FMT_D(connectIndex), &attr[0], value, r);
 	}
 	return r;
 }
@@ -857,7 +852,7 @@ IOReturn CLASS::registerForInterruptType(IOSelect interruptType, IOFBInterruptPr
 {
 	char int_type[5];
 
-	if (m_log_level >= 4) {
+	if (logLevelFB >= 4) {
 		IOSelectToString(interruptType, &int_type[0]);
 		LogPrintf(4, "%s: interruptType=%s\n", __FUNCTION__, &int_type[0]);
 	}
@@ -879,7 +874,7 @@ IOReturn CLASS::registerForInterruptType(IOSelect interruptType, IOFBInterruptPr
 
 void CLASS::RestoreAllModes()
 {
-	UInt32 i;
+	UInt i;
 	IODisplayModeID t;
 	DisplayModeEntry const* dme1;
 	DisplayModeEntry const* dme2 = 0;
@@ -916,8 +911,8 @@ IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData
 {
 	DisplayModeEntry const* dme1;
 	DisplayModeEntry* dme2;
-	UInt32 w, h;
-	UInt64 deadline;
+	UInt w, h;
+	uint64_t deadline;
 
 	if (!m_restore_call)
 		return kIOReturnUnsupported;
@@ -943,8 +938,7 @@ IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData
 	if (!dme1)
 		return kIOReturnUnsupported;
 	if (inData->flags & 1) {
-		LogPrintf(4, "%s: Set resolution to %ux%u.\n", __FUNCTION__,
-				  static_cast<unsigned>(inData->width), static_cast<unsigned>(inData->height));
+		LogPrintf(4, "%s: Set resolution to %ux%u.\n", __FUNCTION__, inData->width, inData->height);
 		w = inData->width;
 		if (w < 800)
 			w = 800;
@@ -981,12 +975,12 @@ IOReturn CLASS::getInformationForDisplayMode(IODisplayModeID displayMode, IODisp
 {
 	DisplayModeEntry const* dme;
 
-	LogPrintf(4, "%s: mode ID=%d\n", __FUNCTION__, displayMode);
+	LogPrintf(4, "%s: mode ID=%d\n", __FUNCTION__, FMT_D(displayMode));
 	if (!info)
 		return kIOReturnBadArgument;
 	dme = FindDisplayMode(displayMode);
 	if (!dme) {
-		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, displayMode);
+		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, FMT_D(displayMode));
 		return kIOReturnBadArgument;
 	}
 	bzero(info, sizeof(IODisplayModeInformation));
@@ -996,7 +990,7 @@ IOReturn CLASS::getInformationForDisplayMode(IODisplayModeID displayMode, IODisp
 	info->refreshRate = 60U << 16;
 	info->flags = dme->flags;
 	LogPrintf(4, "%s: mode ID=%d, max depth=%d, wxh=%ux%u, flags=0x%x\n", __FUNCTION__,
-			  displayMode, 0, info->nominalWidth, info->nominalHeight, info->flags);
+			  FMT_D(displayMode), 0, FMT_U(info->nominalWidth), FMT_U(info->nominalHeight), FMT_U(info->flags));
 	return kIOReturnSuccess;
 }
 
@@ -1004,23 +998,24 @@ IOReturn CLASS::getPixelInformation(IODisplayModeID displayMode, IOIndex depth, 
 {
 	DisplayModeEntry const* dme;
 
-	LogPrintf(4, "%s: mode ID=%d\n", __FUNCTION__, displayMode);
+	LogPrintf(4, "%s: mode ID=%d\n", __FUNCTION__, FMT_D(displayMode));
 	if (!pixelInfo)
 		return kIOReturnBadArgument;
 	if (aperture != kIOFBSystemAperture) {
-		LogPrintf(1, "%s: aperture=%d not supported\n", __FUNCTION__, aperture);
+		LogPrintf(1, "%s: aperture=%d not supported\n", __FUNCTION__, FMT_D(aperture));
 		return kIOReturnUnsupportedMode;
 	}
 	if (depth) {
-		LogPrintf(1, "%s: depth mode not found.  bad mode ID=%d\n", __FUNCTION__, depth);
+		LogPrintf(1, "%s: depth mode not found.  bad mode ID=%d\n", __FUNCTION__, FMT_D(depth));
 		return kIOReturnBadArgument;
 	}
 	dme = FindDisplayMode(displayMode);
 	if (!dme) {
-		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, displayMode);
+		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, FMT_D(displayMode));
 		return kIOReturnBadArgument;
 	}
-	LogPrintf(4, "%s: mode ID=%d, wxh=%ux%u\n", __FUNCTION__, displayMode, static_cast<unsigned>(dme->width), static_cast<unsigned>(dme->height));
+	LogPrintf(4, "%s: mode ID=%d, wxh=%ux%u\n", __FUNCTION__,
+			  FMT_D(displayMode), dme->width, dme->height);
 	bzero(pixelInfo, sizeof(IOPixelInformation));
 	pixelInfo->activeWidth = dme->width;
 	pixelInfo->activeHeight = dme->height;
@@ -1034,7 +1029,7 @@ IOReturn CLASS::getPixelInformation(IODisplayModeID displayMode, IOIndex depth, 
 	pixelInfo->componentCount = 3;
 	pixelInfo->bitsPerComponent = 8;
 	pixelInfo->bytesPerRow = ((pixelInfo->activeWidth + 7U) & (~7U)) << 2;
-	LogPrintf(4, "%s: bytesPerRow=%u\n", __FUNCTION__, pixelInfo->bytesPerRow);
+	LogPrintf(4, "%s: bytesPerRow=%u\n", __FUNCTION__, FMT_U(pixelInfo->bytesPerRow));
 	return kIOReturnSuccess;
 }
 
@@ -1042,14 +1037,15 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 {
 	DisplayModeEntry const* dme;
 
-	LogPrintf(4, "%s: display ID=%d, depth ID=%d\n", __FUNCTION__, displayMode, depth);
+	LogPrintf(4, "%s: display ID=%d, depth ID=%d\n", __FUNCTION__,
+			  FMT_D(displayMode), FMT_D(depth));
 	if (depth) {
-		LogPrintf(1, "%s: depth mode not found.  bad depth ID=%d\n", __FUNCTION__, depth);
+		LogPrintf(1, "%s: depth mode not found.  bad depth ID=%d\n", __FUNCTION__, FMT_D(depth));
 		return kIOReturnBadArgument;
 	}
 	dme = FindDisplayMode(displayMode);
 	if (!dme) {
-		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, displayMode);
+		LogPrintf(1, "%s: displayMode not found.  bad mode ID=%d\n", __FUNCTION__, FMT_D(displayMode));
 		return kIOReturnBadArgument;
 	}
 	if (!m_accel_updates)
@@ -1067,7 +1063,8 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 	if (checkOptionFB(VMW_OPTION_FB_REG_DUMP))	// Added
 		svga.RegDump();						// Added
 	IOLockUnlock(m_iolock);
-	LogPrintf(4, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__, m_display_mode, m_depth_mode);
+	LogPrintf(4, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__,
+			  FMT_D(m_display_mode), FMT_D(m_depth_mode));
 	if (!m_accel_updates)
 		scheduleRefreshTimer(200 /* m_refresh_quantum_ms */);	// Added
 	return kIOReturnSuccess;
@@ -1106,8 +1103,8 @@ bool CLASS::hasDDCConnect(IOIndex connectIndex)
 
 IODisplayModeID CLASS::TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) const
 {
-	UInt32 w = svga.getCurrentWidth();
-	UInt32 h = svga.getCurrentHeight();
+	UInt w = svga.getCurrentWidth();
+	UInt h = svga.getCurrentHeight();
 	for (unsigned i = 0; i < NUM_DISPLAY_MODES; ++i)
 		if (w == modeList[i].width && h == modeList[i].height)
 			return modeList[i].mode_id;

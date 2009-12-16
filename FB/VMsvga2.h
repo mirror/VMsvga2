@@ -37,6 +37,7 @@
 
 #include <IOKit/graphics/IOFramebuffer.h>
 #include "SVGADevice.h"
+#include "common_fb.h"
 
 struct CustomModeData;
 class IOTimerEventSource;
@@ -45,35 +46,32 @@ class VMsvga2 : public IOFramebuffer
 {
 	OSDeclareDefaultStructors(VMsvga2);
 
-#if 0
-	friend class VMsvga2Client;
-#endif
-	friend class VMsvga2Accel;
-
 private:
 	SVGADevice svga;
-	VMFBIOLog m_log_level;			// offset 0x138
+#if 0
+	SInt m_log_level;				// offset 0x138
+#endif
 	IOPCIDevice* m_provider;		// offset 0x13C
 	IODeviceMemory* m_bar1;			// offset 0x140
 	IOMemoryMap* m_bar1_map;		// offset 0x144
 	IOVirtualAddress m_bar1_ptr;	// offset 0x148
 #if 0
 	IOPhysicalAddress m_fb_offset;	// offset 0x14C
-	UInt32 m_aperture_size;			// offset 0x150
+	UInt m_aperture_size;			// offset 0x150
 #endif
 	IODisplayModeID m_display_mode;	// offset 0x154
 	IOIndex m_depth_mode;			// offset 0x158
 	thread_call_t m_restore_call;	// offset 0x15C
 	IODisplayModeID m_modes[NUM_DISPLAY_MODES];	// offset 0x160
-	UInt32 m_custom_switch;			// offset 0x198
+	UInt m_custom_switch;			// offset 0x198
 	struct {
 		OSObject* target;
 		void* ref;
 		IOFBInterruptProc proc;
 	} m_intr;						// offset 0x19C
 	IOLock* m_iolock;				// offset 0x1A8
-	SInt32 m_hotspot_x;				// offset 0x1AC
-	SInt32 m_hotspot_y;				// offset 0x1B0
+	SInt m_hotspot_x;				// offset 0x1AC
+	SInt m_hotspot_y;				// offset 0x1B0
 
 	/*
 	 * Begin Added
@@ -81,20 +79,19 @@ private:
 	bool m_intr_enabled;
 	bool m_accel_updates;
 	thread_call_t m_refresh_call;
-	UInt32 m_refresh_quantum_ms;
-	UInt32 m_num_active_modes;
+	UInt m_refresh_quantum_ms;
+	UInt m_num_active_modes;
 	/*
 	 * End Added
 	 */
 
 	void Cleanup();
-	void LogPrintf(VMFBIOLog log_level, char const* fmt, ...);
-	static UInt32 FindDepthMode(IOIndex depth);
+	static UInt FindDepthMode(IOIndex depth);
 	DisplayModeEntry const* FindDisplayMode(IODisplayModeID displayMode);
 	static void IOSelectToString(IOSelect io_select, char* output);
-	static void ConvertAlphaCursor(UInt32* cursor, UInt32 width, UInt32 height);
-	void CustomSwitchStepWait(UInt32 value);
-	void CustomSwitchStepSet(UInt32 value);
+	static void ConvertAlphaCursor(UInt* cursor, UInt width, UInt height);
+	void CustomSwitchStepWait(UInt value);
+	void CustomSwitchStepSet(UInt value);
 	void EmitConnectChangedEvent();
 	void RestoreAllModes();
 	static void _RestoreAllModes(thread_call_param_t param0, thread_call_param_t param1);
@@ -102,7 +99,7 @@ private:
 	/*
 	 * Begin Added
 	 */
-	void scheduleRefreshTimer(UInt32 milliSeconds);
+	void scheduleRefreshTimer(UInt milliSeconds);
 	void scheduleRefreshTimer();
 	void cancelRefreshTimer();
 	void refreshTimerAction(IOTimerEventSource* sender);
@@ -113,16 +110,6 @@ private:
 	/*
 	 * End Added
 	 */
-
-	/*
-	 * Accelerator Support
-	 */
-	SVGADevice* getDevice() { return &svga; }
-	IOVirtualAddress getVRAMPtr() const { return m_bar1_ptr; }
-	void lockDevice();
-	void unlockDevice();
-	bool supportsAccel();
-	void useAccelUpdates(bool state);
 
 public:
 	UInt64 getPixelFormatsForDisplayMode(IODisplayModeID displayMode, IOIndex depth);
@@ -136,7 +123,7 @@ public:
 	IOItemCount getDisplayModeCount();
 	const char* getPixelFormats();
 	IODeviceMemory* getVRAMRange();
-	UInt32 getApertureSize(IODisplayModeID displayMode, IOIndex depth);
+	UInt getApertureSize(IODisplayModeID displayMode, IOIndex depth);
 	IODeviceMemory* getApertureRange(IOPixelAperture aperture);
 	bool isConsoleDevice();
 	IOReturn setupForCurrentConfig();
@@ -163,6 +150,16 @@ public:
 	/*
 	 * End Added
 	 */
+
+	/*
+	 * Accelerator Support
+	 */
+	SVGADevice* getDevice() { return &svga; }
+	IOVirtualAddress getVRAMPtr() const { return m_bar1_ptr; }
+	void lockDevice();
+	void unlockDevice();
+	bool supportsAccel();
+	void useAccelUpdates(bool state);
 
 #if 0
 	IOReturn getStartupDisplayMode(IODisplayModeID* displayMode, IOIndex* depth);
