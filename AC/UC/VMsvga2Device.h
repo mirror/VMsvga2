@@ -60,8 +60,8 @@ public:
 	 * Methods from IONVDevice
 	 */
 	IOReturn create_shared();
-	IOReturn get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4, io_user_scalar_t* c5);
-	IOReturn get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4);
+	IOReturn get_config(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4, UInt32* c5);
+	IOReturn get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4);
 	IOReturn get_name(char* out_name, size_t* struct_out_size);
 	IOReturn wait_for_stamp(uintptr_t c1);
 	IOReturn new_texture(struct VendorNewTextureDataRec const* in_struct, struct sIONewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size);

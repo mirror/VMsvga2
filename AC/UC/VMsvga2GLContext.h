@@ -71,9 +71,9 @@ public:
 	IOReturn set_surface(uintptr_t c1, eIOGLContextModeBits c2, uintptr_t c3, uintptr_t c4);
 	IOReturn set_swap_rect(intptr_t c1, intptr_t c2, intptr_t c3, intptr_t c4);
 	IOReturn set_swap_interval(intptr_t c1, intptr_t c2);
-	IOReturn get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3);	// OS 10.5
-	IOReturn get_surface_size(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4);
-	IOReturn get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4);
+	IOReturn get_config(UInt32* c1, UInt32* c2, UInt32* c3);	// OS 10.5
+	IOReturn get_surface_size(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4);
+	IOReturn get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4);
 	IOReturn read_buffer(struct sIOGLContextReadBufferData const* in_struct, size_t struct_in_size);
 	IOReturn finish();
 	IOReturn wait_for_stamp(uintptr_t c1);
@@ -95,7 +95,7 @@ public:
 	 * NVGLContext
 	 */
 	IOReturn get_query_buffer(uintptr_t, struct sIOGLGetQueryBuffer*, size_t* struct_out_size);
-	IOReturn get_notifiers(io_user_scalar_t*, io_user_scalar_t*);
+	IOReturn get_notifiers(UInt32*, UInt32*);
 	IOReturn new_heap_object(struct sNVGLNewHeapObjectData const*, struct sIOGLNewTextureReturnData*, size_t struct_in_size, size_t* struct_out_size);	// OS 10.5
 	IOReturn kernel_printf(char const*, size_t struct_in_size);
 	IOReturn nv_rm_config_get(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size);
@@ -104,9 +104,9 @@ public:
 	IOReturn pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const*, size_t struct_in_size);
 	IOReturn get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer*, size_t* struct_out_size);
 	IOReturn nv_rm_control(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn get_power_state(io_user_scalar_t*, io_user_scalar_t*);
+	IOReturn get_power_state(UInt32*, UInt32*);
 	IOReturn set_watchdog_timer(uintptr_t);		// OS 10.6
-	IOReturn GetHandleIndex(io_user_scalar_t*, io_user_scalar_t*);	// OS 10.6
+	IOReturn GetHandleIndex(UInt32*, UInt32*);	// OS 10.6
 	IOReturn ForceTextureLargePages(uintptr_t);		// OS 10.6
 };
 

@@ -279,7 +279,7 @@ IOReturn CLASS::set_swap_interval(intptr_t c1, intptr_t c2)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3)
+IOReturn CLASS::get_config(UInt32* c1, UInt32* c2, UInt32* c3)
 {
 	GLLog(2, "%s(out1, out2, out3)\n", __FUNCTION__);
 	*c1 = 0;
@@ -288,7 +288,7 @@ IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_s
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_size(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4)
+IOReturn CLASS::get_surface_size(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4)
 {
 	GLLog(2, "%s(out1, out2, out3, out4)\n", __FUNCTION__);
 	*c1 = 1;
@@ -298,7 +298,7 @@ IOReturn CLASS::get_surface_size(io_user_scalar_t* c1, io_user_scalar_t* c2, io_
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4)
+IOReturn CLASS::get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4)
 {
 	GLLog(2, "%s(%lu, out2, out3, out4)\n", __FUNCTION__, c1);
 	*c2 = 0x4081;
@@ -461,7 +461,7 @@ IOReturn CLASS::get_query_buffer(uintptr_t, struct sIOGLGetQueryBuffer*, size_t*
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_notifiers(io_user_scalar_t*, io_user_scalar_t*)
+IOReturn CLASS::get_notifiers(UInt32*, UInt32*)
 {
 	return kIOReturnUnsupported;
 }
@@ -506,7 +506,7 @@ IOReturn CLASS::nv_rm_control(UInt32 const* struct_in, UInt32* struct_out, size_
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_power_state(io_user_scalar_t*, io_user_scalar_t*)
+IOReturn CLASS::get_power_state(UInt32*, UInt32*)
 {
 	return kIOReturnUnsupported;
 }
@@ -516,7 +516,7 @@ IOReturn CLASS::set_watchdog_timer(uintptr_t)
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::GetHandleIndex(io_user_scalar_t*, io_user_scalar_t*)
+IOReturn CLASS::GetHandleIndex(UInt32*, UInt32*)
 {
 	return kIOReturnUnsupported;
 }

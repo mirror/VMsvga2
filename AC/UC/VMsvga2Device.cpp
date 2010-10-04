@@ -173,7 +173,7 @@ IOReturn CLASS::create_shared()
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4, io_user_scalar_t* c5)
+IOReturn CLASS::get_config(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4, UInt32* c5)
 {
 	DVLog(2, "%s(out1, out2, out3, out4, out5)\n", __FUNCTION__);
 	if (c1)
@@ -189,7 +189,7 @@ IOReturn CLASS::get_config(io_user_scalar_t* c1, io_user_scalar_t* c2, io_user_s
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_info(uintptr_t c1, io_user_scalar_t* c2, io_user_scalar_t* c3, io_user_scalar_t* c4)
+IOReturn CLASS::get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4)
 {
 	DVLog(2, "%s(%lu, out2, out3, out4)\n", __FUNCTION__, c1);
 	*c2 = 0x4061;
