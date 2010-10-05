@@ -29,6 +29,7 @@
 #include <libkern/OSAtomic.h>
 #include <IOKit/pci/IOPCIDevice.h>
 #include <IOKit/graphics/IOGraphicsInterfaceTypes.h>
+#include <IOKit/IOBufferMemoryDescriptor.h>
 #include "vmw_options_ac.h"
 #include "VLog.h"
 #include "VMsvga2Accel.h"
@@ -51,6 +52,10 @@ UInt32 vmw_options_ac = 0;
 #define ACLog(log_level, fmt, ...) do { if (log_level <= m_log_level_ac) VLog("IOAC: ", fmt, ##__VA_ARGS__); } while(false)
 #else
 #define ACLog(log_level, fmt, ...)
+#endif
+
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+typedef UInt32 (*PIOSurfaceRoot_generateUniqueAcceleratorID)(void*, void*);
 #endif
 
 #pragma mark -
@@ -166,6 +171,13 @@ static void convert_rect(IOAccelBounds const* src_rect,
 
 void CLASS::Cleanup()
 {
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+	if (m_surface_root) {
+		m_surface_root->release();
+		m_surface_root = 0;
+	}
+#endif
+	cleanGLStuff();
 	if (bHaveSVGA3D) {
 		bHaveSVGA3D = false;
 		svga3d.Init(0);
@@ -264,6 +276,8 @@ void CLASS::processOptions()
 		vmw_options_ac |= VMW_OPTION_AC_DIRECT_BLIT;
 	if (PE_parse_boot_argn("-vmw_no_screen_object", &boot_arg, sizeof boot_arg))
 		vmw_options_ac |= VMW_OPTION_AC_NO_SCREEN_OBJECT;
+	if (PE_parse_boot_argn("-vmw_qe", &boot_arg, sizeof boot_arg))
+		vmw_options_ac |= VMW_OPTION_AC_QE;
 	setProperty("VMwareSVGAAccelOptions", static_cast<UInt64>(vmw_options_ac), 32U);
 	if (PE_parse_boot_argn("vmw_options_ga", &boot_arg, sizeof boot_arg)) {
 		m_options_ga = boot_arg;
@@ -378,6 +392,26 @@ IOReturn CLASS::fbNotificationHandler(void* ref,
 }
 #endif
 
+void CLASS::initGLStuff()
+{
+	m_channel_memory = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
+															 kIOMemoryPageable |
+															 kIODirectionOut,
+															 page_size,
+															 page_size);
+	if (m_channel_memory)
+		m_channel_memory->prepare(kIODirectionInOut);
+}
+
+void CLASS::cleanGLStuff()
+{
+	if (m_channel_memory) {
+		m_channel_memory->complete();
+		m_channel_memory->release();
+		m_channel_memory = 0;
+	}
+}
+
 #pragma mark -
 #pragma mark Methods from IOService
 #pragma mark -
@@ -400,6 +434,9 @@ bool CLASS::start(IOService* provider)
 	char pathbuf[256];
 	int len;
 	OSObject* plug;
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+	PIOSurfaceRoot_generateUniqueAcceleratorID pgen;
+#endif
 
 	m_provider = OSDynamicCast(IOPCIDevice, provider);
 	if (!m_provider)
@@ -409,6 +446,16 @@ bool CLASS::start(IOService* provider)
 	IOLog("IOAC: start\n");
 	VMLog_SendString("log IOAC: start\n");
 	processOptions();
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+	m_surface_root = IOService::waitForService(IOService::nameMatching("IOSurfaceRoot"));
+	m_surface_root->retain();
+#ifndef __LP64__
+	pgen = (*reinterpret_cast<PIOSurfaceRoot_generateUniqueAcceleratorID**>(m_surface_root))[302];
+#else {
+	pgen = (*reinterpret_cast<PIOSurfaceRoot_generateUniqueAcceleratorID**>(m_surface_root))[271];
+#endif
+	m_surface_root_uuid = pgen(m_surface_root, this);
+#endif
 	/*
 	 * TBD: is there a possible race condition here where VMsvga2Accel::start
 	 *   is called before VMsvga2 gets attached to its provider?
@@ -452,7 +499,8 @@ bool CLASS::start(IOService* provider)
 		m_framebuffer->setProperty(kIOAccelRevisionKey, static_cast<UInt64>(kCurrentGraphicsInterfaceRevision), 32U);
 	}
 	setProperty(kIOAccelRevisionKey, static_cast<UInt64>(kCurrentGraphicsInterfaceRevision), 32U);
-	setProperty("AccelCaps", 3ULL, 32U);
+	if (checkOptionAC(VMW_OPTION_AC_QE))
+		setProperty("AccelCaps", 3ULL, 32U);
 #ifdef FB_NOTIFIER
 	m_fbNotifier = m_framebuffer->addFramebufferNotification(OSMemberFunctionCast(IOFramebufferNotificationHandler, this, &CLASS::fbNotificationHandler), this, 0);
 	if (!m_fbNotifier)
@@ -467,9 +515,10 @@ bool CLASS::start(IOService* provider)
 	 *   GeForce7xxxGLDriver
 	 *   GeForce8xxxGLDriver
 	 */
-#if 0
-	setProperty("IOGLBundleName", "AppleIntelGMA950GLDriver");
-#endif
+	if (checkOptionAC(VMW_OPTION_AC_GL_CONTEXT)) {
+		setProperty("IOGLBundleName", "VMsvga2GLDriver");
+		initGLStuff();
+	}
 	/*
 	 * Stupid bug in AppleVA attempts to CFRelease a NULL pointer
 	 *   if it can't find this property.
@@ -1508,6 +1557,15 @@ void CLASS::lockAccel()
 void CLASS::unlockAccel()
 {
 	IOLockUnlock(m_iolock);
+}
+
+UInt32 CLASS::getVRAMSize() const
+{
+	if (m_svga)
+		return m_svga->getVRAMSize();
+	if (m_bar1)
+		return static_cast<UInt32>(m_bar1->getLength());
+	return 134217728U;
 }
 
 #pragma mark -

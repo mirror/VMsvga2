@@ -42,6 +42,11 @@ private:
 	IOExternalMethod* m_funcs_cache;
 	SInt32 m_log_level;
 
+	IOMemoryDescriptor* m_channel_memory;
+	IOMemoryMap* m_channel_memory_map;
+
+	void Cleanup();
+
 public:
 	/*
 	 * Methods overridden from superclass
@@ -60,22 +65,25 @@ public:
 	 * Methods from IONVDevice
 	 */
 	IOReturn create_shared();
-	IOReturn get_config(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4, UInt32* c5);
-	IOReturn get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4);
-	IOReturn get_name(char* out_name, size_t* struct_out_size);
-	IOReturn wait_for_stamp(uintptr_t c1);
-	IOReturn new_texture(struct VendorNewTextureDataRec const* in_struct, struct sIONewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn delete_texture(uintptr_t c1);
-	IOReturn page_off_texture(struct sIODevicePageoffTexture const* in_struct, size_t struct_in_size);
-	IOReturn get_channel_memory(struct sIODeviceChannelMemoryData* out_struct, size_t* struct_out_size);
+	IOReturn get_config(UInt32*, UInt32*, UInt32*, UInt32*, UInt32*);
+	IOReturn get_surface_info(uintptr_t, UInt32*, UInt32*, UInt32*);
+	IOReturn get_name(char*, size_t*);
+	IOReturn wait_for_stamp(uintptr_t);
+	IOReturn new_texture(struct VendorNewTextureDataRec const*,
+						 struct sIONewTextureReturnData*,
+						 size_t,
+						 size_t*);
+	IOReturn delete_texture(uintptr_t);
+	IOReturn page_off_texture(struct sIODevicePageoffTexture const*, size_t);
+	IOReturn get_channel_memory(struct sIODeviceChannelMemoryData*, size_t*);
 
 	/*
 	 * NVDevice Methods
 	 */
-	IOReturn kernel_printf(char const* str, size_t struct_in_size);
-	IOReturn nv_rm_config_get(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn nv_rm_config_get_ex(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn nv_rm_control(UInt32 const* in_struct, UInt32* out_struct, size_t struct_in_size, size_t* struct_out_size);
+	IOReturn kernel_printf(char const*, size_t);
+	IOReturn nv_rm_config_get(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn nv_rm_config_get_ex(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn nv_rm_control(UInt32 const*, UInt32*, size_t, size_t*);
 };
 
 #endif /* __VMSVGA2DEVICE_H__ */

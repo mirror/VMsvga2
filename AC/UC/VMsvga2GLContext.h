@@ -33,6 +33,16 @@
 #include <IOKit/IOUserClient.h>
 
 typedef uintptr_t eIOGLContextModeBits;
+struct VendorCommandBufferHeader;
+
+struct VMsvga2CommandBuffer
+{
+	UInt32 pad1[2];
+	IOMemoryDescriptor* md;
+	UInt32 pad2[8];
+	VendorCommandBufferHeader* kernel_ptr;
+	size_t size;
+};
 
 class VMsvga2GLContext: public IOUserClient
 {
@@ -44,8 +54,21 @@ private:
 	IOExternalMethod* m_funcs_cache;
 	SInt32 m_log_level;
 
-	UInt32 m_mem_type;
-	IOMemoryMap* m_mm_remember;
+	UInt32 m_mem_type;	// offset 0x19C
+	OSSet* m_gc;	// offset 0xFC
+	VMsvga2CommandBuffer m_command_buffer;	// offset 0xC8 - 0xFC
+	IOMemoryDescriptor* m_context_buffer0;	// offset 0x108
+	VendorCommandBufferHeader* m_context_buffer0_ptr;			// offset 0x12C
+	IOMemoryDescriptor* m_context_buffer1;	// offset 0x138
+	VendorCommandBufferHeader* m_context_buffer1_ptr;			// offset 0x15C
+	IOMemoryDescriptor* m_type2;	// offset 0xB4
+	size_t m_type2_len;		// offset 0xB8
+	VendorCommandBufferHeader* m_type2_ptr;		// offset 0xBC
+
+	void Cleanup();
+	bool allocCommandBuffer(VMsvga2CommandBuffer*, size_t);
+	void initCommandBufferHeader(VendorCommandBufferHeader*, size_t);
+	bool allocAllContextBuffers();
 
 public:
 	/*
@@ -68,42 +91,53 @@ public:
 	/*
 	 * IONVGLContext
 	 */
-	IOReturn set_surface(uintptr_t c1, eIOGLContextModeBits c2, uintptr_t c3, uintptr_t c4);
-	IOReturn set_swap_rect(intptr_t c1, intptr_t c2, intptr_t c3, intptr_t c4);
-	IOReturn set_swap_interval(intptr_t c1, intptr_t c2);
-	IOReturn get_config(UInt32* c1, UInt32* c2, UInt32* c3);	// OS 10.5
-	IOReturn get_surface_size(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4);
-	IOReturn get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4);
-	IOReturn read_buffer(struct sIOGLContextReadBufferData const* in_struct, size_t struct_in_size);
+	IOReturn set_surface(uintptr_t, eIOGLContextModeBits, uintptr_t, uintptr_t);
+	IOReturn set_swap_rect(intptr_t, intptr_t, intptr_t, intptr_t);
+	IOReturn set_swap_interval(intptr_t, intptr_t);
+	IOReturn get_config(UInt32*, UInt32*, UInt32*);	// OS 10.5
+	IOReturn get_surface_size(UInt32*, UInt32*, UInt32*, UInt32*);
+	IOReturn get_surface_info(uintptr_t, UInt32*, UInt32*, UInt32*);
+	IOReturn read_buffer(struct sIOGLContextReadBufferData const*, size_t);
 	IOReturn finish();
-	IOReturn wait_for_stamp(uintptr_t c1);
-	IOReturn new_texture(struct sIOGLNewTextureData const* in_struct, struct sIOGLNewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size);		// OS 10.5
-	IOReturn delete_texture(uintptr_t c1);		// OS 10.5
-	IOReturn become_global_shared(uintptr_t c1);
-	IOReturn page_off_texture(struct sIOGLContextPageoffTexture const* in_struct, size_t struct_in_size);		// OS 10.5
-	IOReturn purge_texture(uintptr_t c1);
-	IOReturn set_surface_volatile_state(uintptr_t c1);
-	IOReturn set_surface_get_config_status(struct sIOGLContextSetSurfaceData const* in_struct, struct sIOGLContextGetConfigStatus* out_struct, size_t struct_in_size, size_t* struct_out_size);
+	IOReturn wait_for_stamp(uintptr_t);
+	IOReturn new_texture(struct sIOGLNewTextureData const*,
+						 struct sIOGLNewTextureReturnData*,
+						 size_t,
+						 size_t*);		// OS 10.5
+	IOReturn delete_texture(uintptr_t);		// OS 10.5
+	IOReturn become_global_shared(uintptr_t);
+	IOReturn page_off_texture(struct sIOGLContextPageoffTexture const*, size_t);		// OS 10.5
+	IOReturn purge_texture(uintptr_t);
+	IOReturn set_surface_volatile_state(uintptr_t);
+	IOReturn set_surface_get_config_status(struct sIOGLContextSetSurfaceData const*,
+										   struct sIOGLContextGetConfigStatus*,
+										   size_t,
+										   size_t*);
 	IOReturn reclaim_resources();
-	IOReturn get_data_buffer(struct sIOGLContextGetDataBuffer* out_struct, size_t* struct_out_size);
-	IOReturn set_stereo(uintptr_t c1, uintptr_t c2);
-	IOReturn purge_accelerator(uintptr_t c1);
-	IOReturn get_channel_memory(struct sIOGLChannelMemoryData* out_struct, size_t* struct_out_size);		// OS 10.5
-	IOReturn submit_command_buffer(uintptr_t do_get_data, struct sIOGLGetCommandBuffer* out_struct, size_t* struct_out_size);		// OS 10.6
+	IOReturn get_data_buffer(struct sIOGLContextGetDataBuffer*, size_t*);
+	IOReturn set_stereo(uintptr_t, uintptr_t);
+	IOReturn purge_accelerator(uintptr_t);
+	IOReturn get_channel_memory(struct sIOGLChannelMemoryData*, size_t*);		// OS 10.5
+	IOReturn submit_command_buffer(uintptr_t do_get_data,
+								   struct sIOGLGetCommandBuffer*,
+								   size_t*);		// OS 10.6
 
 	/*
 	 * NVGLContext
 	 */
-	IOReturn get_query_buffer(uintptr_t, struct sIOGLGetQueryBuffer*, size_t* struct_out_size);
+	IOReturn get_query_buffer(uintptr_t c1, struct sIOGLGetQueryBuffer*, size_t*);
 	IOReturn get_notifiers(UInt32*, UInt32*);
-	IOReturn new_heap_object(struct sNVGLNewHeapObjectData const*, struct sIOGLNewTextureReturnData*, size_t struct_in_size, size_t* struct_out_size);	// OS 10.5
-	IOReturn kernel_printf(char const*, size_t struct_in_size);
-	IOReturn nv_rm_config_get(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn nv_rm_config_get_ex(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn nv_client_request(void const* struct_in, void* struct_out, size_t struct_in_size, size_t* struct_out_size);
-	IOReturn pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const*, size_t struct_in_size);
-	IOReturn get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer*, size_t* struct_out_size);
-	IOReturn nv_rm_control(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size);
+	IOReturn new_heap_object(struct sNVGLNewHeapObjectData const*,
+							 struct sIOGLNewTextureReturnData*,
+							 size_t,
+							 size_t*);	// OS 10.5
+	IOReturn kernel_printf(char const*, size_t);
+	IOReturn nv_rm_config_get(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn nv_rm_config_get_ex(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn nv_client_request(void const*, void*, size_t, size_t*);
+	IOReturn pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const*, size_t);
+	IOReturn get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer*, size_t*);
+	IOReturn nv_rm_control(UInt32 const*, UInt32*, size_t, size_t*);
 	IOReturn get_power_state(UInt32*, UInt32*);
 	IOReturn set_watchdog_timer(uintptr_t);		// OS 10.6
 	IOReturn GetHandleIndex(UInt32*, UInt32*);	// OS 10.6

@@ -41,22 +41,23 @@
 	GLDReturn name(void* arg0, void* arg1, void* arg2, void* arg3, void* arg4, void* arg5) \
 	{ \
 		GLDLog(2, "%s(%p, %p, %p, %p, %p, %p)\n", __FUNCTION__, arg0, arg1, arg2, arg3, arg4, arg5); \
-		if (bndl1_ptrs[index]) return bndl1_ptrs[index](arg0, arg1, arg2, arg3, arg4, arg5); \
+		if (bndl_ptrs[bndl_index][index]) return bndl_ptrs[bndl_index][index](arg0, arg1, arg2, arg3, arg4, arg5); \
 		return -1; \
 	}
 
 static char const BNDL1[] = "/System/Library/Extensions/AppleIntelGMA950GLDriver.bundle/Contents/MacOS/AppleIntelGMA950GLDriver";
 static char const BNDL2[] = "/System/Library/Frameworks/OpenGL.framework/Resources/GLRendererFloat.bundle/GLRendererFloat";
+//static char const BNDL3[] = "/System/Library/Extensions/VMsvga2GLDriver.bundle/Contents/MacOS/GLRendererFloat";
 
-static void* bndl1_handle;
-static void* bndl2_handle;
+static void* bndl_handle[2];
 
-static GLD_GENERIC_FUNC bndl1_ptrs[NUM_ENTRIES];
-static GLD_GENERIC_FUNC bndl2_ptrs[NUM_ENTRIES] __attribute__((unused));
+static GLD_GENERIC_FUNC bndl_ptrs[2][NUM_ENTRIES];
 
 #if LOGGING_LEVEL >= 1
 static int logLevel = 5;
 #endif
+
+static int bndl_index;
 
 void gldInitializeLibrary(int* psvc, void* arg1, int GLDisplayMask, void* arg3, void* arg4)
 {
@@ -65,18 +66,23 @@ void gldInitializeLibrary(int* psvc, void* arg1, int GLDisplayMask, void* arg3, 
 
 	GLDLog(2, "%s(%p, %p, %d, %p, %p)\n", __FUNCTION__, psvc, arg1, GLDisplayMask, arg3, arg4);
 
-	bndl1_handle = dlopen(BNDL1, 0);
-	if (bndl1_handle) {
-		addr = (typeof(addr)) dlsym(bndl1_handle, "gldInitializeLibrary");
+	bndl_handle[0] = dlopen(BNDL1, 0);
+	if (bndl_handle[0]) {
+		addr = (typeof(addr)) dlsym(bndl_handle[0], "gldInitializeLibrary");
 		if (addr) {
 			for (i = 0; i < NUM_ENTRIES; ++i)
-				bndl1_ptrs[i] = (GLD_GENERIC_FUNC) dlsym(bndl1_handle, entry_point_names[i]);
+				bndl_ptrs[0][i] = (GLD_GENERIC_FUNC) dlsym(bndl_handle[0], entry_point_names[i]);
 			addr(psvc, arg1, GLDisplayMask, arg3, arg4);
 		} else {
-			dlclose(bndl1_handle);
-			bndl1_handle = 0;
+			dlclose(bndl_handle[0]);
+			bndl_handle[0] = 0;
 		}
 	}
+	bndl_handle[1] = dlopen(BNDL2, 0);
+	if (bndl_handle[1])
+		for (i = 0; i < NUM_ENTRIES; ++i)
+			bndl_ptrs[1][i] = (GLD_GENERIC_FUNC) dlsym(bndl_handle[1], entry_point_names[i]);
+	bndl_index = 1;
 	// TBD: find out how to signal an error
 }
 
@@ -86,17 +92,13 @@ void gldTerminateLibrary(void)
 
 	GLDLog(2, "%s()\n", __FUNCTION__);
 
-	if (bndl2_handle) {
-		addr = (typeof(addr)) dlsym(bndl2_handle, "gldTerminateLibrary");
+	if (bndl_handle[1])
+		dlclose(bndl_handle[1]);
+	if (bndl_handle[0]) {
+		addr = (typeof(addr)) dlsym(bndl_handle[0], "gldTerminateLibrary");
 		if (addr)
 			addr();
-		dlclose(bndl2_handle);
-	}
-	if (bndl1_handle) {
-		addr = (typeof(addr)) dlsym(bndl1_handle, "gldTerminateLibrary");
-		if (addr)
-			addr();
-		dlclose(bndl1_handle);
+		dlclose(bndl_handle[0]);
 	}
 }
 
@@ -107,7 +109,7 @@ _Bool gldGetVersion(int* arg0, int* arg1, int* arg2, int* arg3)
 
 	GLDLog(2, "%s(%p, %p, %p, %p)\n", __FUNCTION__, arg0, arg1, arg2, arg3);
 
-	addr = (typeof(addr)) bndl1_ptrs[0];
+	addr = (typeof(addr)) bndl_ptrs[0][0];
 	if (addr)
 		rc = addr(arg0, arg1, arg2, arg3);
 	if (rc)
@@ -118,27 +120,56 @@ _Bool gldGetVersion(int* arg0, int* arg1, int* arg2, int* arg3)
 GLDReturn gldGetRendererInfo(void* struct_out, int GLDisplayMask)
 {
 	GLDReturn (*addr)(void*, int);
-	
+	int i, rc;
+	unsigned* p;
+
 	GLDLog(2, "%s(%p, %d)\n", __FUNCTION__, struct_out, GLDisplayMask);
-	
-	addr = (typeof(addr)) bndl1_ptrs[1];
-	if (addr)
-		return addr(struct_out, GLDisplayMask);
+
+	addr = (typeof(addr)) bndl_ptrs[0][1];
+	if (addr) {
+		rc = addr(struct_out, GLDisplayMask);
+		GLDLog(2, "  %s: returns %d\n", __FUNCTION__, rc);
+		if (rc)
+			return rc;
+		p = (unsigned *) (((long*) struct_out) + 1);
+#if 0
+		*p = ((*p) & 0xFFFF0000U) | 0x4000U;
+		p[1] = 0x17CDU;
+		p[17] = 64;
+		p[19] = 64;
+#endif
+		for (i = 0; i < 32; ++i)
+			GLDLog(2, "  %s: [%d] == 0x%x\n", __FUNCTION__, i, p[i]);
+		return 0;
+	}
 	return -1;
 }
 
 GLDReturn gldChoosePixelFormat(void** struct_out, int* attributes)
 {
 	GLDReturn (*addr)(void**, int*);
-	int i;
+	int i, rc;
+	unsigned* p;
 
 	GLDLog(2, "%s(%p, %p)\n", __FUNCTION__, struct_out, attributes);
 
 	for (i = 0; attributes[i] != 0; ++i)
 		GLDLog(2, "  %s: attribute %d\n", __FUNCTION__, attributes[i]);
-	addr = (typeof(addr)) bndl1_ptrs[2];
-	if (addr)
-		return addr(struct_out, attributes);
+	addr = (typeof(addr)) bndl_ptrs[0][2];
+	if (addr) {
+		rc = addr(struct_out, attributes);
+		GLDLog(2, "  %s: returns %d, struct_out is %p\n", __FUNCTION__, rc, *struct_out);
+		if (rc != 0 || *struct_out == 0)
+			return rc;
+		p = (unsigned *) (((long*) *struct_out) + 1);
+#if 0
+		*p = ((*p) & 0xFFFF0000U) | 0x4000U;
+		p[1] = 0x501U;
+#endif
+		for (i = 0; i < 12; ++i)
+			GLDLog(2, "  %s: [%d] == 0x%x\n", __FUNCTION__, i, p[i]);
+		return 0;
+	}
 	return -1;
 }
 
@@ -148,7 +179,7 @@ GLDReturn gldDestroyPixelFormat(void* struct_in)
 
 	GLDLog(2, "%s(%p)\n", __FUNCTION__, struct_in);
 
-	addr = (typeof(addr)) bndl1_ptrs[3];
+	addr = (typeof(addr)) bndl_ptrs[0][3];
 	if (addr)
 		return addr(struct_in);
 	return -1;
@@ -160,7 +191,7 @@ GLDReturn gldCreateShared(void* arg0, int GLDisplayMask, long arg2)
 
 	GLDLog(2, "%s(%p, %d, %ld)\n", __FUNCTION__, arg0, GLDisplayMask, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[4];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][4];
 	if (addr)
 		return addr(arg0, GLDisplayMask, arg2);
 	return -1;
@@ -172,7 +203,7 @@ GLDReturn gldDestroyShared(void* struct_in)
 
 	GLDLog(2, "%s(%p)\n", __FUNCTION__, struct_in);
 
-	addr = (typeof(addr)) bndl1_ptrs[5];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][5];
 	if (addr)
 		return addr(struct_in);
 	return -1;
@@ -186,7 +217,7 @@ GLDReturn gldReclaimContext(void* struct_in)
 
 	GLDLog(2, "%s(%p)\n", __FUNCTION__, struct_in);
 
-	addr = (typeof(addr)) bndl1_ptrs[7];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][7];
 	if (addr)
 		return addr(struct_in);
 	return -1;
@@ -198,7 +229,7 @@ GLDReturn gldDestroyContext(void* struct_in)
 
 	GLDLog(2, "%s(%p)\n", __FUNCTION__, struct_in);
 
-	addr = (typeof(addr)) bndl1_ptrs[8];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][8];
 	if (addr)
 		return addr(struct_in);
 	return -1;
@@ -210,7 +241,7 @@ GLDReturn gldAttachDrawable(void* context, int surface_type, void* arg2, void* a
 
 	GLDLog(2, "%s(%p, %d, %p, %p)\n", __FUNCTION__, context, surface_type, arg2, arg3);
 
-	addr = (typeof(addr)) bndl1_ptrs[9];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][9];
 	if (addr)
 		return addr(context, surface_type, arg2, arg3);
 	return -1;
@@ -222,7 +253,7 @@ GLDReturn gldInitDispatch(void* arg0, void* arg1, void* arg2)
 
 	GLDLog(2, "%s(%p, %p, %p)\n", __FUNCTION__, arg0, arg1, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[10];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][10];
 	if (addr)
 		return addr(arg0, arg1, arg2);
 	return -1;
@@ -234,7 +265,7 @@ GLDReturn gldUpdateDispatch(void* arg0, void* arg1, void* arg2)
 
 	GLDLog(2, "%s(%p, %p, %p)\n", __FUNCTION__, arg0, arg1, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[11];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][11];
 	if (addr)
 		return addr(arg0, arg1, arg2);
 	return -1;
@@ -247,7 +278,7 @@ char const* gldGetString(int GLDisplayMask, int string_code)
 
 	GLDLog(2, "%s(%d, 0x%x)\n", __FUNCTION__, GLDisplayMask, string_code);
 
-	addr = (typeof(addr)) bndl1_ptrs[12];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][12];
 	if (addr) {
 		r = addr(GLDisplayMask, string_code);
 		if (r)
@@ -273,7 +304,7 @@ void gldGetError(void* arg0)
 
 	GLDLog(2, "%s(%p)\n", __FUNCTION__, arg0);
 
-	addr = (typeof(addr)) bndl1_ptrs[13];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][13];
 	if (addr)
 		addr(arg0);
 }
@@ -284,7 +315,7 @@ GLDReturn gldSetInteger(void* arg0, int arg1, void* arg2)
 
 	GLDLog(2, "%s(%p, %d, %p)\n", __FUNCTION__, arg0, arg1, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[14];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][14];
 	if (addr)
 		return addr(arg0, arg1, arg2);
 	return -1;
@@ -296,7 +327,7 @@ GLDReturn gldGetInteger(void* arg0, int arg1, void* arg2)
 
 	GLDLog(2, "%s(%p, %d, %p)\n", __FUNCTION__, arg0, arg1, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[15];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][15];
 	if (addr)
 		return addr(arg0, arg1, arg2);
 	return -1;
@@ -315,7 +346,7 @@ GLDReturn gldCreateTexture(void* arg0, void* arg1, void* arg2)
 
 	GLDLog(2, "%s(%p, %p, %p)\n", __FUNCTION__, arg0, arg1, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[22];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][22];
 	if (addr)
 		return addr(arg0, arg1, arg2);
 	return -1;
@@ -331,7 +362,7 @@ void gldUnbindTexture(void* arg0, void* arg1)
 
 	GLDLog(2, "%s(%p, %p)\n", __FUNCTION__, arg0, arg1);
 
-	addr = (typeof(addr)) bndl1_ptrs[26];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][26];
 	if (addr)
 		addr(arg0, arg1);
 }
@@ -344,7 +375,7 @@ void gldDestroyTexture(void* arg0, void* arg1)
 
 	GLDLog(2, "%s(%p, %p)\n", __FUNCTION__, arg0, arg1);
 
-	addr = (typeof(addr)) bndl1_ptrs[28];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][28];
 	if (addr)
 		addr(arg0, arg1);
 }
@@ -377,7 +408,7 @@ GLDReturn gldCreatePipelineProgram(void* arg0, void* arg1, void* arg2)
 
 	GLDLog(2, "%s(%p, %p, %p)\n", __FUNCTION__, arg0, arg1, arg2);
 
-	addr = (typeof(addr)) bndl1_ptrs[50];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][50];
 	if (addr)
 		return addr(arg0, arg1, arg2);
 	return -1;
@@ -392,7 +423,7 @@ GLDReturn gldUnbindPipelineProgram(void* arg0, void* arg1)
 
 	GLDLog(2, "%s(%p, %p)\n", __FUNCTION__, arg0, arg1);
 
-	addr = (typeof(addr)) bndl1_ptrs[53];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][53];
 	if (addr)
 		return addr(arg0, arg1);
 	return -1;
@@ -404,7 +435,7 @@ GLDReturn gldDestroyPipelineProgram(void* arg0, void* arg1)
 
 	GLDLog(2, "%s(%p, %p)\n", __FUNCTION__, arg0, arg1);
 
-	addr = (typeof(addr)) bndl1_ptrs[54];
+	addr = (typeof(addr)) bndl_ptrs[bndl_index][54];
 	if (addr)
 		return addr(arg0, arg1);
 	return -1;

@@ -134,17 +134,118 @@ struct sIOGLChannelMemoryData
 
 struct sIOGLGetCommandBuffer
 {
-	IOByteCount len;
-	UInt32 db0;
-	mach_vm_address_t addr;
-	UInt32 db1;
-	UInt32 db2;
+	UInt32 len0;
+	UInt32 len1;
+	mach_vm_address_t addr0;
+	mach_vm_address_t addr1;
 };
 
 struct sIOGLContextGetDataBuffer
 {
-	UInt32 d[3];
+	UInt32 len;
+	mach_vm_address_t addr;
+} __attribute__((packed));
+
+struct VendorCommandBufferHeader
+{
+	UInt32 data[8];
 };
+
+#pragma mark -
+#pragma mark Private Methods
+#pragma mark -
+
+void CLASS::Cleanup()
+{
+	if (m_gc) {
+		m_gc->flushCollection();
+		m_gc->release();
+		m_gc = 0;
+	}
+	if (m_command_buffer.md) {
+		m_command_buffer.md->release();
+		m_command_buffer.md = 0;
+	}
+	if (m_context_buffer0) {
+		m_context_buffer0->release();
+		m_context_buffer0 = 0;
+	}
+	if (m_context_buffer1) {
+		m_context_buffer1->release();
+		m_context_buffer1 = 0;
+	}
+	if (m_type2) {
+		m_type2->release();
+		m_type2 = 0;
+	}
+}
+
+bool CLASS::allocCommandBuffer(VMsvga2CommandBuffer* buffer, size_t size)
+{
+	IOBufferMemoryDescriptor* bmd;
+
+	/*
+	 * Intel915 ors an optional flag @ IOAccelerator+0x924
+	 */
+	bmd = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
+												kIOMemoryPageable |
+												kIODirectionOut,
+												size,
+												page_size);
+	buffer->md = bmd;
+	if (!bmd)
+		return false;
+	buffer->size = size;
+	buffer->kernel_ptr = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
+	initCommandBufferHeader(buffer->kernel_ptr, size);
+	return true;
+}
+
+void CLASS::initCommandBufferHeader(VendorCommandBufferHeader* buffer_ptr, size_t size)
+{
+	bzero(buffer_ptr, 9U * sizeof(UInt32));
+	buffer_ptr->data[4] = static_cast<UInt32>((size - sizeof *buffer_ptr) / sizeof(UInt32));
+	buffer_ptr->data[6] = 0;	// Intel915 puts (submitStamp - 1) here
+}
+
+bool CLASS::allocAllContextBuffers()
+{
+	IOBufferMemoryDescriptor* bmd;
+	VendorCommandBufferHeader* p;
+
+	bmd = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
+												kIOMemoryPageable |
+												kIODirectionInOut,
+												4096U,
+												page_size);
+	m_context_buffer0 = bmd;
+	if (!bmd)
+		return false;
+	m_context_buffer0_ptr = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
+	p = m_context_buffer0_ptr;
+	bzero(p, sizeof *p);
+	p->data[5] = 1;
+	p->data[3] = 1007;
+
+	/*
+	 * Intel915 ors an optional flag @ IOAccelerator+0x924
+	 */
+	bmd = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
+												kIOMemoryPageable |
+												kIODirectionInOut,
+												4096U,
+												page_size);
+	if (!bmd)
+		return false; // TBD frees previous ones
+	m_context_buffer1 = bmd;
+	m_context_buffer1_ptr = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
+	p = m_context_buffer1_ptr;
+	bzero(p, sizeof *p);
+	p->data[5] = 1;
+	p->data[3] = 1007;
+	// TBD: allocates another one like this
+	return true;
+}
 
 #pragma mark -
 #pragma mark IOUserClient Methods
@@ -152,7 +253,7 @@ struct sIOGLContextGetDataBuffer
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
-	if (index >= kIOVMGLGetQueryBuffer)
+	if (index >= kIOVMGLNumMethods)
 		GLLog(2, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
 	if (!targetP || index >= kIOVMGLNumMethods)
 		return 0;
@@ -173,10 +274,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 IOReturn CLASS::clientClose()
 {
 	GLLog(2, "%s\n", __FUNCTION__);
-	if (m_mm_remember) {
-		m_mm_remember->release();
-		m_mm_remember = 0;
-	}
+	Cleanup();
 	if (!terminate(0))
 		IOLog("%s: terminate failed\n", __FUNCTION__);
 	m_owning_task = 0;
@@ -186,23 +284,74 @@ IOReturn CLASS::clientClose()
 
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
+	VendorCommandBufferHeader* p;
+
 	GLLog(2, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
 	if (type > 4 || !options || !memory)
 		return kIOReturnBadArgument;
-	IOBufferMemoryDescriptor* md = IOBufferMemoryDescriptor::withOptions(kIOMemoryPageable | kIOMemoryKernelUserShared,
-																		 PAGE_SIZE,
-																		 PAGE_SIZE);
-	*memory = md;
-	*options = kIOMapAnywhere;
-	return kIOReturnSuccess;
-#if 0
+	switch (type) {
+		case 0:
+			// TBD: monstrous
+			break;
+		case 1:
+			*memory = m_context_buffer0;
+			*options = 0;
+			m_context_buffer0->retain();
+			p = m_context_buffer0_ptr;
+			bzero(p, sizeof *p);
+			p->data[5] = 1;
+			p->data[3] = 1007;
+			return kIOReturnSuccess;
+		case 2:
+			if (!m_type2) {
+				m_type2_len = page_size;
+				IOBufferMemoryDescriptor* bmd = IOBufferMemoryDescriptor::withOptions(0x10023U,
+																					  m_type2_len,
+																					  page_size);
+				m_type2 = bmd;
+				if (!bmd)
+					return kIOReturnNoResources;
+				m_type2_ptr = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
+			} else {
+				size_t d = 2U * m_type2_len;
+
+				IOBufferMemoryDescriptor* bmd = IOBufferMemoryDescriptor::withOptions(0x10023U,
+																					  d,
+																					  page_size);
+				if (!bmd)
+					return kIOReturnNoResources;
+				p = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
+				memcpy(p, m_type2_ptr, m_type2_len);
+				m_type2->release();
+				m_type2 = bmd;
+				m_type2_len = d;
+				m_type2_ptr = p;
+			}
+			m_type2->retain();
+			*memory = m_type2;
+			*options = 0;
+			return kIOReturnSuccess;
+		case 3:
+			// TBD: from provider @ offset 0xB4
+			break;
+		case 4:
+			*memory = m_command_buffer.md;
+			*options = 0;
+			m_command_buffer.md->retain();
+			p = m_command_buffer.kernel_ptr;
+			initCommandBufferHeader(p, m_command_buffer.size);
+			p->data[5] = 0;
+			p->data[7] = 1;
+			p->data[8] = 0x1000000;
+			p->data[6] = 0;		// from this+0x7C
+			return kIOReturnSuccess;
+	}
 	return super::clientMemoryForType(type, options, memory);
-#endif
 }
 
 IOReturn CLASS::connectClient(IOUserClient* client)
 {
-	GLLog(2, "%s(%p)\n", __FUNCTION__, client);
+	GLLog(2, "%s(%p), name == %s\n", __FUNCTION__, client, client ? client->getName() : "NULL");
 	return kIOReturnSuccess;
 #if 0
 	return super::connectClient(client);
@@ -227,9 +376,29 @@ bool CLASS::start(IOService* provider)
 	m_provider = OSDynamicCast(VMsvga2Accel, provider);
 	if (!m_provider)
 		return false;
+	if (!super::start(provider))
+		return false;
 	m_log_level = m_provider->getLogLevelAC();
 	m_mem_type = 4;
-	return super::start(provider);
+	m_gc = OSSet::withCapacity(2);
+	if (!m_gc) {
+		super::stop(provider);
+		return false;
+	}
+	// TBD getVRAMDescriptors
+	if (!allocAllContextBuffers()) {
+		Cleanup();
+		super::stop(provider);
+		return false;
+	}
+	if (!allocCommandBuffer(&m_command_buffer, 0x10000U)) {
+		Cleanup();
+		super::stop(provider);
+		return false;
+	}
+	m_command_buffer.kernel_ptr->data[5] = 2U;
+	m_command_buffer.kernel_ptr->data[9] = 1000000U;
+	return true;
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
@@ -281,35 +450,37 @@ IOReturn CLASS::set_swap_interval(intptr_t c1, intptr_t c2)
 
 IOReturn CLASS::get_config(UInt32* c1, UInt32* c2, UInt32* c3)
 {
-	GLLog(2, "%s(out1, out2, out3)\n", __FUNCTION__);
+	UInt32 const vram_size = m_provider->getVRAMSize();
+
 	*c1 = 0;
-	*c2 = 128 * 1024 * 1024;
-	*c3 = 0x4073;
+	*c2 = vram_size;
+	*c3 = vram_size;
+	GLLog(2, "%s(*%u, *%u, *%u)\n", __FUNCTION__, *c1, *c2, *c3);
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::get_surface_size(UInt32* c1, UInt32* c2, UInt32* c3, UInt32* c4)
 {
-	GLLog(2, "%s(out1, out2, out3, out4)\n", __FUNCTION__);
 	*c1 = 1;
 	*c2 = 2;
 	*c3 = 3;
 	*c4 = 4;
+	GLLog(2, "%s(*%u, *%u, *%u, *%u)\n", __FUNCTION__, *c1, *c2, *c3, *c4);
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::get_surface_info(uintptr_t c1, UInt32* c2, UInt32* c3, UInt32* c4)
 {
-	GLLog(2, "%s(%lu, out2, out3, out4)\n", __FUNCTION__, c1);
 	*c2 = 0x4081;
 	*c3 = 0x4082;
 	*c4 = 0x4083;
+	GLLog(2, "%s(%lu, *%u, *%u, *%u)\n", __FUNCTION__, c1, *c2, *c3, *c4);
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::read_buffer(struct sIOGLContextReadBufferData const* in_struct, size_t struct_in_size)
+IOReturn CLASS::read_buffer(struct sIOGLContextReadBufferData const* struct_in, size_t struct_in_size)
 {
-	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, in_struct, struct_in_size);
+	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_in, struct_in_size);
 	return kIOReturnSuccess;
 }
 
@@ -325,10 +496,13 @@ IOReturn CLASS::wait_for_stamp(uintptr_t c1)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::new_texture(struct sIOGLNewTextureData const* in_struct, struct sIOGLNewTextureReturnData* out_struct, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::new_texture(struct sIOGLNewTextureData const* struct_in,
+							struct sIOGLNewTextureReturnData* struct_out,
+							size_t struct_in_size,
+							size_t* struct_out_size)
 {
-	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, in_struct, out_struct, struct_in_size, *struct_out_size);
-	bzero(out_struct, *struct_out_size);
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	bzero(struct_out, *struct_out_size);
 	return kIOReturnSuccess;
 }
 
@@ -344,9 +518,9 @@ IOReturn CLASS::become_global_shared(uintptr_t c1)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::page_off_texture(struct sIOGLContextPageoffTexture const* in_struct, size_t struct_in_size)
+IOReturn CLASS::page_off_texture(struct sIOGLContextPageoffTexture const* struct_in, size_t struct_in_size)
 {
-	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, in_struct, struct_in_size);
+	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_in, struct_in_size);
 	return kIOReturnSuccess;
 }
 
@@ -362,10 +536,13 @@ IOReturn CLASS::set_surface_volatile_state(uintptr_t c1)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::set_surface_get_config_status(struct sIOGLContextSetSurfaceData const* in_struct, struct sIOGLContextGetConfigStatus* out_struct, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::set_surface_get_config_status(struct sIOGLContextSetSurfaceData const* struct_in,
+											  struct sIOGLContextGetConfigStatus* struct_out,
+											  size_t struct_in_size,
+											  size_t* struct_out_size)
 {
-	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, in_struct, out_struct, struct_in_size, *struct_out_size);
-	bzero(out_struct, *struct_out_size);
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	bzero(struct_out, *struct_out_size);
 	return kIOReturnSuccess;
 }
 
@@ -375,12 +552,13 @@ IOReturn CLASS::reclaim_resources()
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_data_buffer(struct sIOGLContextGetDataBuffer* out_struct, size_t* struct_out_size)
+IOReturn CLASS::get_data_buffer(struct sIOGLContextGetDataBuffer* struct_out, size_t* struct_out_size)
 {
-	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, out_struct, struct_out_size ? *struct_out_size : 0UL);
-	if (!out_struct || !struct_out_size || *struct_out_size < sizeof(sIOGLContextGetDataBuffer))
+	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_out, *struct_out_size);
+	if (*struct_out_size < sizeof *struct_out)
 		return kIOReturnBadArgument;
-	bzero(out_struct, *struct_out_size);
+	*struct_out_size = sizeof *struct_out;
+	bzero(struct_out, *struct_out_size);
 	return kIOReturnSuccess;
 }
 
@@ -396,14 +574,16 @@ IOReturn CLASS::purge_accelerator(uintptr_t c1)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_channel_memory(struct sIOGLChannelMemoryData* out_struct, size_t* struct_out_size)
+IOReturn CLASS::get_channel_memory(struct sIOGLChannelMemoryData* struct_out, size_t* struct_out_size)
 {
-	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, out_struct, *struct_out_size);
-	bzero(out_struct, *struct_out_size);
+	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_out, *struct_out_size);
+	bzero(struct_out, *struct_out_size);
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data, struct sIOGLGetCommandBuffer* out_struct, size_t* struct_out_size)
+IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data,
+									  struct sIOGLGetCommandBuffer* struct_out,
+									  size_t* struct_out_size)
 {
 	IOReturn rc;
 	IOOptionBits options;
@@ -412,26 +592,24 @@ IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data, struct sIOGLGetComm
 	struct sIOGLContextGetDataBuffer db;
 	size_t dbsize;
 
-	GLLog(2, "%s(%lu, %p, %lu)\n", __FUNCTION__, do_get_data, out_struct, struct_out_size ? *struct_out_size : 0UL);
-	if (!out_struct || !struct_out_size || *struct_out_size < sizeof(sIOGLGetCommandBuffer))
+	GLLog(2, "%s(%lu, %p, %lu)\n", __FUNCTION__, do_get_data, struct_out, *struct_out_size);
+	if (*struct_out_size < sizeof *struct_out)
 		return kIOReturnBadArgument;
 	options = 0;
 	md = 0;
-	bzero(out_struct, *struct_out_size);
+	bzero(struct_out, *struct_out_size);
 	rc = clientMemoryForType(m_mem_type, &options, &md);
 	m_mem_type = 0;
 	if (rc != kIOReturnSuccess)
 		return rc;
 	mm = md->createMappingInTask(m_owning_task,
 								 0,
-								 kIOMapAnywhere,
-								 0,
-								 0);
+								 kIOMapAnywhere);
 	md->release();
 	if (!mm)
 		return kIOReturnNoMemory;
-	out_struct->addr = mm->getAddress();
-	out_struct->len = mm->getLength();
+	struct_out->addr0 = mm->getAddress();
+	struct_out->len0 = static_cast<UInt32>(mm->getLength());
 	if (do_get_data != 0) {
 		// increment dword @offset 0x8dc on the provider
 		dbsize = sizeof db;
@@ -440,15 +618,13 @@ IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data, struct sIOGLGetComm
 			mm->release();	// Added
 			return rc;
 		}
-		out_struct->db1 = db.d[1];
-		out_struct->db2 = db.d[2];
-		out_struct->db0 = db.d[0];
+		struct_out->addr1 = db.addr;
+		struct_out->len1 = db.len;
 	}
 	// IOLockLock on provider @+0xC4
-	// get some object @+0xfc, call virt func +0xe8 on it with mm
-	// IOUnlockLock on provider
-	m_mm_remember == mm;
-//	mm->release();
+	m_gc->setObject(mm);
+	// IOUnlockLock on provider+0xC4
+	mm->release();
 	return rc;
 }
 
@@ -456,72 +632,101 @@ IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data, struct sIOGLGetComm
 #pragma mark NVGLContext Methods
 #pragma mark -
 
-IOReturn CLASS::get_query_buffer(uintptr_t, struct sIOGLGetQueryBuffer*, size_t* struct_out_size)
+IOReturn CLASS::get_query_buffer(uintptr_t c1, struct sIOGLGetQueryBuffer* struct_out, size_t* struct_out_size)
 {
+	GLLog(2, "%s(%lu, %p, %lu)\n", __FUNCTION__, c1, struct_out, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::get_notifiers(UInt32*, UInt32*)
 {
+	GLLog(2, "%s(out1, out2)\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::new_heap_object(struct sNVGLNewHeapObjectData const*, struct sIOGLNewTextureReturnData*, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::new_heap_object(struct sNVGLNewHeapObjectData const* struct_in,
+								struct sIOGLNewTextureReturnData* struct_out,
+								size_t struct_in_size,
+								size_t* struct_out_size)
 {
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::kernel_printf(char const*, size_t struct_in_size)
+IOReturn CLASS::kernel_printf(char const* str, size_t str_size)
 {
+	GLLog(2, "%s: %s\n", __FUNCTION__, str);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::nv_rm_config_get(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::nv_rm_config_get(UInt32 const* struct_in,
+								 UInt32* struct_out,
+								 size_t struct_in_size,
+								 size_t* struct_out_size)
 {
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::nv_rm_config_get_ex(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::nv_rm_config_get_ex(UInt32 const* struct_in,
+									UInt32* struct_out,
+									size_t struct_in_size,
+									size_t* struct_out_size)
 {
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::nv_client_request(void const* struct_in, void* struct_out, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::nv_client_request(void const* struct_in,
+								  void* struct_out,
+								  size_t struct_in_size,
+								  size_t* struct_out_size)
 {
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const*, size_t struct_in_size)
+IOReturn CLASS::pageoff_surface_texture(struct sNVGLContextPageoffSurfaceTextureData const* struct_in, size_t struct_in_size)
 {
+	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_in, struct_in_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer*, size_t* struct_out_size)
+IOReturn CLASS::get_data_buffer_with_offset(struct sIOGLContextGetDataBuffer* struct_out, size_t* struct_out_size)
 {
+	GLLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_out, struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::nv_rm_control(UInt32 const* struct_in, UInt32* struct_out, size_t struct_in_size, size_t* struct_out_size)
+IOReturn CLASS::nv_rm_control(UInt32 const* struct_in,
+							  UInt32* struct_out,
+							  size_t struct_in_size,
+							  size_t* struct_out_size)
 {
+	GLLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::get_power_state(UInt32*, UInt32*)
 {
+	GLLog(2, "%s(out1, out2)\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::set_watchdog_timer(uintptr_t)
+IOReturn CLASS::set_watchdog_timer(uintptr_t c1)
 {
+	GLLog(2, "%s(%lu)\n", __FUNCTION__, c1);
 	return kIOReturnUnsupported;
 }
 
 IOReturn CLASS::GetHandleIndex(UInt32*, UInt32*)
 {
+	GLLog(2, "%s(out1, out2)\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::ForceTextureLargePages(uintptr_t)
+IOReturn CLASS::ForceTextureLargePages(uintptr_t c1)
 {
+	GLLog(2, "%s(%lu)\n", __FUNCTION__, c1);
 	return kIOReturnUnsupported;
 }
