@@ -19,7 +19,6 @@
 		799EFBD010483D9C003195B5 /* VMsvga2Allocator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 799EFBCF10483D9C003195B5 /* VMsvga2Allocator.cpp */; settings = {COMPILER_FLAGS = "-Wno-sign-compare"; }; };
 		799F594710319210000D2A71 /* SVGA3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 799F594610319210000D2A71 /* SVGA3D.cpp */; };
 		79B34F1B103324D500D1E214 /* BlitHelper.c in Sources */ = {isa = PBXBuildFile; fileRef = 79B34F1A103324D500D1E214 /* BlitHelper.c */; };
-		79BD1DBC1005132C00D12B9A /* send.s in Sources */ = {isa = PBXBuildFile; fileRef = 79BD1DBB1005132C00D12B9A /* send.s */; };
 		79CD27F20FFD0E97002D58FE /* SVGADevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 79CD27F00FFD0E97002D58FE /* SVGADevice.cpp */; };
 		79D6E26B1008D086005D1591 /* modes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 79D6E26A1008D086005D1591 /* modes.cpp */; };
 		E503A17B10838E1700D1649D /* VMsvga2GLContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E503A17810838E1700D1649D /* VMsvga2GLContext.cpp */; };
@@ -31,6 +30,7 @@
 		E565F91910CC15E200C37DC5 /* VLog.c in Sources */ = {isa = PBXBuildFile; fileRef = 790CE24F1084E41B004D109E /* VLog.c */; };
 		E577F63810A089750047C956 /* SVGAScreen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E577F63710A089750047C956 /* SVGAScreen.cpp */; };
 		E58ACDA810CC439E0051F215 /* EntryPointNames.c in Sources */ = {isa = PBXBuildFile; fileRef = E58ACDA710CC439E0051F215 /* EntryPointNames.c */; };
+		E58AE5721268EC5900ABABF8 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; };
 		E590EA9510CD311F0019BC36 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; settings = {COMPILER_FLAGS = "-mdynamic-no-pic"; }; };
 		E59CA8C810CD3586004727A0 /* VLog.c in Sources */ = {isa = PBXBuildFile; fileRef = 790CE24F1084E41B004D109E /* VLog.c */; };
 		E5CC19C410CC0EE400EC0343 /* VMsvga2GLDriver.c in Sources */ = {isa = PBXBuildFile; fileRef = E5CC19C210CC0EAD00EC0343 /* VMsvga2GLDriver.c */; };
@@ -74,7 +74,6 @@
 		79AEEE01104F0FC8001B6B2C /* FenceTracker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FenceTracker.h; sourceTree = "<group>"; };
 		79B34F19103324D500D1E214 /* BlitHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BlitHelper.h; sourceTree = "<group>"; };
 		79B34F1A103324D500D1E214 /* BlitHelper.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = BlitHelper.c; sourceTree = "<group>"; };
-		79BD1DBB1005132C00D12B9A /* send.s */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.asm; path = send.s; sourceTree = "<group>"; };
 		79C4C557102F03CB00EF589E /* VMsvga2GA.plugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VMsvga2GA.plugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		79C4C55D102F043700EF589E /* Info-GA.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-GA.plist"; sourceTree = "<group>"; };
 		79C556E7102B1D4B006408E2 /* svga_overlay.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = svga_overlay.h; sourceTree = "<group>"; };
@@ -170,7 +169,6 @@
 				1A224C3FFF42367911CA2CB7 /* VMsvga2.cpp */,
 				792AA6B50FFF858500B0B5B1 /* VMsvga2Client.cpp */,
 				79D6E26A1008D086005D1591 /* modes.cpp */,
-				79BD1DBB1005132C00D12B9A /* send.s */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -495,9 +493,9 @@
 				32D94FCA0562CBF700B6AF17 /* VMsvga2.cpp in Sources */,
 				79CD27F20FFD0E97002D58FE /* SVGADevice.cpp in Sources */,
 				792AA6B70FFF858500B0B5B1 /* VMsvga2Client.cpp in Sources */,
-				79BD1DBC1005132C00D12B9A /* send.s in Sources */,
 				79D6E26B1008D086005D1591 /* modes.cpp in Sources */,
 				E5F856F410D14232007CE57B /* VLog.c in Sources */,
+				E58AE5721268EC5900ABABF8 /* SendString.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -664,8 +662,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = (
-					i386,
 					x86_64,
+					i386,
 				);
 				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=1";
 				INFOPLIST_FILE = "Info-GLD.plist";
