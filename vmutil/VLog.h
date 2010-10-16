@@ -29,16 +29,23 @@
 #ifndef __VLOG_H__
 #define __VLOG_H__
 
+#define VLOG_HIDDEN __attribute__((visibility("hidden")))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+VLOG_HIDDEN
 char VMLog_SendString(char const* str);
+VLOG_HIDDEN
 void VLog(char const* prefix_str, char const* fmt, ...) __printflike(2, 3);
+VLOG_HIDDEN
 void VMGetScreenSize(unsigned short* width, unsigned short* height);
 
 #ifdef __cplusplus
 }
 #endif
+
+#undef VLOG_HIDDEN
 
 #endif /* __VLOG_H__ */

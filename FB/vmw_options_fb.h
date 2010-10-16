@@ -40,7 +40,7 @@
 extern "C" {
 #endif
 
-extern unsigned vmw_options_fb;
+extern unsigned vmw_options_fb __attribute__((visibility("hidden")));
 
 static inline int checkOptionFB(unsigned mask)
 {

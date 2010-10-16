@@ -59,28 +59,28 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 089C1669FE841209C02AAC07 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 32D94FC30562CBF700B6AF17 /* VMsvga2 */;
+			remoteGlobalIDString = 32D94FC30562CBF700B6AF17;
 			remoteInfo = VMsvga2;
 		};
 		E59352961269A12900346DAD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 089C1669FE841209C02AAC07 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 7919BDCF102B1EFF00E56229 /* VMsvga2Accel */;
+			remoteGlobalIDString = 7919BDCF102B1EFF00E56229;
 			remoteInfo = VMsvga2Accel;
 		};
 		E59352981269A12C00346DAD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 089C1669FE841209C02AAC07 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 79C4C556102F03CB00EF589E /* VMsvga2GA */;
+			remoteGlobalIDString = 79C4C556102F03CB00EF589E;
 			remoteInfo = VMsvga2GA;
 		};
 		E593529A1269A12F00346DAD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 089C1669FE841209C02AAC07 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = E5CC19AD10CC0DA000EC0343 /* VMsvga2GLDriver */;
+			remoteGlobalIDString = E5CC19AD10CC0DA000EC0343;
 			remoteInfo = VMsvga2GLDriver;
 		};
 /* End PBXContainerItemProxy section */
@@ -680,7 +680,6 @@
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx10.5;
-				STRIPFLAGS = "-i -R no_export.txt";
 			};
 			name = ReleaseLeo;
 		};
@@ -704,6 +703,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=1";
+				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				INFOPLIST_FILE = "Info-GA.plist";
 				MODULE_NAME = net.osx86.VMsvga2GA;
 				PRODUCT_NAME = VMsvga2GA;
@@ -724,7 +724,6 @@
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx10.6;
-				STRIPFLAGS = "-i -R no_export.txt";
 			};
 			name = ReleaseSnowLeo;
 		};
@@ -763,6 +762,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=1";
+				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				INFOPLIST_FILE = "Info-GA.plist";
 				MODULE_NAME = net.osx86.VMsvga2GA;
 				PRODUCT_NAME = VMsvga2GA;

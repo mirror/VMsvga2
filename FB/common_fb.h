@@ -40,6 +40,8 @@
 
 #define GUEST_OS_LINUX 0x5008U
 
+#define FB_HIDDEN __attribute__((visibility("hidden")))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,11 +61,11 @@ struct CustomModeData
 	unsigned height;
 };
 
-extern DisplayModeEntry const modeList[NUM_DISPLAY_MODES];
+extern DisplayModeEntry const modeList[NUM_DISPLAY_MODES] FB_HIDDEN;
 
-extern DisplayModeEntry customMode;
+extern DisplayModeEntry customMode FB_HIDDEN;
 
-extern __attribute__((visibility("hidden"))) int logLevelFB;
+extern int logLevelFB FB_HIDDEN;
 
 #ifdef __cplusplus
 }

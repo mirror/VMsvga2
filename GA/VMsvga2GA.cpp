@@ -1112,6 +1112,7 @@ static void _buildGAFTbl()
 	ga_initialized = 1;
 }
 
+__attribute__((visibility("default")))
 void* VMsvga2GAFactory(CFAllocatorRef allocator, CFUUIDRef typeID)
 {
 	if (CFEqual(typeID, kIOGraphicsAcceleratorTypeID))

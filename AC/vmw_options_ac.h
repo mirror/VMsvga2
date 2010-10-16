@@ -47,12 +47,13 @@
 #define VMW_OPTION_AC_REGION_BOUNDS_COPY	0x1000
 #define VMW_OPTION_AC_NO_SCREEN_OBJECT		0x2000
 #define VMW_OPTION_AC_QE					0x4000
+#define VMW_OPTION_AC_GLD					0x8000
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern UInt32 vmw_options_ac;
+extern UInt32 vmw_options_ac __attribute__((visibility("hidden")));
 
 static inline bool checkOptionAC(UInt32 mask)
 {

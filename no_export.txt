@@ -1,6 +1,0 @@
-_VMLog_SendString
-_VLog
-_customMode
-_modeList
-_vmw_options_fb
-_vmw_options_ac

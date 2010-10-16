@@ -42,4 +42,6 @@ char const* entry_point_names[NUM_ENTRIES] GLD_HIDDEN;
 }
 #endif
 
+#undef GLD_HIDDEN
+
 #endif /* __ENTRYPOINTNAMES_H__ */

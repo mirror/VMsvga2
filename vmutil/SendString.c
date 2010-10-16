@@ -32,6 +32,9 @@
  *
  **********************************************************/
 
+#include <sys/cdefs.h>
+#include "VLog.h"
+
 #define BDOOR_MAGIC 0x564D5868U
 #define BDOOR_PORT 0x5658U
 #define BDOORHB_PORT 0x5659U
