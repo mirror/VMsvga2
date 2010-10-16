@@ -34,6 +34,7 @@
 
 typedef uintptr_t eIOGLContextModeBits;
 struct VendorCommandBufferHeader;
+class IOMemoryDescriptor;
 
 struct VMsvga2CommandBuffer
 {
@@ -55,7 +56,7 @@ private:
 	SInt32 m_log_level;
 
 	UInt32 m_mem_type;	// offset 0x19C
-	OSSet* m_gc;	// offset 0xFC
+	class OSSet* m_gc;	// offset 0xFC
 	VMsvga2CommandBuffer m_command_buffer;	// offset 0xC8 - 0xFC
 	IOMemoryDescriptor* m_context_buffer0;	// offset 0x108
 	VendorCommandBufferHeader* m_context_buffer0_ptr;			// offset 0x12C

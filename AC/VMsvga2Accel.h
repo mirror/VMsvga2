@@ -94,8 +94,8 @@ private:
 	 * OS 10.6 specific
 	 */
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
-	IOService* m_surface_root;
-	UInt32 m_surface_root_uuid;
+	class IOSurfaceRoot* m_surface_root;
+	unsigned m_surface_root_uuid;
 #endif
 
 	/*
@@ -284,7 +284,7 @@ public:
 	bool HaveScreen() const { return bHaveScreenObject != 0; }
 	bool HaveFrontBuffer() const { return bHaveScreenObject != 0 || bHaveSVGA3D != 0; }
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
-	UInt32 getSurfaceRootUUID() const { return m_surface_root_uuid; }
+	unsigned getSurfaceRootUUID() const { return m_surface_root_uuid; }
 #endif
 	IOMemoryDescriptor* getChannelMemory() const { return m_channel_memory; }
 	UInt32 getVRAMSize() const;

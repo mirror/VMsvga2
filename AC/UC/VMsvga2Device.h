@@ -42,8 +42,8 @@ private:
 	IOExternalMethod* m_funcs_cache;
 	SInt32 m_log_level;
 
-	IOMemoryDescriptor* m_channel_memory;
-	IOMemoryMap* m_channel_memory_map;
+	class IOMemoryDescriptor* m_channel_memory;
+	class IOMemoryMap* m_channel_memory_map;
 
 	void Cleanup();
 
