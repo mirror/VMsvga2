@@ -36,6 +36,7 @@
 #define BDOOR_PORT 0x5658U
 #define BDOORHB_PORT 0x5659U
 #define PROTO 0x49435052U
+#define BDOOR_CMD_GETSCREENSIZE 15U
 #define BDOOR_CMD_MESSAGE 30U
 #define BDOORHB_CMD_MESSAGE 0U
 
@@ -105,4 +106,13 @@ char VMLog_SendString(char const* str)
 	BACKDOOR_ASM_IN()
 
 	return 1;
+}
+
+void VMGetScreenSize(unsigned short* width, unsigned short* height)
+{
+	BACKDOOR_VARS()
+	ecx = BDOOR_CMD_GETSCREENSIZE;
+	BACKDOOR_ASM_IN()
+	*width  = (unsigned short) (eax >> (8U * sizeof(unsigned short)));
+	*height = (unsigned short) (eax & ((1U << (8U * sizeof(unsigned short))) - 1U));
 }

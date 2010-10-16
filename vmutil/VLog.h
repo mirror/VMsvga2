@@ -35,6 +35,7 @@ extern "C" {
 
 char VMLog_SendString(char const* str);
 void VLog(char const* prefix_str, char const* fmt, ...) __printflike(2, 3);
+void VMGetScreenSize(unsigned short* width, unsigned short* height);
 
 #ifdef __cplusplus
 }
