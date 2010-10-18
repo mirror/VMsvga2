@@ -677,8 +677,10 @@
 			baseConfigurationReference = E52B43CA10B5B37F002470B4 /* Generic.xcconfig */;
 			buildSettings = {
 				ARCHS = i386;
+				COPYRIGHT_NOTICE = "Copyright 2009-2010 Zenith432";
 				CURRENT_PROJECT_VERSION = 1.2.4;
 				DYLIB_COMPATIBILITY_VERSION = 1.2.4;
+				DYLIB_CURRENT_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx10.5;
@@ -709,6 +711,7 @@
 				INFOPLIST_FILE = "Info-GA.plist";
 				MODULE_NAME = net.osx86.VMsvga2GA;
 				PRODUCT_NAME = VMsvga2GA;
+				VERSIONING_SYSTEM = "apple-generic";
 				WRAPPER_EXTENSION = plugin;
 			};
 			name = ReleaseLeo;
@@ -721,8 +724,10 @@
 					x86_64,
 					i386,
 				);
+				COPYRIGHT_NOTICE = "Copyright 2009-2010 Zenith432";
 				CURRENT_PROJECT_VERSION = 1.2.4;
 				DYLIB_COMPATIBILITY_VERSION = 1.2.4;
+				DYLIB_CURRENT_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx10.6;
@@ -768,6 +773,7 @@
 				INFOPLIST_FILE = "Info-GA.plist";
 				MODULE_NAME = net.osx86.VMsvga2GA;
 				PRODUCT_NAME = VMsvga2GA;
+				VERSIONING_SYSTEM = "apple-generic";
 				WRAPPER_EXTENSION = plugin;
 			};
 			name = ReleaseSnowLeo;
@@ -797,6 +803,8 @@
 				INFOPLIST_FILE = "Info-GLD.plist";
 				MODULE_NAME = net.osx86.VMsvga2GLDriver;
 				PRODUCT_NAME = VMsvga2GLDriver;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_EXPORT_DECL = "__attribute__((visibility(\"hidden\")))";
 				WRAPPER_EXTENSION = bundle;
 			};
 			name = ReleaseLeo;
@@ -808,6 +816,8 @@
 				INFOPLIST_FILE = "Info-GLD.plist";
 				MODULE_NAME = net.osx86.VMsvga2GLDriver;
 				PRODUCT_NAME = VMsvga2GLDriver;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_EXPORT_DECL = "__attribute__((visibility(\"hidden\")))";
 				WRAPPER_EXTENSION = bundle;
 			};
 			name = ReleaseSnowLeo;

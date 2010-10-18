@@ -43,6 +43,8 @@
 			<string>1.0.0.0</string>
 		</dict>
 	</dict>
+	<key>NSHumanReadableCopyright</key>
+	<string>${COPYRIGHT_NOTICE}</string>
 	<key>OSBundleCompatibleVersion</key>
 	<string>${DYLIB_COMPATIBILITY_VERSION}</string>
 	<key>OSBundleLibraries</key>

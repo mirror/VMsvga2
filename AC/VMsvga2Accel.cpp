@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -48,6 +48,8 @@
 #define CLASS VMsvga2Accel
 #define super IOAccelerator
 OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
+
+static __attribute__((used)) char const copyright[] = "Copyright 2009-2010 Zenith432";
 
 UInt32 vmw_options_ac = 0;
 

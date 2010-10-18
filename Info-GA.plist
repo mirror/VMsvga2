@@ -36,6 +36,8 @@
 	</dict>
 	<key>NSExecutable</key>
 	<string>${EXECUTABLE_NAME}</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>${COPYRIGHT_NOTICE}</string>
 	<key>Personality</key>
 	<dict>
 		<key>IOProviderClass</key>

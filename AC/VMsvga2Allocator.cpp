@@ -47,7 +47,7 @@ OSDefineMetaClassAndStructors(VMsvga2Allocator, OSObject);
  * is inevitable - it may have to copy the old data
  */
 
-static __attribute__((unused)) char const* version = "A.G.McDowell 19990501" ;
+static __attribute__((used)) char const version[] = "A.G.McDowell 19990501" ;
 
 /* Bit macros, since it should be both faster and more compact to use
  * macros than functions for this
