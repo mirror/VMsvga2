@@ -1,9 +1,9 @@
 /*
  *  VLog.c
- *  VMsvga2
+ *  vmutil
  *
  *  Created by Zenith432 on October 13th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -38,6 +38,7 @@
 
 #define VLOG_BUF_SIZE 256
 
+__attribute__((visibility("hidden"), format(printf, 2, 3)))
 void VLog(char const* prefix_str, char const* fmt, ...)
 {
 	va_list ap;

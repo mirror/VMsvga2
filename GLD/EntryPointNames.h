@@ -3,7 +3,7 @@
  *  VMsvga2GLDriver
  *
  *  Created by Zenith432 on December 6th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -30,18 +30,15 @@
 #define __ENTRYPOINTNAMES_H__
 
 #define NUM_ENTRIES 75
-#define GLD_HIDDEN __attribute__((visibility("hidden")))
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-char const* entry_point_names[NUM_ENTRIES] GLD_HIDDEN;
+extern char const* const entry_point_names[NUM_ENTRIES] __attribute__((visibility("hidden")));
 
 #ifdef __cplusplus
 }
 #endif
-
-#undef GLD_HIDDEN
 
 #endif /* __ENTRYPOINTNAMES_H__ */

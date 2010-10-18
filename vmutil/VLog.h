@@ -1,9 +1,9 @@
 /*
  *  VLog.h
- *  VMsvga2Accel
+ *  vmutil
  *
  *  Created by Zenith432 on October 13th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -29,23 +29,17 @@
 #ifndef __VLOG_H__
 #define __VLOG_H__
 
-#define VLOG_HIDDEN __attribute__((visibility("hidden")))
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-VLOG_HIDDEN
 char VMLog_SendString(char const* str);
-VLOG_HIDDEN
-void VLog(char const* prefix_str, char const* fmt, ...) __printflike(2, 3);
-VLOG_HIDDEN
+__attribute__((format(printf, 2, 3)))
+void VLog(char const* prefix_str, char const* fmt, ...);
 void VMGetScreenSize(unsigned short* width, unsigned short* height);
 
 #ifdef __cplusplus
 }
 #endif
-
-#undef VLOG_HIDDEN
 
 #endif /* __VLOG_H__ */

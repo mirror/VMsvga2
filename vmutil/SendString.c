@@ -1,9 +1,9 @@
 /*
  * SendString.c
- * VMsvga2Accel
+ * vmutil
  *
  * Created by Zenith432 on August 15th 2009.
- * Copyright 2009 Zenith432. All rights reserved.
+ * Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -32,7 +32,6 @@
  *
  **********************************************************/
 
-#include <sys/cdefs.h>
 #include "VLog.h"
 
 #define BDOOR_MAGIC 0x564D5868U
@@ -58,6 +57,7 @@
 #define BACKDOOR_ASM_HB_OUT()   BACKDOOR_ASM("cld; rep; outsb", BDOORHB_PORT)
 #define BACKDOOR_ASM_HB_IN()    BACKDOOR_ASM("cld; rep; insb", BDOORHB_PORT)
 
+__attribute__((visibility("hidden")))
 char VMLog_SendString(char const* str)
 {
 	unsigned long size;
@@ -111,6 +111,7 @@ char VMLog_SendString(char const* str)
 	return 1;
 }
 
+__attribute__((visibility("hidden")))
 void VMGetScreenSize(unsigned short* width, unsigned short* height)
 {
 	BACKDOOR_VARS()

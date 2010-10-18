@@ -3,7 +3,7 @@
  *  VMsvga2GLDriver
  *
  *  Created by Zenith432 on December 6th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -28,7 +28,7 @@
 
 #include "EntryPointNames.h"
 
-char const* entry_point_names[NUM_ENTRIES] =
+char const* const entry_point_names[NUM_ENTRIES] =
 {
 "gldGetVersion",
 "gldGetRendererInfo",
