@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -39,7 +39,6 @@
 #include "SVGADevice.h"
 #include "common_fb.h"
 
-struct CustomModeData;
 class IOTimerEventSource;
 
 class VMsvga2 : public IOFramebuffer
@@ -47,31 +46,29 @@ class VMsvga2 : public IOFramebuffer
 	OSDeclareDefaultStructors(VMsvga2);
 
 private:
-	SVGADevice svga;
+	SVGADevice svga;				// (now * at 0x10C)
+	IOPCIDevice* m_provider;		// (eliminated)
+	IODeviceMemory* m_bar1;			// offset 0x110
+	IOMemoryMap* m_bar1_map;		// offset 0x114
+	IOVirtualAddress m_bar1_ptr;	// offset 0x118
 #if 0
-	SInt m_log_level;				// offset 0x138
+	IOPhysicalAddress m_fb_offset;	// offset 0x11C
+	UInt m_aperture_size;			// offset 0x120
 #endif
-	IOPCIDevice* m_provider;		// offset 0x13C
-	IODeviceMemory* m_bar1;			// offset 0x140
-	IOMemoryMap* m_bar1_map;		// offset 0x144
-	IOVirtualAddress m_bar1_ptr;	// offset 0x148
-#if 0
-	IOPhysicalAddress m_fb_offset;	// offset 0x14C
-	UInt m_aperture_size;			// offset 0x150
-#endif
-	IODisplayModeID m_display_mode;	// offset 0x154
-	IOIndex m_depth_mode;			// offset 0x158
-	thread_call_t m_restore_call;	// offset 0x15C
-	IODisplayModeID m_modes[NUM_DISPLAY_MODES];	// offset 0x160
-	UInt m_custom_switch;			// offset 0x198
+	IODisplayModeID m_display_mode;	// offset 0x124
+	IOIndex m_depth_mode;			// offset 0x128
+	thread_call_t m_restore_call;	// offset 0x12C
+	IODisplayModeID m_modes[NUM_DISPLAY_MODES];	// offset 0x130 (14 entries)
+	UInt m_custom_switch;			// offset 0x168
 	struct {
 		OSObject* target;
 		void* ref;
 		IOFBInterruptProc proc;
-	} m_intr;						// offset 0x19C
-	IOLock* m_iolock;				// offset 0x1A8
-	SInt m_hotspot_x;				// offset 0x1AC
-	SInt m_hotspot_y;				// offset 0x1B0
+	} m_intr;						// offset 0x16C
+	IOLock* m_iolock;				// offset 0x178
+//	void* m_cursor_image;			// offset 0x17C
+	SInt m_hotspot_x;				// offset 0x180
+	SInt m_hotspot_y;				// offset 0x184
 
 	/*
 	 * Begin Added
@@ -81,13 +78,14 @@ private:
 	thread_call_t m_refresh_call;
 	UInt m_refresh_quantum_ms;
 	UInt m_num_active_modes;
+	DisplayModeEntry customMode;
 	/*
 	 * End Added
 	 */
 
 	void Cleanup();
 	static UInt FindDepthMode(IOIndex depth);
-	DisplayModeEntry const* FindDisplayMode(IODisplayModeID displayMode);
+	DisplayModeEntry const* GetDisplayMode(IODisplayModeID displayMode);
 	static void IOSelectToString(IOSelect io_select, char* output);
 	static void ConvertAlphaCursor(UInt* cursor, UInt width, UInt height);
 	void CustomSwitchStepWait(UInt value);

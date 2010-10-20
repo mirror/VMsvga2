@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 4th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -47,7 +47,7 @@ OSDefineMetaClassAndStructors(VMsvga2Client, IOUserClient);
 
 static IOExternalMethod iofbFuncsCache[1] =
 {
-	{0, reinterpret_cast<IOMethod>(&VMsvga2::CustomMode), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize}
+	{0, reinterpret_cast<IOMethod>(&VMsvga2::CustomMode), kIOUCStructIStructO, sizeof(CustomModeData), sizeof(CustomModeData)}
 };
 
 IOExternalMethod* VMsvga2Client::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)

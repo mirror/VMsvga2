@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on August 20th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -40,7 +40,7 @@
 extern "C" {
 #endif
 
-extern unsigned vmw_options_fb __attribute__((visibility("hidden")));
+extern unsigned vmw_options_fb;
 
 static inline int checkOptionFB(unsigned mask)
 {

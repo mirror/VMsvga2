@@ -1,9 +1,9 @@
 /*
  *  SVGADevice.h
- *
+ *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 class IOPCIDevice;
+class IODeviceMemory;
 class IOMemoryMap;
 
 class SVGADevice
@@ -75,11 +76,11 @@ private:
 	void FIFOFull();
 
 public:
-	void Init();
+	bool Init();
 	uint32_t ReadReg(uint32_t index);
 	void WriteReg(uint32_t index, uint32_t value);
 	void Cleanup();
-	bool Start(IOPCIDevice* provider);
+	IODeviceMemory* Start(IOPCIDevice* provider);
 	void Disable();				// Added
 
 	/*

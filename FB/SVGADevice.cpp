@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -70,9 +70,9 @@ OS_INLINE uint32_t count_bits(uint32_t mask)
 	return ((mask & 0xFFFF0000U) >> 16) + (mask & 0x0000FFFFU);
 }
 
-void SVGADevice::Init()
+bool SVGADevice::Init()
 {
-	LogPrintf(2, "%s()\n", __FUNCTION__);
+	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = 0;
 	m_bar0 = 0;
 	m_bar2 = 0;
@@ -81,6 +81,7 @@ void SVGADevice::Init()
 	m_bounce_buffer = 0;
 	m_next_fence = 1;
 	m_capabilities = 0;
+	return true;
 }
 
 void SVGADevice::Cleanup()
@@ -115,46 +116,65 @@ void SVGADevice::WriteReg(uint32_t index, uint32_t value)
 	m_provider->ioWrite32(SVGA_VALUE_PORT, value, m_bar0);
 }
 
-bool SVGADevice::Start(IOPCIDevice* provider)
+IODeviceMemory* SVGADevice::Start(IOPCIDevice* provider)
 {
-	uint32_t host_bpp, guest_bpp;
+	uint32_t host_bpp, guest_bpp, reg_id;
+	IODeviceMemory* bar1;
 
-	LogPrintf(2, "%s(%p)", __FUNCTION__, provider);
+	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = provider;
+	if (logLevelFB >= 3) {
+		LogPrintf(3, "%s: PCI bus %u device %u function %u\n", __FUNCTION__,
+				  m_provider->getBusNumber(),
+				  m_provider->getDeviceNumber(),
+				  m_provider->getFunctionNumber());
+		LogPrintf(3, "%s: PCI device 0x%04x vendor 0x%04x revision 0x%02x\n", __FUNCTION__,
+				  m_provider->configRead16(kIOPCIConfigDeviceID),
+				  m_provider->configRead16(kIOPCIConfigVendorID),
+				  m_provider->configRead8(kIOPCIConfigRevisionID));
+		LogPrintf(3, "%s: PCI subsystem 0x%04x vendor 0x%04x\n", __FUNCTION__,
+				  m_provider->configRead16(kIOPCIConfigSubSystemID),
+				  m_provider->configRead16(kIOPCIConfigSubSystemVendorID));
+	}
+	m_provider->setMemoryEnable(true);
 	m_bar0 = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0);
 	if (!m_bar0) {
 		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
 		Cleanup();
-		return false;
+		return 0;
 	}
-#if 0
 	bar1 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
 	if (!bar1) {
 		LogPrintf(1, "%s: Failed to retrieve the VRAM memory descriptor.\n", __FUNCTION__);
 		Cleanup();
-		return false;
+		return 0;
 	}
-#endif
 	m_bar2 = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
 	if (!m_bar2) {
 		LogPrintf(1, "%s: Failed to map the FIFO.\n", __FUNCTION__);
 		Cleanup();
-		return false;
+		return 0;
 	}
 	m_fifo_ptr = reinterpret_cast<uint32_t*>(m_bar2->getVirtualAddress());
 #ifdef TESTING
 	test_ram_size("SVGADevice", reinterpret_cast<IOVirtualAddress>(m_fifo_ptr), m_bar2->getLength());
 #endif
-	m_capabilities = ReadReg(SVGA_REG_CAPABILITIES);
-#ifdef REQUIRE_TRACING
-	LogPrintf(2, "%s: SVGA_REG caps = 0x%08x & 0x%08x\n", __FUNCTION__, m_capabilities, SVGA_CAP_TRACES);
-	if (!HasCapability(SVGA_CAP_TRACES)) {
-		LogPrintf(1, "%s: SVGA_CAP_TRACES failed\n", __FUNCTION__);
+	WriteReg(SVGA_REG_ID, SVGA_ID_2);
+	reg_id = ReadReg(SVGA_REG_ID);
+	LogPrintf(3, "%s: REG_ID=0x%08x\n", __FUNCTION__, reg_id);
+	if (reg_id != SVGA_ID_2) {
+		LogPrintf(1, "%s: REG_ID != 0x%08lx\n", __FUNCTION__, SVGA_ID_2);
 		Cleanup();
-		return false;
+		return 0;
 	}
-#else
-	LogPrintf(2, "%s: SVGA_REG caps = 0x%08x\n", __FUNCTION__, m_capabilities);
+	m_capabilities = ReadReg(SVGA_REG_CAPABILITIES);
+	LogPrintf(3, "%s: caps=0x%08x\n", __FUNCTION__, m_capabilities);
+#ifdef REQUIRE_TRACING
+	if (!HasCapability(SVGA_CAP_TRACES)) {
+		LogPrintf(1, "%s: CAP_TRACES failed\n", __FUNCTION__);
+		Cleanup();
+		return 0;
+	}
 #endif
 	m_fifo_size = ReadReg(SVGA_REG_MEM_SIZE);
 	m_fb_offset = ReadReg(SVGA_REG_FB_OFFSET);
@@ -179,12 +199,20 @@ bool SVGADevice::Start(IOPCIDevice* provider)
 		WriteReg(SVGA_REG_TRACES, 1);
 	m_bounce_buffer = static_cast<uint8_t*>(IOMalloc(BOUNCE_BUFFER_SIZE));
 	if (!m_bounce_buffer) {
+		LogPrintf(1, "%s: Failed to allocate the bounce buffer.\n", __FUNCTION__);
 		Cleanup();
-		return false;
+		return 0;
 	}
+#if 0	/* VMwareGfx 3.1.1 */
+	if (!FIFOInit()) {
+		LogPrintf(1, "%s: Failed FIFOInit.\n", __FUNCTION__);
+		Cleanup();
+		return 0;
+	}
+#endif
 	m_cursor_ptr = 0;
 	provider->setProperty("VMwareSVGACapabilities", static_cast<uint64_t>(m_capabilities), 32U);
-	return true;
+	return bar1;
 }
 
 bool SVGADevice::HasFIFOCap(uint32_t mask) const
@@ -192,6 +220,7 @@ bool SVGADevice::HasFIFOCap(uint32_t mask) const
 	return (m_fifo_ptr[SVGA_FIFO_CAPABILITIES] & mask) != 0;
 }
 
+__attribute__((visibility("hidden")))
 void SVGADevice::FIFOFull()
 {
 	WriteReg(SVGA_REG_SYNC, 1);
@@ -398,7 +427,7 @@ void SVGADevice::SyncToFence(uint32_t fence)
 		if (ReadReg(SVGA_REG_BUSY))
 			continue;
 		if (!HasFencePassedUnguarded(fifo, fence))
-			LogPrintf(1, "%s: SyncToFence failed!\n", __FUNCTION__);
+			LogPrintf(1, "%s: HasFencePassed failed!\n", __FUNCTION__);
 		break;
 	}
 }

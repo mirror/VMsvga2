@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 4th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -40,15 +40,12 @@
 
 #define GUEST_OS_LINUX 0x5008U
 
-#define FB_HIDDEN __attribute__((visibility("hidden")))
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct DisplayModeEntry
 {
-	int mode_id;
 	unsigned width;
 	unsigned height;
 	unsigned flags;
@@ -61,11 +58,9 @@ struct CustomModeData
 	unsigned height;
 };
 
-extern DisplayModeEntry const modeList[NUM_DISPLAY_MODES] FB_HIDDEN;
+extern DisplayModeEntry const modeList[NUM_DISPLAY_MODES] __attribute__((visibility("hidden")));
 
-extern DisplayModeEntry customMode FB_HIDDEN;
-
-extern int logLevelFB FB_HIDDEN;
+extern int logLevelFB;
 
 #ifdef __cplusplus
 }
