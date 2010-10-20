@@ -448,8 +448,7 @@ bool CLASS::start(IOService* provider)
 	processOptions();
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
 	if (checkOptionAC(VMW_OPTION_AC_GLD)) {
-		m_surface_root = OSDynamicCast(IOSurfaceRoot,
-									   IOService::waitForService(IOService::nameMatching("IOSurfaceRoot")));
+		m_surface_root = static_cast<IOSurfaceRoot*>(IOService::waitForService(IOService::nameMatching("IOSurfaceRoot")));
 		if (m_surface_root) {
 			m_surface_root->retain();
 			m_surface_root_uuid = m_surface_root->generateUniqueAcceleratorID(this);
