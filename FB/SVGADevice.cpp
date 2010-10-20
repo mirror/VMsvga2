@@ -46,6 +46,12 @@
 #include "svga_escape.h"
 #include "svga_apple_footer.h"
 
+#pragma mark -
+#pragma mark Macros
+#pragma mark -
+
+#define CLASS SVGADevice
+
 #define BOUNCE_BUFFER_SIZE 0x10000U
 
 #ifdef REQUIRE_TRACING
@@ -61,6 +67,10 @@
 #define TO_BYTE_PTR(x) reinterpret_cast<uint8_t*>(const_cast<uint32_t*>(x))
 #define HasFencePassedUnguarded(fifo, fence) (static_cast<int32_t>(fifo[SVGA_FIFO_FENCE] - fence) >= 0)
 
+#pragma mark -
+#pragma mark Static Functions
+#pragma mark -
+
 OS_INLINE uint32_t count_bits(uint32_t mask)
 {
 	mask = ((mask & 0xAAAAAAAAU) >> 1) + (mask & 0x55555555U);
@@ -70,7 +80,22 @@ OS_INLINE uint32_t count_bits(uint32_t mask)
 	return ((mask & 0xFFFF0000U) >> 16) + (mask & 0x0000FFFFU);
 }
 
-bool SVGADevice::Init()
+#pragma mark -
+#pragma mark Private Methods
+#pragma mark -
+
+__attribute__((visibility("hidden")))
+void CLASS::FIFOFull()
+{
+	WriteReg(SVGA_REG_SYNC, 1);
+	ReadReg(SVGA_REG_BUSY);
+}
+
+#pragma mark -
+#pragma mark Public Methods
+#pragma mark -
+
+bool CLASS::Init()
 {
 	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = 0;
@@ -84,7 +109,19 @@ bool SVGADevice::Init()
 	return true;
 }
 
-void SVGADevice::Cleanup()
+uint32_t CLASS::ReadReg(uint32_t index)
+{
+	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0);
+	return m_provider->ioRead32(SVGA_VALUE_PORT, m_bar0);
+}
+
+void CLASS::WriteReg(uint32_t index, uint32_t value)
+{
+	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0);
+	m_provider->ioWrite32(SVGA_VALUE_PORT, value, m_bar0);
+}
+
+void CLASS::Cleanup()
 {
 	if (m_provider)
 		m_provider = 0;
@@ -104,19 +141,7 @@ void SVGADevice::Cleanup()
 	m_capabilities = 0;
 }
 
-uint32_t SVGADevice::ReadReg(uint32_t index)
-{
-	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0);
-	return m_provider->ioRead32(SVGA_VALUE_PORT, m_bar0);
-}
-
-void SVGADevice::WriteReg(uint32_t index, uint32_t value)
-{
-	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0);
-	m_provider->ioWrite32(SVGA_VALUE_PORT, value, m_bar0);
-}
-
-IODeviceMemory* SVGADevice::Start(IOPCIDevice* provider)
+IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 {
 	uint32_t host_bpp, guest_bpp, reg_id;
 	IODeviceMemory* bar1;
@@ -215,19 +240,26 @@ IODeviceMemory* SVGADevice::Start(IOPCIDevice* provider)
 	return bar1;
 }
 
-bool SVGADevice::HasFIFOCap(uint32_t mask) const
+void CLASS::Disable()
+{
+	WriteReg(SVGA_REG_ENABLE, 0);
+}
+
+#pragma mark -
+#pragma mark FIFO Methods
+#pragma mark -
+
+bool CLASS::IsFIFORegValid(uint32_t reg) const
+{
+	return m_fifo_ptr[SVGA_FIFO_MIN] > (reg << 2);
+}
+
+bool CLASS::HasFIFOCap(uint32_t mask) const
 {
 	return (m_fifo_ptr[SVGA_FIFO_CAPABILITIES] & mask) != 0;
 }
 
-__attribute__((visibility("hidden")))
-void SVGADevice::FIFOFull()
-{
-	WriteReg(SVGA_REG_SYNC, 1);
-	ReadReg(SVGA_REG_BUSY);
-}
-
-bool SVGADevice::FIFOInit()
+bool CLASS::FIFOInit()
 {
 	uint32_t fifo_capabilities;
 
@@ -257,7 +289,7 @@ bool SVGADevice::FIFOInit()
 	return true;
 }
 
-void* SVGADevice::FIFOReserve(size_t bytes)
+void* CLASS::FIFOReserve(size_t bytes)
 {
 	uint32_t volatile* fifo = m_fifo_ptr;
 	uint32_t max = fifo[SVGA_FIFO_MAX];
@@ -318,7 +350,7 @@ void* SVGADevice::FIFOReserve(size_t bytes)
 	}
 }
 
-void* SVGADevice::FIFOReserveCmd(uint32_t type, size_t bytes)
+void* CLASS::FIFOReserveCmd(uint32_t type, size_t bytes)
 {
 	uint32_t* cmd = static_cast<uint32_t*>(FIFOReserve(bytes + sizeof type));
 	if (!cmd)
@@ -327,7 +359,19 @@ void* SVGADevice::FIFOReserveCmd(uint32_t type, size_t bytes)
 	return cmd;
 }
 
-void SVGADevice::FIFOCommit(size_t bytes)
+void* CLASS::FIFOReserveEscape(uint32_t nsid, size_t bytes)
+{
+	size_t padded_bytes = (bytes + 3UL) & ~3UL;
+	uint32_t* header = static_cast<uint32_t*>(FIFOReserve(padded_bytes + 3U * sizeof(uint32_t)));
+	if (!header)
+		return 0;
+	*header = SVGA_CMD_ESCAPE;
+	header[1] = nsid;
+	header[2] = static_cast<uint32_t>(bytes);
+	return header + 3;
+}
+
+void CLASS::FIFOCommit(size_t bytes)
 {
 	uint32_t volatile* fifo = m_fifo_ptr;
 	uint32_t next_cmd = fifo[SVGA_FIFO_NEXT_CMD];
@@ -375,13 +419,17 @@ void SVGADevice::FIFOCommit(size_t bytes)
 		fifo[SVGA_FIFO_RESERVED] = 0;
 }
 
-void SVGADevice::FIFOCommitAll()
+void CLASS::FIFOCommitAll()
 {
 	LogPrintf(2, "%s: reservedSize=%lu\n", __FUNCTION__, m_reserved_size);
 	FIFOCommit(m_reserved_size);
 }
 
-uint32_t SVGADevice::InsertFence()
+#pragma mark -
+#pragma mark Fence Methods
+#pragma mark -
+
+uint32_t CLASS::InsertFence()
 {
 	uint32_t fence;
 	uint32_t* cmd;
@@ -400,7 +448,7 @@ uint32_t SVGADevice::InsertFence()
 	return fence;
 }
 
-bool SVGADevice::HasFencePassed(uint32_t fence) const
+bool CLASS::HasFencePassed(uint32_t fence) const
 {
 	if (!fence)
 		return true;
@@ -409,7 +457,7 @@ bool SVGADevice::HasFencePassed(uint32_t fence) const
 	return HasFencePassedUnguarded(m_fifo_ptr, fence);
 }
 
-void SVGADevice::SyncToFence(uint32_t fence)
+void CLASS::SyncToFence(uint32_t fence)
 {
 	uint32_t volatile* fifo = m_fifo_ptr;
 
@@ -432,7 +480,19 @@ void SVGADevice::SyncToFence(uint32_t fence)
 	}
 }
 
-void SVGADevice::SyncFIFO()
+void CLASS::RingDoorBell()
+{
+	if (IsFIFORegValid(SVGA_FIFO_BUSY)) {
+		if (!m_fifo_ptr[SVGA_FIFO_BUSY]) {
+			m_fifo_ptr[SVGA_FIFO_BUSY] = 1;
+			WriteReg(SVGA_REG_SYNC, 1);
+		}
+	} else {
+		WriteReg(SVGA_REG_SYNC, 1);
+	}
+}
+
+void CLASS::SyncFIFO()
 {
 	/*
 	 * Crude, but effective
@@ -441,7 +501,11 @@ void SVGADevice::SyncFIFO()
 	while (ReadReg(SVGA_REG_BUSY));
 }
 
-void SVGADevice::setCursorState(uint32_t x, uint32_t y, bool visible)
+#pragma mark -
+#pragma mark Cursor Methods
+#pragma mark -
+
+void CLASS::setCursorState(uint32_t x, uint32_t y, bool visible)
 {
 	if (checkOptionFB(VMW_OPTION_FB_CURSOR_BYPASS_2)) {	// Added
 		// CURSOR_BYPASS_2
@@ -458,7 +522,7 @@ void SVGADevice::setCursorState(uint32_t x, uint32_t y, bool visible)
 	++m_fifo_ptr[SVGA_FIFO_CURSOR_COUNT];
 }
 
-void SVGADevice::setCursorState(uint32_t screenId, uint32_t x, uint32_t y, bool visible)
+void CLASS::setCursorState(uint32_t screenId, uint32_t x, uint32_t y, bool visible)
 {
 	if (HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT))
 		m_fifo_ptr[SVGA_FIFO_CURSOR_SCREEN_ID] = screenId;
@@ -469,7 +533,7 @@ void SVGADevice::setCursorState(uint32_t screenId, uint32_t x, uint32_t y, bool 
 	++m_fifo_ptr[SVGA_FIFO_CURSOR_COUNT];
 }
 
-void* SVGADevice::BeginDefineAlphaCursor(uint32_t width, uint32_t height, uint32_t bytespp)
+void* CLASS::BeginDefineAlphaCursor(uint32_t width, uint32_t height, uint32_t bytespp)
 {
 	size_t cmd_len;
 	SVGAFifoCmdDefineAlphaCursor* cmd;
@@ -485,7 +549,7 @@ void* SVGADevice::BeginDefineAlphaCursor(uint32_t width, uint32_t height, uint32
 	return cmd + 1;
 }
 
-bool SVGADevice::EndDefineAlphaCursor(uint32_t width, uint32_t height, uint32_t bytespp, uint32_t hotspot_x, uint32_t hotspot_y)
+bool CLASS::EndDefineAlphaCursor(uint32_t width, uint32_t height, uint32_t bytespp, uint32_t hotspot_x, uint32_t hotspot_y)
 {
 	size_t cmd_len;
 	SVGAFifoCmdDefineAlphaCursor* cmd = static_cast<SVGAFifoCmdDefineAlphaCursor*>(m_cursor_ptr);
@@ -506,7 +570,7 @@ bool SVGADevice::EndDefineAlphaCursor(uint32_t width, uint32_t height, uint32_t 
 	return true;
 }
 
-void SVGADevice::SetMode(uint32_t width, uint32_t height, uint32_t bpp)
+void CLASS::SetMode(uint32_t width, uint32_t height, uint32_t bpp)
 {
 	LogPrintf(2, "%s: mode w,h=%u, %u bpp=%u\n", __FUNCTION__, width, height, bpp);
 	SyncFIFO();
@@ -523,7 +587,7 @@ void SVGADevice::SetMode(uint32_t width, uint32_t height, uint32_t bpp)
 	m_height = height;
 }
 
-bool SVGADevice::UpdateFramebuffer(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+bool CLASS::UpdateFramebuffer(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
 	LogPrintf(2, "%s: xy=%u %u, wh=%u %u\n", __FUNCTION__, x, y, width, height);
 	SVGAFifoCmdUpdate* cmd = static_cast<SVGAFifoCmdUpdate*>(FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd));
@@ -537,41 +601,11 @@ bool SVGADevice::UpdateFramebuffer(uint32_t x, uint32_t y, uint32_t width, uint3
 	return true;
 }
 
-void SVGADevice::Disable()
-{
-	WriteReg(SVGA_REG_ENABLE, 0);
-}
+#pragma mark -
+#pragma mark Video Methods
+#pragma mark -
 
-bool SVGADevice::IsFIFORegValid(uint32_t reg) const
-{
-	return m_fifo_ptr[SVGA_FIFO_MIN] > (reg << 2);
-}
-
-void* SVGADevice::FIFOReserveEscape(uint32_t nsid, size_t bytes)
-{
-	size_t padded_bytes = (bytes + 3UL) & ~3UL;
-	uint32_t* header = static_cast<uint32_t*>(FIFOReserve(padded_bytes + 3U * sizeof(uint32_t)));
-	if (!header)
-		return 0;
-	*header = SVGA_CMD_ESCAPE;
-	header[1] = nsid;
-	header[2] = static_cast<uint32_t>(bytes);
-	return header + 3;
-}
-
-void SVGADevice::RingDoorBell()
-{
-	if (IsFIFORegValid(SVGA_FIFO_BUSY)) {
-		if (!m_fifo_ptr[SVGA_FIFO_BUSY]) {
-			m_fifo_ptr[SVGA_FIFO_BUSY] = 1;
-			WriteReg(SVGA_REG_SYNC, 1);
-		}
-	} else {
-		WriteReg(SVGA_REG_SYNC, 1);
-	}
-}
-
-bool SVGADevice::BeginVideoSetRegs(uint32_t streamId, size_t numItems, struct SVGAEscapeVideoSetRegs **setRegs)
+bool CLASS::BeginVideoSetRegs(uint32_t streamId, size_t numItems, struct SVGAEscapeVideoSetRegs **setRegs)
 {
 	SVGAEscapeVideoSetRegs* cmd;
 	size_t cmd_size = sizeof *cmd - sizeof cmd->items + numItems * sizeof cmd->items[0];
@@ -584,7 +618,7 @@ bool SVGADevice::BeginVideoSetRegs(uint32_t streamId, size_t numItems, struct SV
 	return true;
 }
 
-bool SVGADevice::VideoSetRegsInRange(uint32_t streamId, struct SVGAOverlayUnit const* regs, uint32_t minReg, uint32_t maxReg)
+bool CLASS::VideoSetRegsInRange(uint32_t streamId, struct SVGAOverlayUnit const* regs, uint32_t minReg, uint32_t maxReg)
 {
 	uint32_t const* regArray = reinterpret_cast<uint32_t const*>(regs);
 	uint32_t const numRegs = maxReg - minReg + 1;
@@ -606,7 +640,7 @@ bool SVGADevice::VideoSetRegsInRange(uint32_t streamId, struct SVGAOverlayUnit c
 	return true;
 }
 
-bool SVGADevice::VideoSetRegsWithMask(uint32_t streamId, struct SVGAOverlayUnit const* regs, uint32_t regMask)
+bool CLASS::VideoSetRegsWithMask(uint32_t streamId, struct SVGAOverlayUnit const* regs, uint32_t regMask)
 {
 	uint32_t const* regArray = reinterpret_cast<uint32_t const*>(regs);
 	uint32_t i, numRegs;
@@ -628,7 +662,7 @@ bool SVGADevice::VideoSetRegsWithMask(uint32_t streamId, struct SVGAOverlayUnit 
 	return true;
 }
 
-bool SVGADevice::VideoSetReg(uint32_t streamId, uint32_t registerId, uint32_t value)
+bool CLASS::VideoSetReg(uint32_t streamId, uint32_t registerId, uint32_t value)
 {
 	SVGAEscapeVideoSetRegs* setRegs;
 
@@ -640,7 +674,7 @@ bool SVGADevice::VideoSetReg(uint32_t streamId, uint32_t registerId, uint32_t va
 	return true;
 }
 
-bool SVGADevice::VideoFlush(uint32_t streamId)
+bool CLASS::VideoFlush(uint32_t streamId)
 {
 	SVGAEscapeVideoFlush* cmd;
 
@@ -653,7 +687,11 @@ bool SVGADevice::VideoFlush(uint32_t streamId)
 	return true;
 }
 
-bool SVGADevice::get3DHWVersion(UInt32* HWVersion)
+#pragma mark -
+#pragma mark Added Methods
+#pragma mark -
+
+bool CLASS::get3DHWVersion(UInt32* HWVersion)
 {
 	if (!HWVersion)
 		return false;
@@ -663,7 +701,7 @@ bool SVGADevice::get3DHWVersion(UInt32* HWVersion)
 	return true;
 }
 
-void SVGADevice::RegDump()
+void CLASS::RegDump()
 {
 	uint32_t regs[SVGA_REG_TOP];
 
@@ -672,7 +710,7 @@ void SVGADevice::RegDump()
 	m_provider->setProperty("VMwareSVGADump", static_cast<void*>(&regs[0]), static_cast<unsigned>(sizeof regs));
 }
 
-bool SVGADevice::RectCopy(UInt32 const* copyRect)
+bool CLASS::RectCopy(UInt32 const* copyRect)
 {
 	SVGAFifoCmdRectCopy* cmd = static_cast<SVGAFifoCmdRectCopy*>(FIFOReserveCmd(SVGA_CMD_RECT_COPY, sizeof *cmd));
 	if (!cmd)
@@ -682,7 +720,7 @@ bool SVGADevice::RectCopy(UInt32 const* copyRect)
 	return true;
 }
 
-bool SVGADevice::RectFill(UInt32 color, UInt32 const* rect)
+bool CLASS::RectFill(UInt32 color, UInt32 const* rect)
 {
 	SVGAFifoCmdFrontRopFill* cmd = static_cast<SVGAFifoCmdFrontRopFill*>(FIFOReserveCmd(SVGA_CMD_FRONT_ROP_FILL, sizeof *cmd));
 	if (!cmd)
@@ -694,7 +732,7 @@ bool SVGADevice::RectFill(UInt32 color, UInt32 const* rect)
 	return true;
 }
 
-bool SVGADevice::UpdateFramebuffer2(UInt32 const* rect)
+bool CLASS::UpdateFramebuffer2(UInt32 const* rect)
 {
 	SVGAFifoCmdUpdate* cmd = static_cast<SVGAFifoCmdUpdate*>(FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd));
 	if (!cmd)
@@ -705,7 +743,7 @@ bool SVGADevice::UpdateFramebuffer2(UInt32 const* rect)
 }
 
 #ifdef TESTING
-void SVGADevice::test_ram_size(char const* name, IOVirtualAddress ptr, IOByteCount count)
+void CLASS::test_ram_size(char const* name, IOVirtualAddress ptr, IOByteCount count)
 {
 	IOVirtualAddress a;
 	for (a = ptr; a < ptr + count; a += PAGE_SIZE)
