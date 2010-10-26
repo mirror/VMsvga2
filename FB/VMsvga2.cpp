@@ -70,6 +70,8 @@ OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 #define	GetShmem(instance)	((StdFBShmem_t *)(instance->priv))
 #endif
 
+typedef unsigned long long __m64 __attribute__((vector_size(8), may_alias));
+
 static __attribute__((used)) char const copyright[] = "Copyright 2009-2010 Zenith432";
 
 static char const pixelFormatStrings[] = IO32BitDirectPixels "\0";
@@ -191,6 +193,26 @@ void CLASS::ConvertAlphaCursor(UInt* cursor, UInt width, UInt height)
 	/*
 	 * Pre-multiply alpha cursor
 	 */
+#ifdef VECTORIZE
+	static __m64 const datum = { 0x808180818081ULL };
+	__m64 const mm_zero = { 0ULL };
+	__m64 mm0;
+	UInt alpha, num_pixels;
+	for (num_pixels = width * height; num_pixels; --num_pixels, ++cursor) {
+		alpha = (*cursor) >> 24U;
+		if (!alpha || static_cast<UInt8>(alpha) == 255U)
+			continue;
+		mm0 = __builtin_ia32_punpcklbw((__m64){*cursor}, mm_zero);
+		*cursor = __builtin_ia32_vec_ext_v2si(
+			__builtin_ia32_packuswb(
+			__builtin_ia32_vec_set_v4hi(
+			__builtin_ia32_psrlwi(
+			__builtin_ia32_pmulhuw(
+			__builtin_ia32_pmullw(
+			__builtin_ia32_pshufw(mm0, 255), mm0), datum), 7), alpha, 3), mm_zero), 0);
+	}
+	__builtin_ia32_emms();
+#else /* VECTORIZE */
 	UInt i, pixel, alpha, r, g, b;
 	UInt num_pixels = width * height;
 #if 0
@@ -206,6 +228,7 @@ void CLASS::ConvertAlphaCursor(UInt* cursor, UInt width, UInt height)
 		r = ((pixel >> 16) & 0xFFU) * alpha / 255U;
 		cursor[i] = (pixel & 0xFF000000U) | (r << 16) | (g << 8) | b;
 	}
+#endif /* VECTORIZE */
 }
 
 IOReturn CLASS::setCursorImage(void* cursorImage)
