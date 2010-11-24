@@ -34,7 +34,7 @@
 		79726007102F07820030052A /* VMsvga2GA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 79726006102F07820030052A /* VMsvga2GA.cpp */; };
 		7987F8861037020E003B52A2 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; };
 		799EFBD010483D9C003195B5 /* VMsvga2Allocator.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 799EFBCF10483D9C003195B5 /* VMsvga2Allocator.cpp */; settings = {COMPILER_FLAGS = "-Wno-sign-compare"; }; };
-		799F594710319210000D2A71 /* SVGA3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 799F594610319210000D2A71 /* SVGA3D.cpp */; };
+		799F594710319210000D2A71 /* SVGA3D.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 799F594610319210000D2A71 /* SVGA3D.cpp */; settings = {COMPILER_FLAGS = "-fvisibility=hidden"; }; };
 		79B34F1B103324D500D1E214 /* BlitHelper.c in Sources */ = {isa = PBXBuildFile; fileRef = 79B34F1A103324D500D1E214 /* BlitHelper.c */; };
 		79CD27F20FFD0E97002D58FE /* SVGADevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 79CD27F00FFD0E97002D58FE /* SVGADevice.cpp */; };
 		79D6E26B1008D086005D1591 /* modes.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 79D6E26A1008D086005D1591 /* modes.cpp */; };
@@ -45,7 +45,7 @@
 		E52B47D410B5B4CA002470B4 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E52B47CC10B5B4B5002470B4 /* IOKit.framework */; };
 		E555EF1F10CD33CD001B6433 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; settings = {COMPILER_FLAGS = "-mdynamic-no-pic"; }; };
 		E565F91910CC15E200C37DC5 /* VLog.c in Sources */ = {isa = PBXBuildFile; fileRef = 790CE24F1084E41B004D109E /* VLog.c */; };
-		E577F63810A089750047C956 /* SVGAScreen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E577F63710A089750047C956 /* SVGAScreen.cpp */; };
+		E577F63810A089750047C956 /* SVGAScreen.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E577F63710A089750047C956 /* SVGAScreen.cpp */; settings = {COMPILER_FLAGS = "-fvisibility=hidden"; }; };
 		E58ACDA810CC439E0051F215 /* EntryPointNames.c in Sources */ = {isa = PBXBuildFile; fileRef = E58ACDA710CC439E0051F215 /* EntryPointNames.c */; };
 		E58AE5721268EC5900ABABF8 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; };
 		E590EA9510CD311F0019BC36 /* SendString.c in Sources */ = {isa = PBXBuildFile; fileRef = 7987F8851037020E003B52A2 /* SendString.c */; settings = {COMPILER_FLAGS = "-mdynamic-no-pic"; }; };
@@ -582,6 +582,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"LOGGING_LEVEL=1",
 					VLOG_LOCAL,
+					VECTORIZE,
 				);
 				INFOPLIST_FILE = "Info-FB.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2;
@@ -612,6 +613,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"LOGGING_LEVEL=1",
 					FRAGILE,
+					VECTORIZE,
 				);
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
 				INFOPLIST_FILE = "Info-AC.plist";
@@ -659,6 +661,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"LOGGING_LEVEL=1",
 					VLOG_LOCAL,
+					VECTORIZE,
 				);
 				INFOPLIST_FILE = "Info-FB.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2;
@@ -674,6 +677,7 @@
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"LOGGING_LEVEL=1",
 					FRAGILE,
+					VECTORIZE,
 				);
 				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = NO;
 				INFOPLIST_FILE = "Info-AC.plist";
