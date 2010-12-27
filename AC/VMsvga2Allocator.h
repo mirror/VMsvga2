@@ -63,13 +63,13 @@ class VMsvga2Allocator : public OSObject
 	OSDeclareDefaultStructors(VMsvga2Allocator);
 
 private:
-	UInt8* poolStart;		// First byte in the pool
-	int poolBlocks;
+	uint8_t* poolStart;		// First byte in the pool
+	size_t poolBlocks;
 
 	int minBits;			// Minimum block size is 1 << minBits (expect 12 = log_2(PAGE_SIZE))
 	int numSizes;			// sizes go up by powers of two (expect 13, max block == 2^24 bytes == SVGA_FB_MAX_TRACEABLE_SIZE)
 	size_t freeList[13];	// free lists
-	UInt8* map;				// bit map
+	uint8_t* map;			// bit map
 	size_t freeBytes;
 
 	static bool memAll(void *p, size_t bytes);

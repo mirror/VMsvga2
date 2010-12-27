@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 18th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -53,9 +53,9 @@
 extern "C" {
 #endif
 
-extern UInt32 vmw_options_ac __attribute__((visibility("hidden")));
+extern uint32_t vmw_options_ac;
 
-static inline bool checkOptionAC(UInt32 mask)
+static inline bool checkOptionAC(uint32_t mask)
 {
 	return (vmw_options_ac & mask) != 0;
 }

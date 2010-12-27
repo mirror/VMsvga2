@@ -45,8 +45,10 @@ class SVGADevice
 {
 private:
 	IOPCIDevice* m_provider;	// offset 0
-	IOMemoryMap* m_bar0;		// offset 4
-	IOMemoryMap* m_bar2;		// offset 8
+#if 0
+	IOMemoryMap* m_bar0_map;	// offset 4
+#endif
+	IOMemoryMap* m_bar2_map;	// offset 8
 	uint32_t* m_fifo_ptr;		// offset 12
 	void* m_cursor_ptr;			// offset 16
 	uint32_t m_fifo_size;		// offset 20
@@ -69,6 +71,7 @@ private:
 	uint32_t m_fb_offset;
 	uint32_t m_vram_size;
 	uint32_t m_fb_size;
+	uint16_t m_io_base;
 	/*
 	 * End Added
 	 */
@@ -140,12 +143,14 @@ public:
 	uint32_t getCurrentFBOffset() const { return m_fb_offset; }
 	uint32_t getVRAMSize() const { return m_vram_size; }
 	uint32_t getCurrentFBSize() const { return m_fb_size; }
-	bool get3DHWVersion(UInt32* HWVersion);
+	bool get3DHWVersion(uint32_t* HWVersion);
 	void RegDump();
 
-	bool RectCopy(UInt32 const* copyRect);					// copyRect is an array of 6 UInt32 - same order as SVGAFifoCmdRectCopy
-	bool RectFill(UInt32 color, UInt32 const* rect);		// rect is an array of 4 UInt32 - same order as SVGAFifoCmdFrontRopFill
-	bool UpdateFramebuffer2(UInt32 const* rect);			// rect is an array of 4 UInt32 - same order as SVGAFifoCmdUpdate
+	bool RectCopy(uint32_t const* copyRect);				// copyRect is an array of 6 uint32_t - same order as SVGAFifoCmdRectCopy
+	bool RectFill(uint32_t color, uint32_t const* rect);	// rect is an array of 4 uint32_t - same order as SVGAFifoCmdFrontRopFill
+	bool UpdateFramebuffer2(uint32_t const* rect);			// rect is an array of 4 uint32_t - same order as SVGAFifoCmdUpdate
+
+	bool defineGMR(uint32_t gmrID, uint32_t ppn);			// ppn == 0 delete GMR [ppn == physical page number]
 
 #ifdef TESTING
 	static void test_ram_size(char const* name, IOVirtualAddress ptr, IOByteCount count);

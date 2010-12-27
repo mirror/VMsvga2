@@ -71,3 +71,11 @@ IOReturn VMsvga2Client::clientClose()
 		LogPrintf(1, "%s: terminate failed.\n", __FUNCTION__);
 	return kIOReturnSuccess;
 }
+
+bool VMsvga2Client::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
+{
+	if (!super::initWithTask(owningTask, securityToken, type) ||
+		clientHasPrivilege(securityToken, kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
+		return false;
+	return true;
+}

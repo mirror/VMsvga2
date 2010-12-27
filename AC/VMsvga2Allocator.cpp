@@ -31,6 +31,8 @@
 #define super OSObject
 OSDefineMetaClassAndStructors(VMsvga2Allocator, OSObject);
 
+#define HIDDEN __attribute__((visibility("hidden")))
+
 /*
  * Size of header + trailer in a free block, in ints
  */
@@ -104,9 +106,10 @@ static __attribute__((used)) char const version[] = "A.G.McDowell 19990501" ;
 /*
  * checks if all bytes in a range are 0xFFU
  */
+HIDDEN
 bool CLASS::memAll(void *p, size_t bytes)
 {
-	UInt8* pp = static_cast<UInt8*>(p);
+	uint8_t* pp = static_cast<uint8_t*>(p);
 
 	if (bytes <= 0)
 		return true;
@@ -121,6 +124,7 @@ bool CLASS::memAll(void *p, size_t bytes)
 /*
  * Checks if all bits in a range are 1
  */
+HIDDEN
 bool CLASS::testAll(size_t firstBit, size_t pastBit)
 {
 	size_t i;
@@ -150,6 +154,7 @@ bool CLASS::testAll(size_t firstBit, size_t pastBit)
 /*
  * Clears a range of bits to 0
  */
+HIDDEN
 void CLASS::clearAll(size_t firstBit, size_t pastBit)
 {
 	size_t i;
@@ -175,6 +180,7 @@ void CLASS::clearAll(size_t firstBit, size_t pastBit)
 /*
  * Checks if all bits in a range are 1 and clears them if so
  */
+HIDDEN
 IOReturn CLASS::clearCheck(size_t firstBit, size_t pastBit)
 {
 	if (!testAll(firstBit, pastBit))
@@ -186,9 +192,10 @@ IOReturn CLASS::clearCheck(size_t firstBit, size_t pastBit)
 /*
  * checks if any bytes in range are non-zero
  */
+HIDDEN
 bool CLASS::memAny(void *p, size_t bytes)
 {
-	UInt8* pp = static_cast<UInt8*>(p);
+	uint8_t* pp = static_cast<uint8_t*>(p);
 	if (bytes <= 0)
 		return false;
 	if (*pp)
@@ -203,6 +210,7 @@ bool CLASS::memAny(void *p, size_t bytes)
 /*
  * Checks if any bits in a range are 1
  */
+HIDDEN
 bool CLASS::testAny(size_t firstBit, size_t pastBit)
 {
 	size_t i;
@@ -232,6 +240,7 @@ bool CLASS::testAny(size_t firstBit, size_t pastBit)
 /*
  * Adds a single aligned range to a single free list
  */
+HIDDEN
 void CLASS::makeFree(size_t firstFree, int bitsFree, bool zap)
 {
 	size_t *ptr;
@@ -283,6 +292,7 @@ void CLASS::makeFree(size_t firstFree, int bitsFree, bool zap)
 /*
  * Add an arbitrary range of blocks to free lists
  */
+HIDDEN
 void CLASS::toFree(size_t firstBlock, size_t pastBlock, bool zap)
 {
 	size_t i;
@@ -352,6 +362,7 @@ void CLASS::toFree(size_t firstBlock, size_t pastBlock, bool zap)
 /*
  * Allocates a block of size 2^(bits + minBits)
  */
+HIDDEN
 IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 {
 	int retBits;
@@ -382,7 +393,7 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 	if (ptr[OFF_PREV] != OURNULL)
 		return kIOReturnInternalError /* "corrupted free area" */;
 	pastPtr = ptr + (1U << (retBits + minBits)) / sizeof(size_t);
-	if (pastPtr[OFF_BITS] != retBits + LEN_OFFSET)
+	if (pastPtr[OFF_BITS] != static_cast<size_t>(retBits + LEN_OFFSET))
 		return kIOReturnInternalError /* "corrupted free area" */;
 #ifndef FRAGILE
 	/*
@@ -436,11 +447,12 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 /*
  * Determines size of a busy block
  */
+HIDDEN
 IOReturn CLASS::BuddyAllocSize(void *sss, int *numBits)
 {
 	size_t byteOff;
 	size_t blockOff;
-	UInt8* storage = static_cast<UInt8*>(sss);
+	uint8_t* storage = static_cast<uint8_t*>(sss);
 	int ourBits;
 	size_t blocks;
 	if (numBits == NULL)
@@ -470,6 +482,7 @@ IOReturn CLASS::BuddyAllocSize(void *sss, int *numBits)
 /*
  * frees free-block bitmap
  */
+HIDDEN
 void CLASS::ReleaseMap()
 {
 	if (!map)
@@ -531,12 +544,12 @@ IOReturn CLASS::Init(void* startAddress, size_t bytes)
 #endif
 	if (reinterpret_cast<vm_address_t>(startAddress) & ((1U << minBits) - 1))
 		return kIOReturnBadArgument /* "startAddress not on block boundary" */;
-	poolStart = static_cast<UInt8*>(startAddress);
+	poolStart = static_cast<uint8_t*>(startAddress);
 	setBits = bytes >> minBits;
 	poolBlocks = static_cast<int>(setBits);
 	this->minBits = minBits;
 	this->numSizes = numSizes;
-	map = static_cast<UInt8*>(IOMalloc((setBits + 7U) >> 3));
+	map = static_cast<uint8_t*>(IOMalloc((setBits + 7U) >> 3));
 	if (!map)
 		return kIOReturnNoMemory;
 	freeBytes = 0U;
@@ -605,7 +618,7 @@ IOReturn CLASS::Realloc(void* ptrv, size_t size, void** newPtr)
 	size_t oldBlocks;
 	size_t newBlocks;
 	int lg2Bytes;
-	UInt8* ptr = static_cast<UInt8*>(ptrv);
+	uint8_t* ptr = static_cast<uint8_t*>(ptrv);
 	if (size == 0)
 		return Free(ptr);
 	if (ptr == NULL)
@@ -656,7 +669,7 @@ IOReturn CLASS::Free(void* storage2)
 	size_t blockOff;
 	size_t blocksHere;
 	int oldBits;
-	UInt8* storage = static_cast<UInt8*>(storage2);
+	uint8_t* storage = static_cast<uint8_t*>(storage2);
 	if (storage == NULL)
 		return kIOReturnSuccess;
 	ret = BuddyAllocSize(storage, &bits);
@@ -759,7 +772,7 @@ IOReturn CLASS::Free(void* storage2)
 			 * Merged block starts at buddy
 			 */
 			blockOff = buddy;
-			storage = reinterpret_cast<UInt8*>(buddyPtr);
+			storage = reinterpret_cast<uint8_t*>(buddyPtr);
 		}
 	}
 	/*
@@ -825,7 +838,7 @@ IOReturn CLASS::Check(size_t* counts)
 			if (ptr[OFF_PREV] != prevOffset)
 				return kIOReturnInternalError /* "crossed pointers" */;
 			pastPtr = ptr + (1U << (minBits + size)) / sizeof(size_t);
-			if (pastPtr[OFF_BITS] != size + LEN_OFFSET)
+			if (pastPtr[OFF_BITS] != static_cast<size_t>(size + LEN_OFFSET))
 				return kIOReturnInternalError /* "size mismatch" */;
 #ifndef FRAGILE
 			if (memAny(ptr + HEADER_LEN,

@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on October 11th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -38,12 +38,13 @@
 OSDefineMetaClassAndStructors(VMsvga2DVDContext, IOUserClient);
 
 #if LOGGING_LEVEL >= 1
-#define DVDLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IODVD: ",fmt, ##__VA_ARGS__); } while (false)
+#define DVDLog(log_level, ...) do { if (log_level <= m_log_level) VLog("IODVD: ", ##__VA_ARGS__); } while (false)
 #else
-#define DVDLog(log_level, fmt, ...)
+#define DVDLog(log_level, ...)
 #endif
 
-static IOExternalMethod iofbFuncsCache[kIOVMDVDNumMethods] =
+static
+IOExternalMethod iofbFuncsCache[kIOVMDVDNumMethods] =
 {
 // TBD: IONVDVDContext
 // TBD: NVDVDContext
@@ -55,7 +56,7 @@ static IOExternalMethod iofbFuncsCache[kIOVMDVDNumMethods] =
 
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
-	DVDLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
+	DVDLog(1, "%s(target_out, %u)\n", __FUNCTION__, static_cast<unsigned>(index));
 	if (!targetP || index >= kIOVMDVDNumMethods)
 		return 0;
 #if 0
@@ -69,7 +70,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 #else
 	*targetP = this;
 #endif
-	return &m_funcs_cache[index];
+	return &iofbFuncsCache[index];
 }
 
 IOReturn CLASS::clientClose()
@@ -84,13 +85,13 @@ IOReturn CLASS::clientClose()
 
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
-	DVDLog(1, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
+	DVDLog(1, "%s(%u, options_out, memory_out)\n", __FUNCTION__, static_cast<unsigned>(type));
 	return super::clientMemoryForType(type, options, memory);
 }
 
 IOReturn CLASS::connectClient(IOUserClient* client)
 {
-	DVDLog(1, "%s(%p)\n", __FUNCTION__, client);
+	DVDLog(1, "%s(%p), name == %s\n", __FUNCTION__, client, client ? client->getName() : "NULL");
 	return super::connectClient(client);
 }
 
@@ -105,15 +106,15 @@ bool CLASS::start(IOService* provider)
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 {
-	m_log_level = 1;
+	m_log_level = LOGGING_LEVEL;
 	if (!super::initWithTask(owningTask, securityToken, type))
 		return false;
 	m_owning_task = owningTask;
-	m_funcs_cache = &iofbFuncsCache[0];
 	return true;
 }
 
-CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
+__attribute__((visibility("hidden")))
+CLASS* CLASS::withTask(task_t owningTask, void* securityToken, uint32_t type)
 {
 	CLASS* inst;
 

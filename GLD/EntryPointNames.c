@@ -28,8 +28,13 @@
 
 #include "EntryPointNames.h"
 
+#pragma GCC visibility push(hidden)
+
 char const* const entry_point_names[NUM_ENTRIES] =
 {
+/*
+ * From OS 10.6
+ */
 "gldGetVersion",
 "gldGetRendererInfo",
 "gldChoosePixelFormat",
@@ -59,11 +64,11 @@ char const* const entry_point_names[NUM_ENTRIES] =
 "gldUnbindTexture",
 "gldReclaimTexture",
 "gldDestroyTexture",
-"gldCreateTextureLevel",
+"gldCreateTextureLevel",		// Discontinued OS 10.6.3
 "gldGetTextureLevelInfo",
 "gldGetTextureLevelImage",
-"gldModifyTextureLevel",
-"gldDestroyTextureLevel",
+"gldModifyTextureLevel",		// Discontinued OS 10.6.3
+"gldDestroyTextureLevel",		// Discontinued OS 10.6.3
 "gldCreateBuffer",
 "gldLoadBuffer",
 "gldFlushBuffer",
@@ -104,5 +109,30 @@ char const* const entry_point_names[NUM_ENTRIES] =
 "gldDestroyComputeContext",
 "gldLoadHostBuffer",
 "gldSyncBufferObject",
-"gldSyncTexture"
+"gldSyncTexture",
+/*
+ * Added OS 10.6.3
+ */
+"gldGenerateTexMipmaps",
+"gldCopyTexSubImage",
+"gldModifyTexSubImage",
+"gldBufferSubData",
+"gldModifyQuery",
+"gldDiscardFramebuffer",
+/*
+ * From OS 10.5.8
+ */
+"gldGetTextureLevel",
+"gldDeleteTextureLevel",
+"gldDeleteTexture",
+"gldAllocVertexBuffer",
+"gldCompleteVertexBuffer",
+"gldFreeVertexBuffer",
+"gldGetMemoryPluginData",
+"gldSetMemoryPluginData",
+"gldFinishMemoryPluginData",
+"gldTestMemoryPluginData",
+"gldDestroyMemoryPluginData"
 };
+
+#pragma GCC visibility pop

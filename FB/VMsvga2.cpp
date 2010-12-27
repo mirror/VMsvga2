@@ -463,9 +463,9 @@ IOReturn CLASS::getAttribute(IOSelect attribute, uintptr_t* value)
 	if (logLevelFB >= 2) {
 		IOSelectToString(attribute, &attr[0]);
 		if (value)
-			LogPrintf(2, "%s: attr=%s *value=0x%08lx ret=0x%08x\n", __FUNCTION__, &attr[0], *value, r);
+			LogPrintf(2, "%s: attr=%s *value=%#08lx ret=%#08x\n", __FUNCTION__, &attr[0], *value, r);
 		else
-			LogPrintf(2, "%s: attr=%s ret=0x%08x\n", __FUNCTION__, &attr[0], r);
+			LogPrintf(2, "%s: attr=%s ret=%#08x\n", __FUNCTION__, &attr[0], r);
 	}
 	return r;
 }
@@ -513,10 +513,10 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	if (logLevelFB >= 2) {
 		IOSelectToString(attribute, &attr[0]);
 		if (value)
-			LogPrintf(2, "%s: index=%d, attr=%s *value=0x%08lx ret=0x%08x\n", __FUNCTION__,
+			LogPrintf(2, "%s: index=%d, attr=%s *value=%#08lx ret=%#08x\n", __FUNCTION__,
 					  FMT_D(connectIndex), &attr[0], *value, r);
 		else
-			LogPrintf(2, "%s: index=%d, attr=%s ret=0x%08x\n", __FUNCTION__,
+			LogPrintf(2, "%s: index=%d, attr=%s ret=%#08x\n", __FUNCTION__,
 					  FMT_D(connectIndex), &attr[0], r);
 	}
 	return r;
@@ -530,7 +530,7 @@ IOReturn CLASS::setAttribute(IOSelect attribute, uintptr_t value)
 	r = super::setAttribute(attribute, value);
 	if (logLevelFB >= 2) {
 		IOSelectToString(attribute, &attr[0]);
-		LogPrintf(2, "%s: attr=%s value=0x%08lx ret=0x%08x\n",
+		LogPrintf(2, "%s: attr=%s value=%#08lx ret=%#08x\n",
 				  __FUNCTION__, &attr[0], value, r);
 	}
 	if (attribute == kIOCapturedAttribute &&
@@ -562,7 +562,7 @@ IOReturn CLASS::setAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	}
 	if (logLevelFB >= 2) {
 		IOSelectToString(attribute, &attr[0]);
-		LogPrintf(2, "%s: index=%d, attr=%s value=0x%08lx ret=0x%08x\n", __FUNCTION__,
+		LogPrintf(2, "%s: index=%d, attr=%s value=%#08lx ret=%#08x\n", __FUNCTION__,
 				  FMT_D(connectIndex), &attr[0], value, r);
 	}
 	return r;
@@ -606,7 +606,7 @@ IOReturn CLASS::getInformationForDisplayMode(IODisplayModeID displayMode, IODisp
 	info->nominalHeight = dme->height;
 	info->refreshRate = 60U << 16;
 	info->flags = dme->flags;
-	LogPrintf(2, "%s: mode ID=%d, max depth=%d, wxh=%ux%u, flags=0x%x\n", __FUNCTION__,
+	LogPrintf(2, "%s: mode ID=%d, max depth=%d, wxh=%ux%u, flags=%#x\n", __FUNCTION__,
 			  FMT_D(displayMode), 0, FMT_U(info->nominalWidth), FMT_U(info->nominalHeight), FMT_U(info->flags));
 	return kIOReturnSuccess;
 }

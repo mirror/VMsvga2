@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 4th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -44,6 +44,7 @@ class VMsvga2Client: public IOUserClient
 public:
 	IOExternalMethod* getTargetAndMethodForIndex(IOService** targetP, UInt32 index);
 	IOReturn clientClose();
+	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
 };
 
 #endif /* _VMSVGA2CLIENT_H_ */

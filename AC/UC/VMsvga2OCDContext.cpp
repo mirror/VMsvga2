@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on October 11th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -38,12 +38,13 @@
 OSDefineMetaClassAndStructors(VMsvga2OCDContext, IOUserClient);
 
 #if LOGGING_LEVEL >= 1
-#define OCDLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IOOCD: ", fmt, ##__VA_ARGS__); } while (false)
+#define OCDLog(log_level, ...) do { if (log_level <= m_log_level) VLog("IOOCD: ", ##__VA_ARGS__); } while (false)
 #else
-#define OCDLog(log_level, fmt, ...)
+#define OCDLog(log_level, ...)
 #endif
 
-static IOExternalMethod iofbFuncsCache[kIOVMOCDNumMethods] =
+static
+IOExternalMethod iofbFuncsCache[kIOVMOCDNumMethods] =
 {
 // IONVOCDContext
 	{0, reinterpret_cast<IOMethod>(&CLASS::finish), kIOUCScalarIScalarO, 0, 0},
@@ -61,7 +62,7 @@ static IOExternalMethod iofbFuncsCache[kIOVMOCDNumMethods] =
 
 struct NvNotificationRec
 {
-	UInt32 data[4];
+	uint32_t data[4];
 };
 
 #pragma mark -
@@ -71,7 +72,7 @@ struct NvNotificationRec
 IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 index)
 {
 	if (index >= kIOVMOCDNumMethods)
-		OCDLog(1, "%s(%p, %u)\n", __FUNCTION__, targetP, index);
+		OCDLog(1, "%s(target_out, %u)\n", __FUNCTION__, static_cast<unsigned>(index));
 	if (!targetP || index >= kIOVMOCDNumMethods)
 		return 0;
 #if 0
@@ -85,7 +86,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 #else
 	*targetP = this;
 #endif
-	return &m_funcs_cache[index];
+	return &iofbFuncsCache[index];
 }
 
 IOReturn CLASS::clientClose()
@@ -100,19 +101,19 @@ IOReturn CLASS::clientClose()
 
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
-	OCDLog(1, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
+	OCDLog(1, "%s(%u, options_out, memory_out)\n", __FUNCTION__, static_cast<unsigned>(type));
 	return super::clientMemoryForType(type, options, memory);
 }
 
 IOReturn CLASS::connectClient(IOUserClient* client)
 {
-	OCDLog(1, "%s(%p)\n", __FUNCTION__, client);
+	OCDLog(1, "%s(%p), name == %s\n", __FUNCTION__, client, client ? client->getName() : "NULL");
 	return super::connectClient(client);
 }
 
 IOReturn CLASS::registerNotificationPort(mach_port_t port, UInt32 type, UInt32 refCon)
 {
-	OCDLog(1, "%s(%p, %u, %u)\n", __FUNCTION__, port, type, refCon);
+	OCDLog(1, "%s(%p, %u, %u)\n", __FUNCTION__, port, static_cast<unsigned>(type), static_cast<unsigned>(refCon));
 	return super::registerNotificationPort(port, type, refCon);
 }
 
@@ -121,21 +122,21 @@ bool CLASS::start(IOService* provider)
 	m_provider = OSDynamicCast(VMsvga2Accel, provider);
 	if (!m_provider)
 		return false;
-	m_log_level = m_provider->getLogLevelAC();
+	m_log_level = imax(m_provider->getLogLevelGLD(), m_provider->getLogLevelAC());
 	return super::start(provider);
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 {
-	m_log_level = 1;
+	m_log_level = LOGGING_LEVEL;
 	if (!super::initWithTask(owningTask, securityToken, type))
 		return false;
 	m_owning_task = owningTask;
-	m_funcs_cache = &iofbFuncsCache[0];
 	return true;
 }
 
-CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
+__attribute__((visibility("hidden")))
+CLASS* CLASS::withTask(task_t owningTask, void* securityToken, uint32_t type)
 {
 	CLASS* inst;
 
@@ -154,12 +155,14 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
 #pragma mark IONVOCDContext Methods
 #pragma mark -
 
+__attribute__((visibility("hidden")))
 IOReturn CLASS::finish()
 {
 	OCDLog(2, "%s()\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
+__attribute__((visibility("hidden")))
 IOReturn CLASS::wait_for_stamp(uintptr_t c1)
 {
 	OCDLog(2, "%s(%lu)\n", __FUNCTION__, c1);
@@ -170,27 +173,31 @@ IOReturn CLASS::wait_for_stamp(uintptr_t c1)
 #pragma mark NVOCDContext Methods
 #pragma mark -
 
+__attribute__((visibility("hidden")))
 IOReturn CLASS::check_error_notifier(struct NvNotificationRec volatile* struct_out, size_t* struct_out_size)
 {
-	OCDLog(2, "%s(%p, %lu)\n", __FUNCTION__, struct_out, *struct_out_size);
+	OCDLog(2, "%s(struct_out, %lu)\n", __FUNCTION__, *struct_out_size);
 	if (*struct_out_size < sizeof *struct_out)
 		return kIOReturnBadArgument;
 	return kIOReturnUnsupported;
 }
 
+__attribute__((visibility("hidden")))
 IOReturn CLASS::mark_texture_for_ocd_use(uintptr_t c1)
 {
 	OCDLog(2, "%s(%lu)\n", __FUNCTION__, c1);
 	return kIOReturnUnsupported;
 }
 
+__attribute__((visibility("hidden")))
 IOReturn CLASS::FreeEvent()
 {
 	OCDLog(2, "%s()\n", __FUNCTION__);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::GetHandleIndex(UInt32*, UInt32*)
+__attribute__((visibility("hidden")))
+IOReturn CLASS::GetHandleIndex(uint32_t*, uint32_t*)
 {
 	OCDLog(2, "%s(out1, out2)\n", __FUNCTION__);
 	return kIOReturnUnsupported;

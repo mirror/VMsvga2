@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 11th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  */
 
@@ -76,7 +76,7 @@ bool CLASS::Init(SVGADevice* device)
 	return true;
 }
 
-void* CLASS::FIFOReserve(UInt32 cmd, size_t cmdSize)
+void* CLASS::FIFOReserve(uint32_t cmd, size_t cmdSize)
 {
 	SVGA3dCmdHeader* header;
 
@@ -84,12 +84,12 @@ void* CLASS::FIFOReserve(UInt32 cmd, size_t cmdSize)
 	if (!header)
 		return 0;
 	header->id = cmd;
-	header->size = static_cast<UInt32>(cmdSize);
+	header->size = static_cast<uint32_t>(cmdSize);
 
 	return &header[1];
 }
 
-bool CLASS::BeginDefineSurface(UInt32 sid,                  // IN
+bool CLASS::BeginDefineSurface(uint32_t sid,                // IN
 							   SVGA3dSurfaceFlags flags,    // IN
 							   SVGA3dSurfaceFormat format,  // IN
 							   SVGA3dSurfaceFace **faces,   // OUT
@@ -114,7 +114,7 @@ bool CLASS::BeginDefineSurface(UInt32 sid,                  // IN
 	return true;
 }
 
-bool CLASS::DestroySurface(UInt32 sid)  // IN
+bool CLASS::DestroySurface(uint32_t sid)  // IN
 {
 	SVGA3dCmdDestroySurface* cmd;
 	cmd = static_cast<SVGA3dCmdDestroySurface*>(FIFOReserve(SVGA_3D_CMD_SURFACE_DESTROY, sizeof *cmd));
@@ -152,7 +152,7 @@ bool CLASS::BeginSurfaceDMAwithSuffix(SVGA3dGuestImage const *guestImage,
 									  SVGA3dTransferType transfer,
 									  SVGA3dCopyBox **boxes,
 									  size_t numBoxes,
-									  UInt32 maximumOffset,
+									  uint32_t maximumOffset,
 									  SVGA3dSurfaceDMAFlags flags)
 {
 	SVGA3dCmdSurfaceDMA* cmd;
@@ -171,13 +171,13 @@ bool CLASS::BeginSurfaceDMAwithSuffix(SVGA3dGuestImage const *guestImage,
 
 	bzero(*boxes, boxesSize);
 	suffix = reinterpret_cast<SVGA3dCmdSurfaceDMASuffix*>(&(*boxes)[numBoxes]);
-	suffix->suffixSize = static_cast<UInt32>(sizeof *suffix);
+	suffix->suffixSize = static_cast<uint32_t>(sizeof *suffix);
 	suffix->maximumOffset = maximumOffset,
 	suffix->flags = flags;
 	return true;
 }
 
-bool CLASS::DefineContext(UInt32 cid)
+bool CLASS::DefineContext(uint32_t cid)
 {
 	SVGA3dCmdDefineContext* cmd;
 	cmd = static_cast<SVGA3dCmdDefineContext*>(FIFOReserve(SVGA_3D_CMD_CONTEXT_DEFINE, sizeof *cmd));
@@ -188,7 +188,7 @@ bool CLASS::DefineContext(UInt32 cid)
 	return true;
 }
 
-bool CLASS::DestroyContext(UInt32 cid)
+bool CLASS::DestroyContext(uint32_t cid)
 {
 	SVGA3dCmdDestroyContext* cmd;
 	cmd = static_cast<SVGA3dCmdDestroyContext*>(FIFOReserve(SVGA_3D_CMD_CONTEXT_DESTROY, sizeof *cmd));
@@ -199,7 +199,7 @@ bool CLASS::DestroyContext(UInt32 cid)
 	return true;
 }
 
-bool CLASS::SetRenderTarget(UInt32 cid,                    // IN
+bool CLASS::SetRenderTarget(uint32_t cid,                  // IN
 							SVGA3dRenderTargetType type,   // IN
 							SVGA3dSurfaceImageId const* target)  // IN
 {
@@ -214,7 +214,7 @@ bool CLASS::SetRenderTarget(UInt32 cid,                    // IN
 	return true;
 }
 
-bool CLASS::SetTransform(UInt32 cid,                // IN
+bool CLASS::SetTransform(uint32_t cid,              // IN
 						 SVGA3dTransformType type,  // IN
 						 float const* matrix)       // IN
 {
@@ -229,7 +229,7 @@ bool CLASS::SetTransform(UInt32 cid,                // IN
 	return true;
 }
 
-bool CLASS::SetMaterial(UInt32 cid,                      // IN
+bool CLASS::SetMaterial(uint32_t cid,                    // IN
 						SVGA3dFace face,                 // IN
 						SVGA3dMaterial const* material)  // IN
 {
@@ -244,8 +244,8 @@ bool CLASS::SetMaterial(UInt32 cid,                      // IN
 	return true;
 }
 
-bool CLASS::SetLightEnabled(UInt32 cid,    // IN
-							UInt32 index,  // IN
+bool CLASS::SetLightEnabled(uint32_t cid,  // IN
+							uint32_t index,// IN
 							bool enabled)  // IN
 {
 	SVGA3dCmdSetLightEnabled* cmd;
@@ -259,8 +259,8 @@ bool CLASS::SetLightEnabled(UInt32 cid,    // IN
 	return true;
 }
 
-bool CLASS::SetLightData(UInt32 cid,                   // IN
-						 UInt32 index,                 // IN
+bool CLASS::SetLightData(uint32_t cid,                 // IN
+						 uint32_t index,               // IN
 						 SVGA3dLightData const* data)  // IN
 {
 	SVGA3dCmdSetLightData* cmd;
@@ -274,11 +274,11 @@ bool CLASS::SetLightData(UInt32 cid,                   // IN
 	return true;
 }
 
-IOReturn CLASS::DefineShader(UInt32 cid,                   // IN
-						 UInt32 shid,                  // IN
-						 SVGA3dShaderType type,        // IN
-						 UInt32 const* bytecode,       // IN
-						 size_t bytecodeLen)           // IN
+IOReturn CLASS::DefineShader(uint32_t cid,                 // IN
+							 uint32_t shid,                // IN
+							 SVGA3dShaderType type,        // IN
+							 uint32_t const* bytecode,     // IN
+							 size_t bytecodeLen)           // IN
 {
 	SVGA3dCmdDefineShader* cmd;
 
@@ -298,8 +298,8 @@ IOReturn CLASS::DefineShader(UInt32 cid,                   // IN
 	return kIOReturnSuccess;
 }
 
-bool CLASS::DestroyShader(UInt32 cid,             // IN
-						  UInt32 shid,            // IN
+bool CLASS::DestroyShader(uint32_t cid,           // IN
+						  uint32_t shid,          // IN
 						  SVGA3dShaderType type)  // IN
 {
 	SVGA3dCmdDestroyShader* cmd;
@@ -313,11 +313,11 @@ bool CLASS::DestroyShader(UInt32 cid,             // IN
 	return true;
 }
 
-IOReturn CLASS::SetShaderConst(UInt32 cid,                   // IN
-						   UInt32 reg,                   // IN
-						   SVGA3dShaderType type,        // IN
-						   SVGA3dShaderConstType ctype,  // IN
-						   void const* value)            // IN
+IOReturn CLASS::SetShaderConst(uint32_t cid,                 // IN
+							   uint32_t reg,                 // IN
+							   SVGA3dShaderType type,        // IN
+							   SVGA3dShaderConstType ctype,  // IN
+							   void const* value)            // IN
 {
 	SVGA3dCmdSetShaderConst* cmd;
 	cmd = static_cast<SVGA3dCmdSetShaderConst*>(FIFOReserve(SVGA_3D_CMD_SET_SHADER_CONST, sizeof *cmd));
@@ -335,7 +335,7 @@ IOReturn CLASS::SetShaderConst(UInt32 cid,                   // IN
 			break;
 		case SVGA3D_CONST_TYPE_BOOL:
 			bzero(&cmd->values, sizeof cmd->values);
-			cmd->values[0] = *static_cast<UInt32 const*>(value);
+			cmd->values[0] = *static_cast<uint32_t const*>(value);
 			break;
 		default:
 			SLog("%s: SVGA3D: Bad shader constant type.\n", __FUNCTION__);
@@ -347,9 +347,9 @@ IOReturn CLASS::SetShaderConst(UInt32 cid,                   // IN
 	return kIOReturnSuccess;
 }
 
-bool CLASS::SetShader(UInt32 cid,             // IN
+bool CLASS::SetShader(uint32_t cid,           // IN
 					  SVGA3dShaderType type,  // IN
-					  UInt32 shid)            // IN
+					  uint32_t shid)          // IN
 {
 	SVGA3dCmdSetShader* cmd;
 	cmd = static_cast<SVGA3dCmdSetShader*>(FIFOReserve(SVGA_3D_CMD_SET_SHADER, sizeof *cmd));
@@ -362,7 +362,7 @@ bool CLASS::SetShader(UInt32 cid,             // IN
 	return true;
 }
 
-bool CLASS::BeginPresent(UInt32 sid,              // IN
+bool CLASS::BeginPresent(uint32_t sid,            // IN
 						 SVGA3dCopyRect **rects,  // OUT
 						 size_t numRects)         // IN
 {
@@ -375,11 +375,11 @@ bool CLASS::BeginPresent(UInt32 sid,              // IN
 	return true;
 }
 
-bool CLASS::BeginClear(UInt32 cid,             // IN
+bool CLASS::BeginClear(uint32_t cid,           // IN
 					   SVGA3dClearFlag flags,  // IN
-					   UInt32 color,           // IN
+					   uint32_t color,         // IN
 					   float depth,            // IN
-					   UInt32 stencil,         // IN
+					   uint32_t stencil,       // IN
 					   SVGA3dRect **rects,     // OUT
 					   size_t numRects)        // IN
 {
@@ -396,7 +396,7 @@ bool CLASS::BeginClear(UInt32 cid,             // IN
 	return true;
 }
 
-bool CLASS::BeginDrawPrimitives(UInt32 cid,                    // IN
+bool CLASS::BeginDrawPrimitives(uint32_t cid,                  // IN
 								SVGA3dVertexDecl **decls,      // OUT
 								size_t numVertexDecls,         // IN
 								SVGA3dPrimitiveRange **ranges, // OUT
@@ -413,14 +413,16 @@ bool CLASS::BeginDrawPrimitives(UInt32 cid,                    // IN
 		return false;
 
 	cmd->cid = cid;
-	cmd->numVertexDecls = static_cast<UInt32>(numVertexDecls);
-	cmd->numRanges = static_cast<UInt32>(numRanges);
+	cmd->numVertexDecls = static_cast<uint32_t>(numVertexDecls);
+	cmd->numRanges = static_cast<uint32_t>(numRanges);
 
 	declArray = reinterpret_cast<SVGA3dVertexDecl*>(&cmd[1]);
 	rangeArray = reinterpret_cast<SVGA3dPrimitiveRange*>(&declArray[numVertexDecls]);
 
+#if 0
 	bzero(declArray, declSize);
 	bzero(rangeArray, rangeSize);
+#endif
 
 	*decls = declArray;
 	*ranges = rangeArray;
@@ -466,7 +468,7 @@ bool CLASS::SurfaceStretchBlt(SVGA3dSurfaceImageId const* src,   // IN
 	return true;
 }
 
-bool CLASS::SetViewport(UInt32 cid,        // IN
+bool CLASS::SetViewport(uint32_t cid,        // IN
 						SVGA3dRect const* rect)  // IN
 {
 	SVGA3dCmdSetViewport *cmd;
@@ -479,7 +481,7 @@ bool CLASS::SetViewport(UInt32 cid,        // IN
 	return true;
 }
 
-bool CLASS::SetZRange(UInt32 cid,  // IN
+bool CLASS::SetZRange(uint32_t cid,// IN
 					  float zMin,  // IN
 					  float zMax)  // IN
 {
@@ -494,7 +496,7 @@ bool CLASS::SetZRange(UInt32 cid,  // IN
 	return true;
 }
 
-bool CLASS::BeginSetTextureState(UInt32 cid,                   // IN
+bool CLASS::BeginSetTextureState(uint32_t cid,                 // IN
 								 SVGA3dTextureState **states,  // OUT
 								 size_t numStates)             // IN
 {
@@ -507,7 +509,7 @@ bool CLASS::BeginSetTextureState(UInt32 cid,                   // IN
 	return true;
 }
 
-bool CLASS::BeginSetRenderState(UInt32 cid,                  // IN
+bool CLASS::BeginSetRenderState(uint32_t cid,                // IN
 								SVGA3dRenderState **states,  // OUT
 								size_t numStates)            // IN
 {
@@ -533,10 +535,10 @@ bool CLASS::BeginPresentReadback(SVGA3dRect **rects,  // OUT
 
 bool CLASS::BeginBlitSurfaceToScreen(SVGA3dSurfaceImageId const* srcImage,
 									 SVGASignedRect const* srcRect,
-									 UInt32 destScreenId,
+									 uint32_t destScreenId,
 									 SVGASignedRect const* destRect,
 									 SVGASignedRect** clipRects,
-									 UInt32 numClipRects)
+									 uint32_t numClipRects)
 {
 	SVGA3dCmdBlitSurfaceToScreen* cmd = static_cast<SVGA3dCmdBlitSurfaceToScreen*>(FIFOReserve(SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN,
 																							   sizeof *cmd + numClipRects * sizeof(SVGASignedRect)));

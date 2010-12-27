@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on October 11th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -38,11 +38,9 @@ class VMsvga2Device: public IOUserClient
 
 private:
 	task_t m_owning_task;
-	class VMsvga2Accel* m_provider;
-	IOExternalMethod* m_funcs_cache;
-	SInt32 m_log_level;
+	class VMsvga2Accel* m_provider;	// offset 0x84
+	int m_log_level;
 
-	class IOMemoryDescriptor* m_channel_memory;
 	class IOMemoryMap* m_channel_memory_map;
 
 	void Cleanup();
@@ -59,17 +57,22 @@ public:
 #endif
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
-	static VMsvga2Device* withTask(task_t owningTask, void* securityToken, UInt32 type);
+	static VMsvga2Device* withTask(task_t owningTask, void* securityToken, uint32_t type);
+
+	/*
+	 * Interface for VMsvga2GLContext
+	 */
+	task_t getOwningTask() const { return m_owning_task; }
 
 	/*
 	 * Methods from IONVDevice
 	 */
 	IOReturn create_shared();
-	IOReturn get_config(UInt32*, UInt32*, UInt32*, UInt32*, UInt32*);
-	IOReturn get_surface_info(uintptr_t, UInt32*, UInt32*, UInt32*);
+	IOReturn get_config(uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+	IOReturn get_surface_info(uintptr_t, uint32_t*, uint32_t*, uint32_t*);
 	IOReturn get_name(char*, size_t*);
 	IOReturn wait_for_stamp(uintptr_t);
-	IOReturn new_texture(struct VendorNewTextureDataRec const*,
+	IOReturn new_texture(struct VendorNewTextureDataStruc const*,
 						 struct sIONewTextureReturnData*,
 						 size_t,
 						 size_t*);
@@ -81,9 +84,9 @@ public:
 	 * NVDevice Methods
 	 */
 	IOReturn kernel_printf(char const*, size_t);
-	IOReturn nv_rm_config_get(UInt32 const*, UInt32*, size_t, size_t*);
-	IOReturn nv_rm_config_get_ex(UInt32 const*, UInt32*, size_t, size_t*);
-	IOReturn nv_rm_control(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn nv_rm_config_get(uint32_t const*, uint32_t*, size_t, size_t*);
+	IOReturn nv_rm_config_get_ex(uint32_t const*, uint32_t*, size_t, size_t*);
+	IOReturn nv_rm_control(uint32_t const*, uint32_t*, size_t, size_t*);
 };
 
 #endif /* __VMSVGA2DEVICE_H__ */

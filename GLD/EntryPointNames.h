@@ -29,13 +29,13 @@
 #ifndef __ENTRYPOINTNAMES_H__
 #define __ENTRYPOINTNAMES_H__
 
-#define NUM_ENTRIES 75
+#define NUM_ENTRIES 92
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern char const* const entry_point_names[NUM_ENTRIES] __attribute__((visibility("hidden")));
+extern char const* const entry_point_names[NUM_ENTRIES];
 
 #ifdef __cplusplus
 }

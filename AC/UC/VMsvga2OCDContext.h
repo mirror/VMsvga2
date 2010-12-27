@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on October 11th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -39,8 +39,7 @@ class VMsvga2OCDContext: public IOUserClient
 private:
 	task_t m_owning_task;
 	class VMsvga2Accel* m_provider;
-	IOExternalMethod* m_funcs_cache;
-	SInt32 m_log_level;
+	int m_log_level;
 
 public:
 	/*
@@ -53,7 +52,7 @@ public:
 	IOReturn registerNotificationPort(mach_port_t port, UInt32 type, UInt32 refCon);
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
-	static VMsvga2OCDContext* withTask(task_t owningTask, void* securityToken, UInt32 type);
+	static VMsvga2OCDContext* withTask(task_t owningTask, void* securityToken, uint32_t type);
 
 	/*
 	 * Methods from IONVOCDContext
@@ -67,7 +66,7 @@ public:
 	IOReturn check_error_notifier(struct NvNotificationRec volatile*, size_t*);
 	IOReturn mark_texture_for_ocd_use(uintptr_t);
 	IOReturn FreeEvent();
-	IOReturn GetHandleIndex(UInt32*, UInt32*);
+	IOReturn GetHandleIndex(uint32_t*, uint32_t*);
 };
 
 #endif /* __VMSVGA2OCDCONTEXT_H__ */

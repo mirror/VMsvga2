@@ -99,8 +99,10 @@ bool CLASS::Init()
 {
 	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = 0;
-	m_bar0 = 0;
-	m_bar2 = 0;
+#if 0
+	m_bar0_map = 0;
+#endif
+	m_bar2_map = 0;
 	m_fifo_ptr = 0;
 	m_cursor_ptr = 0;
 	m_bounce_buffer = 0;
@@ -109,29 +111,48 @@ bool CLASS::Init()
 	return true;
 }
 
+/*
+ * Note: GCC produces incorrect code when inlining ReadReg & WriteReg
+ *   due to mishandling register-clobber in __asm__.
+ */
+__attribute__((noinline))
 uint32_t CLASS::ReadReg(uint32_t index)
 {
-	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0);
-	return m_provider->ioRead32(SVGA_VALUE_PORT, m_bar0);
+#if 0
+	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0_map);
+	return m_provider->ioRead32(SVGA_VALUE_PORT, m_bar0_map);
+#else
+	__asm__ volatile ( "outl %0, %1" : : "a"(index), "d"(static_cast<uint16_t>(m_io_base + SVGA_INDEX_PORT)) );
+	__asm__ ( "inl %1, %0" : "=a"(index) : "d"(static_cast<uint16_t>(m_io_base + SVGA_VALUE_PORT)) );
+	return index;
+#endif
 }
 
+__attribute__((noinline))
 void CLASS::WriteReg(uint32_t index, uint32_t value)
 {
-	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0);
-	m_provider->ioWrite32(SVGA_VALUE_PORT, value, m_bar0);
+#if 0
+	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0_map);
+	m_provider->ioWrite32(SVGA_VALUE_PORT, value, m_bar0_map);
+#else
+	__asm__ volatile ( "outl %0, %1" : : "a"(index), "d"(static_cast<uint16_t>(m_io_base + SVGA_INDEX_PORT)) );
+	__asm__ volatile ( "outl %0, %1" : : "a"(value), "d"(static_cast<uint16_t>(m_io_base + SVGA_VALUE_PORT)) );
+#endif
 }
 
 void CLASS::Cleanup()
 {
 	if (m_provider)
 		m_provider = 0;
-	if (m_bar0) {
-		m_bar0->release();
-		m_bar0 = 0;
+#if 0
+	if (m_bar0_map) {
+		m_bar0_map->release();
+		m_bar0_map = 0;
 	}
-	if (m_bar2) {
-		m_bar2->release();
-		m_bar2 = 0;
+#endif
+	if (m_bar2_map) {
+		m_bar2_map->release();
+		m_bar2_map = 0;
 	}
 	m_fifo_ptr = 0;
 	if (m_bounce_buffer) {
@@ -144,7 +165,7 @@ void CLASS::Cleanup()
 IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 {
 	uint32_t host_bpp, guest_bpp, reg_id;
-	IODeviceMemory* bar1;
+	IODeviceMemory *bar1, *bar2;
 
 	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = provider;
@@ -153,47 +174,43 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 				  m_provider->getBusNumber(),
 				  m_provider->getDeviceNumber(),
 				  m_provider->getFunctionNumber());
-		LogPrintf(3, "%s: PCI device 0x%04x vendor 0x%04x revision 0x%02x\n", __FUNCTION__,
+		LogPrintf(3, "%s: PCI device %#04x vendor %#04x revision %#02x\n", __FUNCTION__,
 				  m_provider->configRead16(kIOPCIConfigDeviceID),
 				  m_provider->configRead16(kIOPCIConfigVendorID),
 				  m_provider->configRead8(kIOPCIConfigRevisionID));
-		LogPrintf(3, "%s: PCI subsystem 0x%04x vendor 0x%04x\n", __FUNCTION__,
+		LogPrintf(3, "%s: PCI subsystem %#04x vendor %#04x\n", __FUNCTION__,
 				  m_provider->configRead16(kIOPCIConfigSubSystemID),
 				  m_provider->configRead16(kIOPCIConfigSubSystemVendorID));
 	}
 	m_provider->setMemoryEnable(true);
-	m_bar0 = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0);
-	if (!m_bar0) {
+	m_provider->setIOEnable(true);
+#if 0
+	m_bar0_map = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0);
+	if (!m_bar0_map) {
 		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
 		Cleanup();
 		return 0;
 	}
-	bar1 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
-	if (!bar1) {
-		LogPrintf(1, "%s: Failed to retrieve the VRAM memory descriptor.\n", __FUNCTION__);
+	m_io_base = static_cast<uint16_t>(m_bar0_map->getVirtualAddress());
+#else
+	m_io_base = static_cast<uint16_t>(m_provider->configRead32(kIOPCIConfigBaseAddress0));
+	if (!(m_io_base & 1U)) {
+		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
 		Cleanup();
 		return 0;
 	}
-	m_bar2 = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
-	if (!m_bar2) {
-		LogPrintf(1, "%s: Failed to map the FIFO.\n", __FUNCTION__);
-		Cleanup();
-		return 0;
-	}
-	m_fifo_ptr = reinterpret_cast<uint32_t*>(m_bar2->getVirtualAddress());
-#ifdef TESTING
-	test_ram_size("SVGADevice", reinterpret_cast<IOVirtualAddress>(m_fifo_ptr), m_bar2->getLength());
+	m_io_base &= ~1U;
 #endif
 	WriteReg(SVGA_REG_ID, SVGA_ID_2);
 	reg_id = ReadReg(SVGA_REG_ID);
-	LogPrintf(3, "%s: REG_ID=0x%08x\n", __FUNCTION__, reg_id);
+	LogPrintf(3, "%s: REG_ID=%#08x\n", __FUNCTION__, reg_id);
 	if (reg_id != SVGA_ID_2) {
-		LogPrintf(1, "%s: REG_ID != 0x%08lx\n", __FUNCTION__, SVGA_ID_2);
+		LogPrintf(1, "%s: REG_ID != %#08lx\n", __FUNCTION__, SVGA_ID_2);
 		Cleanup();
 		return 0;
 	}
 	m_capabilities = ReadReg(SVGA_REG_CAPABILITIES);
-	LogPrintf(3, "%s: caps=0x%08x\n", __FUNCTION__, m_capabilities);
+	LogPrintf(3, "%s: caps=%#08x\n", __FUNCTION__, m_capabilities);
 #ifdef REQUIRE_TRACING
 	if (!HasCapability(SVGA_CAP_TRACES)) {
 		LogPrintf(1, "%s: CAP_TRACES failed\n", __FUNCTION__);
@@ -202,6 +219,30 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 	}
 #endif
 	m_fifo_size = ReadReg(SVGA_REG_MEM_SIZE);
+	bar1 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
+	if (!bar1) {
+		LogPrintf(1, "%s: Failed to retrieve the VRAM memory descriptor.\n", __FUNCTION__);
+		Cleanup();
+		return 0;
+	}
+	bar2 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
+	if (!bar2) {
+	bar2_error:
+		LogPrintf(1, "%s: Failed to map the FIFO.\n", __FUNCTION__);
+		Cleanup();
+		return 0;
+	}
+	m_bar2_map = bar2->createMappingInTask(kernel_task,
+										   0U,
+										   kIOMapAnywhere,
+										   0U,
+										   m_fifo_size);
+	if (!m_bar2_map)
+		goto bar2_error;
+	m_fifo_ptr = reinterpret_cast<uint32_t*>(m_bar2_map->getVirtualAddress());
+#ifdef TESTING
+	test_ram_size("SVGADevice", reinterpret_cast<IOVirtualAddress>(m_fifo_ptr), m_bar2_map->getLength());
+#endif
 	m_fb_offset = ReadReg(SVGA_REG_FB_OFFSET);
 	m_fb_size = ReadReg(SVGA_REG_FB_SIZE);
 	m_vram_size = ReadReg(SVGA_REG_VRAM_SIZE);
@@ -691,7 +732,7 @@ bool CLASS::VideoFlush(uint32_t streamId)
 #pragma mark Added Methods
 #pragma mark -
 
-bool CLASS::get3DHWVersion(UInt32* HWVersion)
+bool CLASS::get3DHWVersion(uint32_t* HWVersion)
 {
 	if (!HWVersion)
 		return false;
@@ -710,35 +751,44 @@ void CLASS::RegDump()
 	m_provider->setProperty("VMwareSVGADump", static_cast<void*>(&regs[0]), static_cast<unsigned>(sizeof regs));
 }
 
-bool CLASS::RectCopy(UInt32 const* copyRect)
+bool CLASS::RectCopy(uint32_t const* copyRect)
 {
 	SVGAFifoCmdRectCopy* cmd = static_cast<SVGAFifoCmdRectCopy*>(FIFOReserveCmd(SVGA_CMD_RECT_COPY, sizeof *cmd));
 	if (!cmd)
 		return false;
-	memcpy(&cmd->srcX, copyRect, 6U * sizeof(UInt32));
+	memcpy(&cmd->srcX, copyRect, 6U * sizeof(uint32_t));
 	FIFOCommitAll();
 	return true;
 }
 
-bool CLASS::RectFill(UInt32 color, UInt32 const* rect)
+bool CLASS::RectFill(uint32_t color, uint32_t const* rect)
 {
 	SVGAFifoCmdFrontRopFill* cmd = static_cast<SVGAFifoCmdFrontRopFill*>(FIFOReserveCmd(SVGA_CMD_FRONT_ROP_FILL, sizeof *cmd));
 	if (!cmd)
 		return false;
 	cmd->color = color;
-	memcpy(&cmd->x, rect, 4U * sizeof(UInt32));
+	memcpy(&cmd->x, rect, 4U * sizeof(uint32_t));
 	cmd->rop = SVGA_ROP_COPY;
 	FIFOCommitAll();
 	return true;
 }
 
-bool CLASS::UpdateFramebuffer2(UInt32 const* rect)
+bool CLASS::UpdateFramebuffer2(uint32_t const* rect)
 {
 	SVGAFifoCmdUpdate* cmd = static_cast<SVGAFifoCmdUpdate*>(FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd));
 	if (!cmd)
 		return false;
-	memcpy(&cmd->x, rect, 4U * sizeof(UInt32));
+	memcpy(&cmd->x, rect, 4U * sizeof(uint32_t));
 	FIFOCommitAll();
+	return true;
+}
+
+bool CLASS::defineGMR(uint32_t gmrID, uint32_t ppn)
+{
+	if (!HasCapability(SVGA_CAP_GMR))
+		return false;
+	WriteReg(SVGA_REG_GMR_ID, gmrID);
+	WriteReg(SVGA_REG_GMR_DESCRIPTOR, ppn);
 	return true;
 }
 

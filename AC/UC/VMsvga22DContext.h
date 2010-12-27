@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 10th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -43,27 +43,27 @@ class VMsvga22DContext: public IOUserClient
 private:
 	task_t m_owning_task;
 	class VMsvga2Accel* m_provider;
-	IOExternalMethod* m_funcs_cache;
-	SInt32 m_log_level;
+	int m_log_level;
 
 	unsigned bTargetIsCGSSurface:1;
 	class VMsvga2Surface* surface_client;
-	UInt32 framebufferIndex;
+	uint32_t framebufferIndex;
 
-	IOReturn locateSurface(UInt32 surface_id);
+	class VMsvga2Surface* findSurface(uint32_t surface_id);
+	IOReturn locateSurface(uint32_t surface_id);
 
 public:
+	/*
+	 * Methods overridden from superclass
+	 */
 	IOExternalMethod* getTargetAndMethodForIndex(IOService** targetP, UInt32 index);
 	IOReturn clientClose();
 #if 0
 	IOReturn clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory);
 #endif
-	/*
-	 * Methods overridden from superclass
-	 */
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
-	static VMsvga22DContext* withTask(task_t owningTask, void* securityToken, UInt32 type);
+	static VMsvga22DContext* withTask(task_t owningTask, void* securityToken, uint32_t type);
 
 	/*
 	 * GA Support Methods
@@ -87,16 +87,16 @@ public:
 	 * IONV2DContext
 	 */
 	IOReturn set_surface(uintptr_t surface_id, eIOContextModeBits options, void* struct_out, size_t* struct_out_size);
-	IOReturn get_config(UInt32* config_1, UInt32* config_2);
+	IOReturn get_config(uint32_t* config_1, uint32_t* config_2);
 	IOReturn get_surface_info1(uintptr_t, eIOContextModeBits, void*, size_t*);
-	IOReturn swap_surface(uintptr_t options, UInt32* swapFlags);
+	IOReturn swap_surface(uintptr_t options, uint32_t* swapFlags);
 	IOReturn scale_surface(uintptr_t options, uintptr_t width, uintptr_t height);
-	IOReturn lock_memory(uintptr_t options, UInt64* struct_out, size_t* struct_out_size);
-	IOReturn unlock_memory(uintptr_t options, UInt32* swapFlags);
+	IOReturn lock_memory(uintptr_t options, uint64_t* struct_out, size_t* struct_out_size);
+	IOReturn unlock_memory(uintptr_t options, uint32_t* swapFlags);
 	IOReturn finish(uintptr_t options);
-	IOReturn declare_image(UInt64 const*, UInt64*, size_t, size_t*);
-	IOReturn create_image(uintptr_t, uintptr_t, UInt64*, size_t*);
-	IOReturn create_transfer(uintptr_t, uintptr_t, UInt64*, size_t*);
+	IOReturn declare_image(uint64_t const*, uint64_t*, size_t, size_t*);
+	IOReturn create_image(uintptr_t, uintptr_t, uint64_t*, size_t*);
+	IOReturn create_transfer(uintptr_t, uintptr_t, uint64_t*, size_t*);
 	IOReturn delete_image(uintptr_t image_id);
 	IOReturn wait_image(uintptr_t image_id);
 	IOReturn set_surface_paging_options(IOSurfacePagingControlInfoStruct const*,
@@ -112,9 +112,9 @@ public:
 	/*
 	 * NV2DContext
 	 */
-	IOReturn read_configs(UInt32 const*, UInt32*, size_t, size_t*);
-	IOReturn read_config_Ex(UInt32 const*, UInt32*, size_t, size_t*);
-	IOReturn get_surface_info2(UInt32 const*, UInt32*, size_t, size_t*);
+	IOReturn read_configs(uint32_t const*, uint32_t*, size_t, size_t*);
+	IOReturn read_config_Ex(uint32_t const*, uint32_t*, size_t, size_t*);
+	IOReturn get_surface_info2(uint32_t const*, uint32_t*, size_t, size_t*);
 	IOReturn kernel_printf(char const*, size_t);
 };
 

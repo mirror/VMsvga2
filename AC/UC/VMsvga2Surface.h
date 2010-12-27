@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -42,8 +42,7 @@ private:
 	 */
 	task_t m_owning_task;
 	class VMsvga2Accel* m_provider;
-	IOExternalMethod* m_funcs_cache;
-	SInt32 m_log_level;
+	int m_log_level;
 
 	/*
 	 * Flags
@@ -63,31 +62,31 @@ private:
 		vmSurfaceLockWrite = 1U,
 		vmSurfaceLockContext = 2U
 	};
-	UInt8 volatile bIsLocked;
+	uint8_t volatile bIsLocked;
 
 	/*
 	 * ID stuff
 	 */
-	UInt32 m_wID;
+	uint32_t m_wID;
 	SVGA3dSurfaceFormat m_surfaceFormat;
-	UInt32 m_bytes_per_pixel;
-	UInt32 m_pixel_format;
+	uint32_t m_bytes_per_pixel;
+	uint32_t m_pixel_format;
 
 	/*
 	 * 3D stuff
 	 */
-	UInt32 m_aux_surface_id[2];
-	UInt32 m_aux_context_id;
+	uint32_t m_aux_surface_id[2];
+	uint32_t m_aux_context_id;
 
 	/*
 	 * Backing stuff
 	 */
 	struct {
-		UInt8* self;
+		uint8_t* self;
 		vm_offset_t offset;
 		vm_size_t size;
 		IOMemoryMap* map[2];
-		UInt32 last_DMA_fence;
+		uint32_t last_DMA_fence;
 	} m_backing;
 
 	/*
@@ -104,7 +103,7 @@ private:
 	 */
 	OSData* m_last_shape;
 	IOAccelDeviceRegion const* m_last_region;
-	UInt32 m_framebufferIndex;
+	uint32_t m_framebufferIndex;
 
 	/*
 	 * Scale stuff
@@ -115,7 +114,7 @@ private:
 	 * For timed presents
 	 */
 #ifdef TIMED_PRESENT
-	UInt64 m_last_present_time;
+	uint64_t m_last_present_time;
 #endif
 
 	/*
@@ -127,8 +126,8 @@ private:
 	 * Video stuff
 	 */
 	struct {
-		UInt32 stream_id;
-		UInt32 vmware_pixel_format;
+		uint32_t stream_id;
+		uint32_t vmware_pixel_format;
 		SVGAOverlayUnit	unit;
 	} m_video;
 
@@ -158,22 +157,25 @@ private:
 	void calculateSurfaceInformation(IOAccelSurfaceInformation* info);
 	void calculateScaleParameters(bool bFromGFB = false);
 	void clipRegionToBuffer(IOAccelDeviceRegion* region,
-							SInt32 deltaX,
-							SInt32 deltaY);
+							int deltaX,
+							int deltaY);
 
 	/*
 	 * Private support methods - backing
 	 */
 	bool allocBacking();
-	bool mapBacking(task_t for_task, UInt32 index);
+	bool mapBacking(task_t for_task, uint32_t index);
 	void releaseBacking();
-	void releaseBackingMap(UInt32 index);
+	void releaseBackingMap(uint32_t index);
 
 	/*
 	 * Private support methods - client backing
 	 */
 	IOReturn copy_to_client_backing();
 	IOReturn copy_from_client_backing();
+	IOReturn copy_from_screen_to_client_backing(uint32_t framebufferIndex,
+												IOAccelDeviceRegion const* region,
+												void* extra);
 
 	/*
 	 * Private support methods - 3D
@@ -226,23 +228,34 @@ public:
 	IOReturn message(UInt32 type, IOService* provider, void* argument = 0);
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
-	static VMsvga2Surface* withTask(task_t owningTask, void* securityToken, UInt32 type);
+	static VMsvga2Surface* withTask(task_t owningTask, void* securityToken, uint32_t type);
 
 	/*
 	 * Interface for VMsvga22DContext
 	 */
-	IOReturn context_set_surface(UInt32 vmware_pixel_format, UInt32 apple_pixel_format);
-	IOReturn context_scale_surface(IOOptionBits options, UInt32 width, UInt32 height);
+	IOReturn context_set_surface(uint32_t vmware_pixel_format, uint32_t apple_pixel_format);
+	IOReturn context_scale_surface(IOOptionBits options, uint32_t width, uint32_t height);
 	IOReturn context_lock_memory(task_t context_owning_task,
 								 mach_vm_address_t* address,
 								 mach_vm_size_t* rowBytes);
-	IOReturn context_unlock_memory(UInt32* swapFlags);
-	IOReturn context_copy_region(SInt32 destX,
-								 SInt32 destY,
-								 IOAccelDeviceRegion const* region,
-								 size_t regionSize);
+	IOReturn context_unlock_memory(uint32_t* swapFlags);
+	IOReturn copy_framebuffer_region_to_self(uint32_t framebufferIndex,
+											 int destX,
+											 int destY,
+											 IOAccelDeviceRegion const* region,
+											 size_t regionSize);
+	IOReturn copy_self_region_to_framebuffer(uint32_t framebufferIndex,
+											 int destX,
+											 int destY,
+											 IOAccelDeviceRegion const* region,
+											 size_t regionSize);
+	IOReturn copy_surface_region_to_self(class VMsvga2Surface* source_surface,
+										 int destX,
+										 int destY,
+										 IOAccelDeviceRegion const* region,
+										 size_t regionSize);
 	IOReturn surface_video_off();
-	IOReturn surface_flush_video(UInt32* swapFlags);
+	IOReturn surface_flush_video(uint32_t* swapFlags);
 
 	/*
 	 * IOAccelSurfaceConnect
@@ -273,7 +286,7 @@ public:
 	IOReturn surface_read_unlock();
 	IOReturn surface_write_lock(IOAccelSurfaceInformation* info, size_t* infoSize);
 	IOReturn surface_write_unlock();
-	IOReturn surface_control(uintptr_t selector, uintptr_t arg, UInt32* result);
+	IOReturn surface_control(uintptr_t selector, uintptr_t arg, uint32_t* result);
 	IOReturn set_shape_backing_length(eIOAccelSurfaceShapeBits options,
 									  uintptr_t framebufferIndex,
 									  IOVirtualAddress backing,

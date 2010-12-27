@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -62,22 +62,23 @@ private:
 	/*
 	 * Logging and Options
 	 */
-	SInt32 m_log_level_ac;
-	SInt32 m_log_level_ga;
-	UInt32 m_options_ga;
+	int m_log_level_ac;
+	int m_log_level_ga;
+	int m_log_level_gld;
+	uint32_t m_options_ga;
 
 	/*
 	 * 3D area
 	 */
 	unsigned bHaveSVGA3D:1;
 	unsigned bHaveScreenObject:1;
-	UInt64 m_surface_id_mask;
-	UInt64 m_context_id_mask;
-	UInt64 m_gmr_id_mask;
-	UInt32 m_surface_ids_unmanaged;
-	UInt32 m_context_ids_unmanaged;
-	SInt32 volatile m_master_surface_retain_count;
-	UInt32 m_master_surface_id;
+	uint64_t m_surface_id_mask;
+	uint64_t m_context_id_mask;
+	uint64_t m_gmr_id_mask[2];
+	uint32_t m_surface_ids_unmanaged;
+	uint32_t m_context_ids_unmanaged;
+	int volatile m_master_surface_retain_count;
+	uint32_t m_master_surface_id;
 	IOReturn m_blitbug_result;
 
 	/*
@@ -88,7 +89,7 @@ private:
 	/*
 	 * Video area
 	 */
-	UInt32 m_stream_id_mask;
+	uint32_t m_stream_id_mask;
 
 	/*
 	 * OS 10.6 specific
@@ -110,7 +111,7 @@ private:
 #ifdef TIMING
 	void timeSyncs();
 #endif
-	bool createMasterSurface(UInt32 width, UInt32 height);
+	bool createMasterSurface(uint32_t width, uint32_t height);
 	void destroyMasterSurface();
 	void processOptions();
 	IOReturn findFramebuffer();
@@ -141,36 +142,36 @@ public:
 	 */
 	IOReturn SyncFIFO();
 	IOReturn RingDoorBell();
-	IOReturn SyncToFence(UInt32 fence);
+	IOReturn SyncToFence(uint32_t fence);
 
 	/*
 	 * Methods for supporting VMsvga22DContext
 	 */
 	IOReturn useAccelUpdates(bool state, task_t owningTask);
-	IOReturn RectCopy(UInt32 framebufferIndex,
+	IOReturn RectCopy(uint32_t framebufferIndex,
 					  struct IOBlitCopyRectangleStruct const* copyRects,
 					  size_t copyRectsSize);
 #if 0
-	IOReturn RectFillScreen(UInt32 framebufferIndex,
-							UInt32 color,
+	IOReturn RectFillScreen(uint32_t framebufferIndex,
+							uint32_t color,
 							struct IOBlitRectangleStruct const* rects,
 							size_t numRects);
-	IOReturn RectFill3D(UInt32 color,
+	IOReturn RectFill3D(uint32_t color,
 						struct IOBlitRectangleStruct const* rects,
 						size_t numRects);
 #endif
-	IOReturn RectFill(UInt32 framebufferIndex,
-					  UInt32 color,
+	IOReturn RectFill(uint32_t framebufferIndex,
+					  uint32_t color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t rectsSize);
-	IOReturn UpdateFramebufferAutoRing(UInt32 const* rect);	// rect is an array of 4 UInt32 - x, y, width, height
-	IOReturn CopyRegion(UInt32 framebufferIndex,
-						SInt32 destX,
-						SInt32 destY,
+	IOReturn UpdateFramebufferAutoRing(uint32_t const* rect);	// rect is an array of 4 uint32_t - x, y, width, height
+	IOReturn CopyRegion(uint32_t framebufferIndex,
+						int destX,
+						int destY,
 						void /* IOAccelDeviceRegion */ const* region,
 						size_t regionSize);
 	struct FindSurface {
-		UInt32 cgsSurfaceID;
+		uint32_t cgsSurfaceID;
 		OSObject* client;
 	};
 
@@ -178,90 +179,107 @@ public:
 	 * Methods for supporting VMsvga2Surface
 	 */
 	struct ExtraInfo {
-		vm_offset_t mem_offset_in_bar1;
+		vm_offset_t mem_offset_in_gmr;
 		vm_size_t mem_pitch;
-		SInt32 srcDeltaX;
-		SInt32 srcDeltaY;
-		SInt32 dstDeltaX;
-		SInt32 dstDeltaY;
+		int srcDeltaX;
+		int srcDeltaY;
+		int dstDeltaX;
+		int dstDeltaY;
+		uint32_t mem_gmr_id;
 	};
 	/*
 	 * SVGA3D Methods
 	 */
-	IOReturn createSurface(UInt32 sid,
+	IOReturn createSurface(uint32_t sid,
 						   SVGA3dSurfaceFlags surfaceFlags,
 						   SVGA3dSurfaceFormat surfaceFormat,
-						   UInt32 width,
-						   UInt32 height);
-	IOReturn destroySurface(UInt32 sid);
-	IOReturn surfaceDMA2D(UInt32 sid,
+						   uint32_t width,
+						   uint32_t height);
+	IOReturn destroySurface(uint32_t sid);
+	IOReturn surfaceDMA2D(uint32_t sid,
 						  SVGA3dTransferType transfer,
 						  void /* IOAccelDeviceRegion */ const* region,
 						  ExtraInfo const* extra,
-						  UInt32* fence = 0);
-	IOReturn surfaceCopy(UInt32 src_sid,
-						 UInt32 dst_sid,
+						  uint32_t* fence = 0);
+	IOReturn surfaceCopy(uint32_t src_sid,
+						 uint32_t dst_sid,
 						 void /* IOAccelDeviceRegion */ const* region,
 						 ExtraInfo const* extra);
-	IOReturn surfaceStretch(UInt32 src_sid,
-							UInt32 dst_sid,
+	IOReturn surfaceStretch(uint32_t src_sid,
+							uint32_t dst_sid,
 							SVGA3dStretchBltMode mode,
 							void /* IOAccelBounds */ const* src_rect,
 							void /* IOAccelBounds */ const* dest_rect);
-	IOReturn surfacePresentAutoSync(UInt32 sid,
+	IOReturn surfacePresentAutoSync(uint32_t sid,
 									void /* IOAccelDeviceRegion */ const* region,
 									ExtraInfo const* extra);
 	IOReturn surfacePresentReadback(void /* IOAccelDeviceRegion */ const* region);
 #if 0
-	IOReturn setupRenderContext(UInt32 cid,
-								UInt32 color_sid,
-								UInt32 depth_sid,
-								UInt32 width,
-								UInt32 height);
+	IOReturn setupRenderContext(uint32_t cid,
+								uint32_t color_sid,
+								uint32_t depth_sid,
+								uint32_t width,
+								uint32_t height);
 #else
-	IOReturn setupRenderContext(UInt32 cid,
-								UInt32 color_sid);
+	IOReturn setRenderTarget(uint32_t cid,
+							 SVGA3dRenderTargetType rtype,
+							 uint32_t sid);
 #endif
-	IOReturn clearContext(UInt32 cid,
-						  SVGA3dClearFlag flags,
-						  void /* IOAccelDeviceRegion */ const* region,
-						  UInt32 color,
-						  float depth,
-						  UInt32 stencil);
-	IOReturn createContext(UInt32 cid);
-	IOReturn destroyContext(UInt32 cid);
-	bool createClearSurface(UInt32 sid,
-							UInt32 cid,
+	IOReturn clear(uint32_t cid,
+				   SVGA3dClearFlag flags,
+				   void /* IOAccelDeviceRegion */ const* region,
+				   uint32_t color,
+				   float depth,
+				   uint32_t stencil);
+	IOReturn createContext(uint32_t cid);
+	IOReturn destroyContext(uint32_t cid);
+	bool createClearSurface(uint32_t sid,
+							uint32_t cid,
 							SVGA3dSurfaceFormat format,
-							UInt32 width,
-							UInt32 height,
-							UInt32 color = 0);
+							uint32_t width,
+							uint32_t height,
+							uint32_t color = 0U);
+	IOReturn drawPrimitives(uint32_t cid,
+							uint32_t numVertexDecls,
+							uint32_t numRanges,
+							SVGA3dVertexDecl const* decls,
+							SVGA3dPrimitiveRange const* ranges);
+	IOReturn setTextureState(uint32_t cid,
+							 uint32_t numStates,
+							 SVGA3dTextureState const* states);
+	IOReturn setRenderState(uint32_t cid,
+							uint32_t numStates,
+							SVGA3dRenderState const* states);
+	IOReturn setViewPort(uint32_t cid,
+						 void /* IOAccelBounds */ const* rect);
+	IOReturn setZRange(uint32_t cid, float zMin, float zMax);
+	IOReturn setTransform(uint32_t cid, SVGA3dTransformType type, float const* matrix);
 
 	/*
 	 * Screen Methods
 	 */
-	IOReturn blitFromScreen(UInt32 srcScreenId,
+	IOReturn blitFromScreen(uint32_t srcScreenId,
 							void /* IOAccelDeviceRegion */ const* region,
 							ExtraInfo const* extra,
-							UInt32* fence = 0);
-	IOReturn blitToScreen(UInt32 destScreenId,
+							uint32_t* fence = 0);
+	IOReturn blitToScreen(uint32_t destScreenId,
 						  void /* IOAccelDeviceRegion */ const* region,
 						  ExtraInfo const* extra,
-						  UInt32* fence = 0);
-	IOReturn blitSurfaceToScreen(UInt32 src_sid,
-								 UInt32 destScreenId,
+						  uint32_t* fence = 0);
+	IOReturn blitSurfaceToScreen(uint32_t src_sid,
+								 uint32_t destScreenId,
 								 void /* IOAccelBounds */ const* src_rect,
 								 void /* IOAccelDeviceRegion */ const* dest_region);
 	/*
 	 * GFB Methods
 	 */
-	IOReturn blitGFB(UInt32 framebufferIndex,
+	IOReturn blitGFB(uint32_t framebufferIndex,
 					 void /* IOAccelDeviceRegion */ const* region,
 					 ExtraInfo const* extra,
 					 vm_size_t limit,
 					 int direction);
 #if 0
-	IOReturn clearGFB(UInt32 color,
+	IOReturn clearGFB(uint32_t color,
 					  struct IOBlitRectangleStruct const* rects,
 					  size_t numRects);
 #endif
@@ -272,10 +290,11 @@ public:
 	IOReturn getScreenInfo(IOAccelSurfaceReadData* info);
 	bool retainMasterSurface();
 	void releaseMasterSurface();
-	UInt32 getMasterSurfaceID() const { return m_master_surface_id; }
-	SInt32 getLogLevelAC() const { return m_log_level_ac; }
-	SInt32 getLogLevelGA() const { return m_log_level_ga; }
-	UInt32 getOptionsGA() const { return m_options_ga; }
+	uint32_t getMasterSurfaceID() const { return m_master_surface_id; }
+	int getLogLevelAC() const { return m_log_level_ac; }
+	int getLogLevelGA() const { return m_log_level_ga; }
+	int getLogLevelGLD() const { return m_log_level_gld; }
+	uint32_t getOptionsGA() const { return m_options_ga; }
 	IOReturn getBlitBugResult() const { return m_blitbug_result; }
 	void cacheBlitBugResult(IOReturn r) { m_blitbug_result = r; }
 	void lockAccel();
@@ -283,36 +302,38 @@ public:
 	bool Have3D() const { return bHaveSVGA3D != 0; }
 	bool HaveScreen() const { return bHaveScreenObject != 0; }
 	bool HaveFrontBuffer() const { return bHaveScreenObject != 0 || bHaveSVGA3D != 0; }
+	bool HaveGLBaseline() const;
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
 	unsigned getSurfaceRootUUID() const { return m_surface_root_uuid; }
 #endif
 	IOMemoryDescriptor* getChannelMemory() const { return m_channel_memory; }
-	UInt32 getVRAMSize() const;
+	uint32_t getVRAMSize() const;
+	vm_offset_t offsetInVRAM(void* vram_ptr);
 
 	/*
 	 * Video Support
 	 */
-	IOReturn VideoSetRegsInRange(UInt32 streamId,
+	IOReturn VideoSetRegsInRange(uint32_t streamId,
 								 struct SVGAOverlayUnit const* regs,
-								 UInt32 regMin,
-								 UInt32 regMax,
-								 UInt32* fence = 0);
-	IOReturn VideoSetReg(UInt32 streamId,
-						 UInt32 registerId,
-						 UInt32 value,
-						 UInt32* fence = 0);
+								 uint32_t regMin,
+								 uint32_t regMax,
+								 uint32_t* fence = 0);
+	IOReturn VideoSetReg(uint32_t streamId,
+						 uint32_t registerId,
+						 uint32_t value,
+						 uint32_t* fence = 0);
 
 	/*
 	 * ID Allocation
 	 */
-	UInt32 AllocSurfaceID();
-	void FreeSurfaceID(UInt32 sid);
-	UInt32 AllocContextID();
-	void FreeContextID(UInt32 cid);
-	UInt32 AllocStreamID();
-	void FreeStreamID(UInt32 streamId);
-	UInt32 AllocGMRID();
-	void FreeGMRID(UInt32 gmrId);
+	uint32_t AllocSurfaceID();
+	void FreeSurfaceID(uint32_t sid);
+	uint32_t AllocContextID();
+	void FreeContextID(uint32_t cid);
+	uint32_t AllocStreamID();
+	void FreeStreamID(uint32_t streamId);
+	uint32_t AllocGMRID();
+	void FreeGMRID(uint32_t gmrId);
 
 	/*
 	 * Memory Support
@@ -321,6 +342,12 @@ public:
 	void* VRAMRealloc(void* ptr, size_t bytes);
 	void VRAMFree(void* ptr);
 	IOMemoryMap* mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_bar1, vm_size_t size);
+
+	/*
+	 * GMR Allocation
+	 */
+	IOReturn createGMR(uint32_t gmrId, IOMemoryDescriptor* md);
+	IOReturn destroyGMR(uint32_t gmrId);
 };
 
 #endif /* __VMSVGA2ACCEL_H__ */

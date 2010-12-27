@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 10th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -44,12 +44,15 @@
 OSDefineMetaClassAndStructors(VMsvga22DContext, IOUserClient);
 
 #if LOGGING_LEVEL >= 1
-#define TDLog(log_level, fmt, ...) do { if (log_level <= m_log_level) VLog("IO2D: ", fmt, ##__VA_ARGS__); } while (false)
+#define TDLog(log_level, ...) do { if (log_level <= m_log_level) VLog("IO2D: ", ##__VA_ARGS__); } while (false)
 #else
-#define TDLog(log_level, fmt, ...)
+#define TDLog(log_level, ...)
 #endif
 
-static IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
+#define HIDDEN __attribute__((visibility("hidden")))
+
+static
+IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
 {
 // Note: methods from IONV2DContext
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface), kIOUCScalarIStructO, 2, kIOUCVariableStructureSize},
@@ -100,7 +103,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 			*targetP = this;
 			break;
 	}
-	return &m_funcs_cache[index];
+	return &iofbFuncsCache[index];
 }
 
 IOReturn CLASS::clientClose()
@@ -124,7 +127,7 @@ IOReturn CLASS::clientClose()
 #if 0
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
-	TDLog(2, "%s(%u, %p, %p)\n", __FUNCTION__, type, options, memory);
+	TDLog(2, "%s(%u, options_out, memory_out)\n", __FUNCTION__, static_cast<unsigned>(type));
 	return super::clientMemoryForType(type, options, memory);
 }
 #endif
@@ -134,21 +137,21 @@ bool CLASS::start(IOService* provider)
 	m_provider = OSDynamicCast(VMsvga2Accel, provider);
 	if (!m_provider)
 		return false;
-	m_log_level = m_provider->getLogLevelAC();
+	m_log_level = imax(m_provider->getLogLevelGA(), m_provider->getLogLevelAC());
 	return super::start(provider);
 }
 
 bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 {
-	m_log_level = 1;
+	m_log_level = LOGGING_LEVEL;
 	if (!super::initWithTask(owningTask, securityToken, type))
 		return false;
 	m_owning_task = owningTask;
-	m_funcs_cache = &iofbFuncsCache[0];
 	return true;
 }
 
-CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
+HIDDEN
+CLASS* CLASS::withTask(task_t owningTask, void* securityToken, uint32_t type)
 {
 	CLASS* inst;
 
@@ -167,7 +170,21 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, UInt32 type)
 #pragma mark Private Methods
 #pragma mark -
 
-IOReturn CLASS::locateSurface(UInt32 surface_id)
+HIDDEN
+VMsvga2Surface* CLASS::findSurface(uint32_t surface_id)
+{
+	VMsvga2Accel::FindSurface fs;
+
+	if (!m_provider)
+		return 0;
+	bzero(&fs, sizeof fs);
+	fs.cgsSurfaceID = surface_id;
+	m_provider->messageClients(kIOMessageFindSurface, &fs, sizeof fs);
+	return OSDynamicCast(VMsvga2Surface, fs.client);
+}
+
+HIDDEN
+IOReturn CLASS::locateSurface(uint32_t surface_id)
 {
 	VMsvga2Accel::FindSurface fs;
 
@@ -189,6 +206,7 @@ IOReturn CLASS::locateSurface(UInt32 surface_id)
 #pragma mark GA Support Methods
 #pragma mark -
 
+HIDDEN
 IOReturn CLASS::useAccelUpdates(uintptr_t state)
 {
 	if (!m_provider)
@@ -196,6 +214,7 @@ IOReturn CLASS::useAccelUpdates(uintptr_t state)
 	return m_provider->useAccelUpdates(state != 0, m_owning_task);
 }
 
+HIDDEN
 IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects,
 						 size_t copyRectsSize)
 {
@@ -208,6 +227,7 @@ IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects,
 	return m_provider->RectCopy(framebufferIndex, copyRects, copyRectsSize);
 }
 
+HIDDEN
 IOReturn CLASS::RectFill(uintptr_t color,
 						 struct IOBlitRectangleStruct const* rects,
 						 size_t rectsSize)
@@ -218,34 +238,56 @@ IOReturn CLASS::RectFill(uintptr_t color,
 	}
 	if (!m_provider)
 		return kIOReturnNotReady;
-	return m_provider->RectFill(framebufferIndex, static_cast<UInt32>(color), rects, rectsSize);
+	return m_provider->RectFill(framebufferIndex, static_cast<uint32_t>(color), rects, rectsSize);
 }
 
+HIDDEN
 IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 						   intptr_t destX,
 						   intptr_t destY,
 						   IOAccelDeviceRegion const* region,
 						   size_t regionSize)
 {
-	/*
-	 * surface-to-surface copy is not supported yet.  Due to the way the code is designed,
-	 *   this is really a pure guest-memory to guest-memory blit.  It can be done by two
-	 *   steps via the host if desired.
-	 *
-	 * surface-to-framebuffer is not supported either.  It's not difficult to do, but the
-	 *   WindowsServer blits by using surface_flush() and QuickTime blits with SwapSurface,
-	 *   so it's not really necessary.
-	 */
-	if (static_cast<UInt32>(source_surface_id)) {
-		TDLog(1, "%s: Copy from surface source (0x%x) - unsupported\n",
-			  __FUNCTION__, static_cast<unsigned>(source_surface_id));
-		return kIOReturnUnsupported;
-	}
+	IOReturn rc;
+	uint32_t _source_surface_id;
+	int _destX, _destY;
+	VMsvga2Surface* source_surface;
+
+	if (!region || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(region))
+		return kIOReturnBadArgument;
+
+	if (bTargetIsCGSSurface && !surface_client)
+		return kIOReturnNotReady;
+
 	/*
 	 * Correct for truncation done by IOUserClient dispatcher
 	 */
-	SInt32 _destX = static_cast<SInt32>(destX);
-	SInt32 _destY = static_cast<SInt32>(destY);
+	_source_surface_id = static_cast<uint32_t>(source_surface_id);
+	_destX = static_cast<int>(destX);
+	_destY = static_cast<int>(destY);
+
+	if (_source_surface_id) {
+		source_surface = findSurface(_source_surface_id);
+		if (!source_surface) {
+			TDLog(1, "%s: Source Surface(%#x) not found\n", __FUNCTION__, _source_surface_id);
+			return kIOReturnNotFound;
+		}
+		source_surface->retain();
+		if (bTargetIsCGSSurface)
+			rc = surface_client->copy_surface_region_to_self(source_surface,
+															 _destX,
+															 _destY,
+															 region,
+															 regionSize);
+		else
+			rc = source_surface->copy_self_region_to_framebuffer(framebufferIndex,
+																 _destX,
+																 _destY,
+																 region,
+																 regionSize);
+		source_surface->release();
+		return rc;
+	}
 	if (!bTargetIsCGSSurface) {
 		/*
 		 * destination is framebuffer, use classic mode
@@ -257,21 +299,24 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 	/*
 	 * destination is a surface
 	 */
-	if (!surface_client)
-		return kIOReturnNotReady;
-	return surface_client->context_copy_region(_destX, _destY, region, regionSize);
+	return surface_client->copy_framebuffer_region_to_self(framebufferIndex,
+														   _destX,
+														   _destY,
+														   region,
+														   regionSize);
 }
 
 #pragma mark -
 #pragma mark IONV2DContext Methods
 #pragma mark -
 
+HIDDEN
 IOReturn CLASS::set_surface(uintptr_t surface_id,
 							eIOContextModeBits options,
 							void* struct_out,
 							size_t* struct_out_size)
 {
-	UInt32 vmware_pixel_format, apple_pixel_format;
+	uint32_t vmware_pixel_format, apple_pixel_format;
 	IOReturn rc;
 
 	if (!struct_out || !struct_out_size)
@@ -293,7 +338,7 @@ IOReturn CLASS::set_surface(uintptr_t surface_id,
 		 * set target to framebuffer
 		 */
 		bTargetIsCGSSurface = false;
-		framebufferIndex = static_cast<UInt32>(surface_id);
+		framebufferIndex = static_cast<uint32_t>(surface_id);
 		return kIOReturnSuccess;
 	}
 	bTargetIsCGSSurface = true;
@@ -313,34 +358,37 @@ IOReturn CLASS::set_surface(uintptr_t surface_id,
 		vmware_pixel_format = 0;
 		apple_pixel_format = 0;
 	}
-	rc = locateSurface(static_cast<UInt32>(surface_id));
+	rc = locateSurface(static_cast<uint32_t>(surface_id));
 	if (rc != kIOReturnSuccess)
 		return rc;
 	return surface_client->context_set_surface(vmware_pixel_format, apple_pixel_format);
 }
 
-IOReturn CLASS::get_config(UInt32* config_1, UInt32* config_2)
+HIDDEN
+IOReturn CLASS::get_config(uint32_t* config_1, uint32_t* config_2)
 {
 	if (!config_1 || !config_2)
 		return kIOReturnBadArgument;
-	*config_1 = 0;
+	*config_1 = 0U;
 	/*
 	 * TBD: transfer m_provider->getOptionsGA() as well
 	 */
 	if (m_provider)
-		*config_2 = static_cast<UInt32>(m_provider->getLogLevelGA());
+		*config_2 = static_cast<uint32_t>(m_provider->getLogLevelGA());
 	else
-		*config_2 = 0;
+		*config_2 = 0U;
 	return kIOReturnSuccess;
 }
 
+HIDDEN
 IOReturn CLASS::get_surface_info1(uintptr_t c1, eIOContextModeBits c2, void* struct_out, size_t* struct_out_size)
 {
-	TDLog(2, "%s(%lu, %lu, %p, %lu)\n", __FUNCTION__, c1, c2, struct_out, *struct_out_size);
+	TDLog(2, "%s(%lu, %lu, struct_out, %lu)\n", __FUNCTION__, c1, c2, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
-IOReturn CLASS::swap_surface(uintptr_t options, UInt32* swapFlags)
+HIDDEN
+IOReturn CLASS::swap_surface(uintptr_t options, uint32_t* swapFlags)
 {
 	if (!bTargetIsCGSSurface) {
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
@@ -352,6 +400,7 @@ IOReturn CLASS::swap_surface(uintptr_t options, UInt32* swapFlags)
 	return kIOReturnSuccess;
 }
 
+HIDDEN
 IOReturn CLASS::scale_surface(uintptr_t options, uintptr_t width, uintptr_t height)
 {
 	if (!bTargetIsCGSSurface) {
@@ -361,11 +410,12 @@ IOReturn CLASS::scale_surface(uintptr_t options, uintptr_t width, uintptr_t heig
 	if (!surface_client)
 		return kIOReturnNotReady;
 	return surface_client->context_scale_surface(static_cast<IOOptionBits>(options),
-												 static_cast<UInt32>(width),
-												 static_cast<UInt32>(height));
+												 static_cast<uint32_t>(width),
+												 static_cast<uint32_t>(height));
 }
 
-IOReturn CLASS::lock_memory(uintptr_t options, UInt64* struct_out, size_t* struct_out_size)
+HIDDEN
+IOReturn CLASS::lock_memory(uintptr_t options, uint64_t* struct_out, size_t* struct_out_size)
 {
 	if (!struct_out || !struct_out_size || *struct_out_size < 2U * sizeof *struct_out)
 		return kIOReturnBadArgument;
@@ -378,7 +428,8 @@ IOReturn CLASS::lock_memory(uintptr_t options, UInt64* struct_out, size_t* struc
 	return surface_client->context_lock_memory(m_owning_task, &struct_out[0], &struct_out[1]);
 }
 
-IOReturn CLASS::unlock_memory(uintptr_t options, UInt32* swapFlags)
+HIDDEN
+IOReturn CLASS::unlock_memory(uintptr_t options, uint32_t* swapFlags)
 {
 	if (!bTargetIsCGSSurface) {
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
@@ -389,6 +440,7 @@ IOReturn CLASS::unlock_memory(uintptr_t options, UInt32* swapFlags)
 	return surface_client->context_unlock_memory(swapFlags);
 }
 
+HIDDEN
 IOReturn CLASS::finish(uintptr_t options)
 {
 #if 0
@@ -400,57 +452,65 @@ IOReturn CLASS::finish(uintptr_t options)
 	return kIOReturnSuccess;
 }
 
+HIDDEN
 IOReturn CLASS::declare_image(UInt64 const* struct_in,
 							  UInt64* struct_out,
 							  size_t struct_in_size,
 							  size_t* struct_out_size)
 {
-	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	TDLog(2, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
+HIDDEN
 IOReturn CLASS::create_image(uintptr_t c1, uintptr_t c2, UInt64* struct_out, size_t* struct_out_size)
 {
-	TDLog(2, "%s(%lu, %lu, %p, %lu)\n", __FUNCTION__, c1, c2, struct_out, *struct_out_size);
+	TDLog(2, "%s(%lu, %lu, struct_out, %lu)\n", __FUNCTION__, c1, c2, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
+HIDDEN
 IOReturn CLASS::create_transfer(uintptr_t c1, uintptr_t c2, UInt64* struct_out, size_t* struct_out_size)
 {
-	TDLog(2, "%s(%lu, %lu, %p, %lu)\n", __FUNCTION__, c1, c2, struct_out, *struct_out_size);
+	TDLog(2, "%s(%lu, %lu, struct_out, %lu)\n", __FUNCTION__, c1, c2, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
+HIDDEN
 IOReturn CLASS::delete_image(uintptr_t image_id)
 {
 	TDLog(2, "%s(%lu)\n", __FUNCTION__, image_id);
 	return kIOReturnSuccess;
 }
 
+HIDDEN
 IOReturn CLASS::wait_image(uintptr_t image_id)
 {
 	TDLog(2, "%s(%lu)\n", __FUNCTION__, image_id);
 	return kIOReturnSuccess;
 }
 
+HIDDEN
 IOReturn CLASS::set_surface_paging_options(IOSurfacePagingControlInfoStruct const* struct_in,
 										   IOSurfacePagingControlInfoStruct* struct_out,
 										   size_t struct_in_size,
 										   size_t* struct_out_size)
 {
-	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	TDLog(2, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
+HIDDEN
 IOReturn CLASS::set_surface_vsync_options(IOSurfaceVsyncControlInfoStruct const* struct_in,
 										  IOSurfaceVsyncControlInfoStruct* struct_out,
 										  size_t struct_in_size,
 										  size_t* struct_out_size)
 {
-	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	TDLog(2, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
+HIDDEN
 IOReturn CLASS::set_macrovision(uintptr_t new_state)
 {
 	TDLog(3, "%s(%lu)\n", __FUNCTION__, new_state);
@@ -461,32 +521,34 @@ IOReturn CLASS::set_macrovision(uintptr_t new_state)
 #pragma mark NV2DContext Methods
 #pragma mark -
 
-IOReturn CLASS::read_configs(UInt32 const* struct_in,
-							 UInt32* struct_out,
+HIDDEN
+IOReturn CLASS::read_configs(uint32_t const* struct_in,
+							 uint32_t* struct_out,
 							 size_t struct_in_size,
 							 size_t* struct_out_size)
 {
-	TDLog(3, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	TDLog(3, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
 	if (!struct_in || !struct_out || !struct_out_size)
 		return kIOReturnBadArgument;
-	if (struct_in_size < sizeof(UInt32) || *struct_out_size < sizeof(UInt32))
+	if (struct_in_size < sizeof(uint32_t) || *struct_out_size < sizeof(uint32_t))
 		return kIOReturnBadArgument;
-	if (*struct_in == 2)
-		*struct_out = 2;
+	if (*struct_in == 2U)
+		*struct_out = 2U;
 	else
-		*struct_out = 0;
+		*struct_out = 0U;
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::read_config_Ex(UInt32 const* struct_in,
-							   UInt32* struct_out,
+HIDDEN
+IOReturn CLASS::read_config_Ex(uint32_t const* struct_in,
+							   uint32_t* struct_out,
 							   size_t struct_in_size,
 							   size_t* struct_out_size)
 {
-	TDLog(3, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	TDLog(3, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
 	if (!struct_in || !struct_out || !struct_out_size)
 		return kIOReturnBadArgument;
-	if (struct_in_size < 2U * sizeof(UInt32))
+	if (struct_in_size < 2U * sizeof(uint32_t))
 		return kIOReturnBadArgument;
 	bzero(struct_out, *struct_out_size);
 	switch (struct_in[0]) {
@@ -494,7 +556,7 @@ IOReturn CLASS::read_config_Ex(UInt32 const* struct_in,
 			/*
 			 * GetBeamPosition
 			 */
-			if (*struct_out_size < 2U * sizeof(UInt32))
+			if (*struct_out_size < 2U * sizeof(uint32_t))
 				return kIOReturnBadArgument;
 			struct_out[1] = 0;
 			break;
@@ -502,7 +564,7 @@ IOReturn CLASS::read_config_Ex(UInt32 const* struct_in,
 			/*
 			 * SetSurface
 			 */
-			if (*struct_out_size < 3U * sizeof(UInt32))
+			if (*struct_out_size < 3U * sizeof(uint32_t))
 				return kIOReturnBadArgument;
 			struct_out[0] = 64;
 			struct_out[2] = 16;
@@ -513,17 +575,19 @@ IOReturn CLASS::read_config_Ex(UInt32 const* struct_in,
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::get_surface_info2(UInt32 const* struct_in,
-								  UInt32* struct_out,
+HIDDEN
+IOReturn CLASS::get_surface_info2(uint32_t const* struct_in,
+								  uint32_t* struct_out,
 								  size_t struct_in_size,
 								  size_t* struct_out_size)
 {
-	TDLog(2, "%s(%p, %p, %lu, %lu)\n", __FUNCTION__, struct_in, struct_out, struct_in_size, *struct_out_size);
+	TDLog(2, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
 	return kIOReturnUnsupported;
 }
 
+HIDDEN
 IOReturn CLASS::kernel_printf(char const* str, size_t str_size)
 {
-	TDLog(2, "%s: %s\n", __FUNCTION__, str);
+	TDLog(2, "%s: %.80s\n", __FUNCTION__, str);
 	return kIOReturnSuccess;
 }

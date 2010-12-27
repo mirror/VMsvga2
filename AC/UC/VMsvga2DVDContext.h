@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on October 11th 2009.
- *  Copyright 2009 Zenith432. All rights reserved.
+ *  Copyright 2009-2010 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -39,8 +39,7 @@ class VMsvga2DVDContext: public IOUserClient
 private:
 	task_t m_owning_task;
 	class VMsvga2Accel* m_provider;
-	IOExternalMethod* m_funcs_cache;
-	SInt32 m_log_level;
+	int m_log_level;
 
 public:
 	/*
@@ -52,7 +51,7 @@ public:
 	IOReturn connectClient(IOUserClient* client);
 	bool start(IOService* provider);
 	bool initWithTask(task_t owningTask, void* securityToken, UInt32 type);
-	static VMsvga2DVDContext* withTask(task_t owningTask, void* securityToken, UInt32 type);
+	static VMsvga2DVDContext* withTask(task_t owningTask, void* securityToken, uint32_t type);
 
 	/*
 	 * TBD: Methods from IONVDVDContext
