@@ -2,7 +2,7 @@
 //  Generic.xcconfig
 //
 //  Created by Zenith432 on November 18th 2009.
-//  Copyright 2009 Zenith432. All rights reserved.
+//  Copyright 2009-2011 Zenith432. All rights reserved.
 //
 
 ALWAYS_SEARCH_USER_PATHS = NO;
@@ -16,4 +16,3 @@ GCC_WARN_ABOUT_RETURN_TYPE = YES;
 GCC_WARN_SIGN_COMPARE = YES;
 GCC_WARN_UNINITIALIZED_AUTOS = YES;
 GCC_WARN_UNUSED_VARIABLE = YES;
-PREBINDING = NO;
