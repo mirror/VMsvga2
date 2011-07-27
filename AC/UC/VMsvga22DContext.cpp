@@ -33,7 +33,7 @@
 #include "VMsvga2Accel.h"
 #include "VMsvga2Surface.h"
 #include "VMsvga22DContext.h"
-#include "ACMethods.h"
+#include "UCMethods.h"
 
 #include "svga_apple_header.h"
 #include "svga_overlay.h"

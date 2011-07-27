@@ -32,7 +32,7 @@
 #include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Device.h"
-#include "ACMethods.h"
+#include "UCMethods.h"
 
 #define CLASS VMsvga2Device
 #define super IOUserClient

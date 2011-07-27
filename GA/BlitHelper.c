@@ -28,7 +28,7 @@
 
 #include <IOKit/IOKitLib.h>
 #include "BlitHelper.h"
-#include "ACMethods.h"
+#include "UCMethods.h"
 
 IOReturn useAccelUpdates(io_connect_t context, int state)
 {

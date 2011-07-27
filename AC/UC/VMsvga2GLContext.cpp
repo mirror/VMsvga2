@@ -29,7 +29,7 @@
 
 #include <IOKit/IOLib.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
-#include "ACMethods.h"
+#include "UCMethods.h"
 #include "VLog.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Device.h"

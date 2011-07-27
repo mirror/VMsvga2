@@ -112,7 +112,7 @@
 		79452C1610309B5D001983D2 /* svga_apple_footer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = svga_apple_footer.h; sourceTree = "<group>"; };
 		79726006102F07820030052A /* VMsvga2GA.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VMsvga2GA.cpp; sourceTree = "<group>"; };
 		79726008102F07930030052A /* VMsvga2GA.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VMsvga2GA.h; sourceTree = "<group>"; };
-		79854B6310516CCA009D6ECE /* ACMethods.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ACMethods.h; sourceTree = "<group>"; };
+		79854B6310516CCA009D6ECE /* UCMethods.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UCMethods.h; sourceTree = "<group>"; };
 		7986F8FF103B138900CD6D69 /* vmw_options_ac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = vmw_options_ac.h; sourceTree = "<group>"; };
 		7987F8851037020E003B52A2 /* SendString.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SendString.c; sourceTree = "<group>"; };
 		798B54F9103D97E900E7DDF2 /* vmw_options_fb.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = vmw_options_fb.h; sourceTree = "<group>"; };
@@ -259,7 +259,7 @@
 		7919BDDB102B1FD200E56229 /* Headers */ = {
 			isa = PBXGroup;
 			children = (
-				79854B6310516CCA009D6ECE /* ACMethods.h */,
+				79854B6310516CCA009D6ECE /* UCMethods.h */,
 				79AEEE01104F0FC8001B6B2C /* FenceTracker.h */,
 				E588767B1269C9D3001B5608 /* IOSurfaceRoot.h */,
 				799F594510319210000D2A71 /* SVGA3D.h */,

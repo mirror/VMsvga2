@@ -52,7 +52,7 @@ extern "C" {
 #endif
 #include "VMsvga2GA.h"
 #include "BlitHelper.h"
-#include "ACMethods.h"
+#include "UCMethods.h"
 #include "VLog.h"
 
 #define kVMGAFactoryID \

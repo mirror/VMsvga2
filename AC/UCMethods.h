@@ -1,5 +1,5 @@
 /*
- *  ACMethods.h
+ *  UCMethods.h
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on September 4th 2009.
@@ -26,8 +26,8 @@
  *  SOFTWARE.
  */
 
-#ifndef __ACMETHODS_H__
-#define __ACMETHODS_H__
+#ifndef __UCMETHODS_H__
+#define __UCMETHODS_H__
 
 enum eIOVMGLMethods {
 	kIOVMGLSetSurface,
@@ -151,4 +151,4 @@ enum eIOVMOCDMethods {
 	kIOVMOCDNumMethods
 };
 
-#endif /* __ACMETHODS_H__ */
+#endif /* __UCMETHODS_H__ */
