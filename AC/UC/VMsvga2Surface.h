@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -73,12 +73,6 @@ private:
 	uint32_t m_pixel_format;
 
 	/*
-	 * 3D stuff
-	 */
-	uint32_t m_aux_surface_id[2];
-	uint32_t m_aux_context_id;
-
-	/*
 	 * Backing stuff
 	 */
 	struct {
@@ -130,10 +124,6 @@ private:
 		uint32_t vmware_pixel_format;
 		SVGAOverlayUnit	unit;
 	} m_video;
-
-#ifdef TESTING
-	void runTest();
-#endif
 
 	/*
 	 * Private support methods

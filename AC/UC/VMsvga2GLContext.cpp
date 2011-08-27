@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 21st 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -81,6 +81,9 @@ IOExternalMethod iofbFuncsCache[kIOVMGLNumMethods] =
 {0, reinterpret_cast<IOMethod>(&CLASS::get_channel_memory), kIOUCScalarIStructO, 0, kIOUCVariableStructureSize},
 #else
 {0, reinterpret_cast<IOMethod>(&CLASS::submit_command_buffer), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
+{0, reinterpret_cast<IOMethod>(&CLASS::filter_control), kIOUCStructIStructO, kIOUCVariableStructureSize, kIOUCVariableStructureSize},
+#endif
 #endif
 // Note: Methods from NVGLContext
 {0, reinterpret_cast<IOMethod>(&CLASS::get_query_buffer), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},
@@ -197,9 +200,11 @@ void CLASS::Cleanup()
 		m_context_buffer1.md->release();
 		m_context_buffer1.md = 0;
 	}
-	if (m_type2) {
-		m_type2->release();
-		m_type2 = 0;
+	if (m_fences) {
+		m_fences->release();
+		m_fences = 0;
+		m_fences_len = 0U;
+		m_fences_ptr = 0;
 	}
 }
 
@@ -211,11 +216,12 @@ bool CLASS::allocCommandBuffer(VMsvga2CommandBuffer* buffer, size_t size)
 	/*
 	 * Intel915 ors an optional flag @ IOAccelerator+0x924
 	 */
-	bmd = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
-												kIOMemoryPageable |
-												kIODirectionOut,
-												size,
-												page_size);
+	bmd = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
+														   kIOMemoryKernelUserShared |
+														   kIOMemoryPageable |
+														   kIODirectionInOut,
+														   size,
+														   ((1ULL << (32 + PAGE_SHIFT)) - 1U) & -PAGE_SIZE);
 	buffer->md = bmd;
 	if (!bmd)
 		return false;
@@ -239,11 +245,12 @@ bool CLASS::allocAllContextBuffers()
 	IOBufferMemoryDescriptor* bmd;
 	VendorCommandBufferHeader* p;
 
-	bmd = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
-												kIOMemoryPageable |
-												kIODirectionInOut,
-												4096U,
-												page_size);
+	bmd = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
+													  kIOMemoryKernelUserShared |
+													  kIOMemoryPageable |
+													  kIODirectionInOut,
+													  PAGE_SIZE,
+													  page_size);
 	m_context_buffer0.md = bmd;
 	if (!bmd)
 		return false;
@@ -253,14 +260,17 @@ bool CLASS::allocAllContextBuffers()
 	p->flags = 1;
 	p->data[3] = 1007;
 
+#if 0
+	// This buffer is never used, so skip it
 	/*
 	 * Intel915 ors an optional flag @ IOAccelerator+0x924
 	 */
-	bmd = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
-												kIOMemoryPageable |
-												kIODirectionInOut,
-												4096U,
-												page_size);
+	bmd = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
+													  kIOMemoryKernelUserShared |
+													  kIOMemoryPageable |
+													  kIODirectionInOut,
+													  PAGE_SIZE,
+													  page_size);
 	if (!bmd)
 		return false; // TBD frees previous ones
 	m_context_buffer1.md = bmd;
@@ -270,6 +280,7 @@ bool CLASS::allocAllContextBuffers()
 	p->flags = 1;
 	p->data[3] = 1007;
 	// TBD: allocates another one like this
+#endif
 	return true;
 }
 
@@ -311,8 +322,11 @@ IOReturn CLASS::clientClose()
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
 	VendorCommandBufferHeader* p;
+	IOBufferMemoryDescriptor* bmd;
+	void* fptr;
+	size_t d;
 
-	GLLog(2, "%s(%u, options_out, memory_out)\n", __FUNCTION__, static_cast<unsigned>(type));
+	GLLog(3, "%s(%u, options_out, memory_out)\n", __FUNCTION__, static_cast<unsigned>(type));
 	if (type > 4U || !options || !memory)
 		return kIOReturnBadArgument;
 	switch (type) {
@@ -329,36 +343,49 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
 			p->data[3] = 1007;
 			return kIOReturnSuccess;
 		case 2:
-			if (!m_type2) {
-				m_type2_len = page_size;
-				IOBufferMemoryDescriptor* bmd = IOBufferMemoryDescriptor::withOptions(0x10023U,
-																					  m_type2_len,
-																					  page_size);
-				m_type2 = bmd;
+			if (!m_fences) {
+				m_fences_len = page_size;
+				bmd = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
+																  kIOMemoryKernelUserShared |
+																  kIOMemoryPageable |
+																  kIODirectionInOut,
+																  m_fences_len,
+																  page_size);
+				m_fences = bmd;
 				if (!bmd)
 					return kIOReturnNoResources;
-				m_type2_ptr = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
+				m_fences_ptr = static_cast<typeof m_fences_ptr>(bmd->getBytesNoCopy());
 			} else {
-				size_t d = 2U * m_type2_len;
-
-				IOBufferMemoryDescriptor* bmd = IOBufferMemoryDescriptor::withOptions(0x10023U,
-																					  d,
-																					  page_size);
+				d = 2U * m_fences_len;
+				bmd = IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
+																  kIOMemoryKernelUserShared |
+																  kIOMemoryPageable |
+																  kIODirectionInOut,
+																  d,
+																  page_size);
 				if (!bmd)
 					return kIOReturnNoResources;
-				p = static_cast<VendorCommandBufferHeader*>(bmd->getBytesNoCopy());
-				memcpy(p, m_type2_ptr, m_type2_len);
-				m_type2->release();
-				m_type2 = bmd;
-				m_type2_len = d;
-				m_type2_ptr = p;
+				fptr = bmd->getBytesNoCopy();
+				memcpy(fptr, m_fences_ptr, m_fences_len);
+				m_fences->release();
+				m_fences = bmd;
+				m_fences_len = d;
+				m_fences_ptr = static_cast<typeof m_fences_ptr>(fptr);
 			}
-			m_type2->retain();
-			*memory = m_type2;
+			m_fences->retain();
 			*options = 0;
+			*memory = m_fences;
 			return kIOReturnSuccess;
 		case 3:
-			// TBD: from provider @ offset 0xB4
+#if 0
+			md = m_provider->offset 0xB4;
+			if (!md)
+				return kIOReturnNoResources;
+			md->retain();
+			*options = 0;
+			*memory = md;
+			return kIOReturnSuccess;
+#endif
 			break;
 		case 4:
 			*memory = m_command_buffer.md;
@@ -372,6 +399,9 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
 			p->stamp = 0;		// from this+0x7C
 			return kIOReturnSuccess;
 	}
+	/*
+	 * Note: Intel GMA 950 defaults to returning kIOReturnBadArgument
+	 */
 	return super::clientMemoryForType(type, options, memory);
 }
 
@@ -487,9 +517,13 @@ IOReturn CLASS::get_config(uint32_t* c1, uint32_t* c2, uint32_t* c3)
 {
 	uint32_t const vram_size = m_provider->getVRAMSize();
 
-	*c1 = 0;
-	*c2 = vram_size;
-	*c3 = vram_size;
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1070
+	*c1 = 0x40000U;			// GMA 950 [The GMA 900 is unsupported on OS 10.7]
+#else
+	*c1 = 0;				// same as c1 in VMsvga2Device::get_config, used by GLD to discern Intel 915/965/Ironlake(HD)
+#endif
+	*c2 = vram_size;		// same as c3 in VMsvga2Device::get_config, total memory available for textures (no accounting by VMsvga2)
+	*c3 = vram_size;		// same as c4 in VMsvga2Device::get_config, total VRAM size
 	GLLog(2, "%s(*%u, *%u, *%u)\n", __FUNCTION__, *c1, *c2, *c3);
 	return kIOReturnSuccess;
 }
@@ -560,7 +594,7 @@ HIDDEN
 IOReturn CLASS::become_global_shared(uintptr_t c1)
 {
 	GLLog(2, "%s(%lu)\n", __FUNCTION__, c1);
-	return kIOReturnSuccess;
+	return kIOReturnUnsupported;	// Not implemented in Intel GMA 950
 }
 
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
@@ -608,11 +642,7 @@ HIDDEN
 IOReturn CLASS::get_data_buffer(struct sIOGLContextGetDataBuffer* struct_out, size_t* struct_out_size)
 {
 	GLLog(2, "%s(struct_out, %lu)\n", __FUNCTION__, *struct_out_size);
-	if (*struct_out_size < sizeof *struct_out)
-		return kIOReturnBadArgument;
-	*struct_out_size = sizeof *struct_out;
-	bzero(struct_out, *struct_out_size);
-	return kIOReturnSuccess;
+	return kIOReturnError;	// Not implemented in Intel GMA 950
 }
 
 HIDDEN
@@ -650,7 +680,7 @@ IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data,
 	struct sIOGLContextGetDataBuffer db;
 	size_t dbsize;
 
-	GLLog(2, "%s(%lu, struct_out, %lu)\n", __FUNCTION__, do_get_data, *struct_out_size);
+	GLLog(3, "%s(%lu, struct_out, %lu)\n", __FUNCTION__, do_get_data, *struct_out_size);
 	if (*struct_out_size < sizeof *struct_out)
 		return kIOReturnBadArgument;
 	options = 0;
@@ -685,6 +715,18 @@ IOReturn CLASS::submit_command_buffer(uintptr_t do_get_data,
 	mm->release();
 	return rc;
 }
+
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
+HIDDEN
+IOReturn CLASS::filter_control(struct sIOGLFilterControl const* struct_in,
+							   struct sIOGLFilterControl* struct_out,
+							   size_t struct_in_size,
+							   size_t* struct_out_size)
+{
+	GLLog(2, "%s(struct_in, struct_out, %lu, %lu)\n", __FUNCTION__, struct_in_size, *struct_out_size);
+	return kIOReturnUnsupported;
+}
+#endif
 #endif
 
 #pragma mark -

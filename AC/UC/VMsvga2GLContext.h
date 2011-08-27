@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 21st 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -51,20 +51,25 @@ class VMsvga2GLContext: public IOUserClient
 
 private:
 	task_t m_owning_task;					// offset 0x78
-											// offset 0x7C: unknown
+											// offset 0x7C - 0x80: unknown
 	class VMsvga2Accel* m_provider;			// offset 0x80
 											// offset 0x84 - 0x8C: unknown
 											// offset 0x8C
-											// offset 0x90 - 0xB4: unknown 
-	IOMemoryDescriptor* m_type2;			// offset 0xB4
-	size_t m_type2_len;						// offset 0xB8
-	VendorCommandBufferHeader* m_type2_ptr; // offset 0xBC
-											// offset 0xC0: uknown
+											// offset 0x90 - 0xA8: unknown 
+	uint16_t m_drawbuf_params[2];			// offset 0xA8 - 0xAC
+											// offset 0xAC - 0xB4: unknown
+	IOMemoryDescriptor* m_fences;			// offset 0xB4
+	size_t m_fences_len;					// offset 0xB8
+	struct GLDFence* m_fences_ptr;			// offset 0xBC
+											// offset 0xC0 - 0xC4: unknown
 	class VMsvga2Surface* m_surface_client;	// offset 0xC4
 	VMsvga2CommandBuffer m_command_buffer;	// offset 0xC8 - 0xFC
 	class OSSet* m_gc;						// offset 0xFC
 	VMsvga2CommandBuffer m_context_buffer0; // offset 0x100 - 0x134
-	VMsvga2CommandBuffer m_context_buffer1; // offset 0x130 - 0x154
+	VMsvga2CommandBuffer m_context_buffer1; // offset 0x130 - 0x164
+											// offset 0x160 - 0x194: unknown
+	int m_stream_error;						// offset 0x194
+											// offset 0x198 - 0x19C: unknown
 	uint32_t m_mem_type;					// offset 0x19C
 
 	/*
@@ -77,8 +82,8 @@ private:
 	 */
 	void Init();
 	void Cleanup();
-	bool allocCommandBuffer(VMsvga2CommandBuffer*, size_t);
-	void initCommandBufferHeader(VendorCommandBufferHeader*, size_t);
+	static bool allocCommandBuffer(VMsvga2CommandBuffer*, size_t);
+	static void initCommandBufferHeader(VendorCommandBufferHeader*, size_t);
 	bool allocAllContextBuffers();
 
 public:
@@ -138,6 +143,12 @@ public:
 	IOReturn submit_command_buffer(uintptr_t do_get_data,
 								   struct sIOGLGetCommandBuffer*,
 								   size_t*);
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
+	IOReturn filter_control(struct sIOGLFilterControl const*,		// OS 10.6.8 Only
+							struct sIOGLFilterControl*,
+							size_t,
+							size_t*);
+#endif
 #endif
 
 	/*
