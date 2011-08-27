@@ -46,10 +46,9 @@ private:
 	int m_log_level;
 
 	unsigned bTargetIsCGSSurface:1;
-	class VMsvga2Surface* surface_client;
-	uint32_t framebufferIndex;
+	class VMsvga2Surface* m_surface_client;
+	uint32_t m_framebufferIndex;
 
-	class VMsvga2Surface* findSurface(uint32_t surface_id);
 	IOReturn locateSurface(uint32_t surface_id);
 
 public:

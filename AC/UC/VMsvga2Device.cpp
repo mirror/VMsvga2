@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on October 11th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -30,9 +30,9 @@
 #include <IOKit/IOLib.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include "VLog.h"
+#include "UCMethods.h"
 #include "VMsvga2Accel.h"
 #include "VMsvga2Device.h"
-#include "UCMethods.h"
 
 #define CLASS VMsvga2Device
 #define super IOUserClient
@@ -141,15 +141,18 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
 	DVLog(2, "%s(%u, options_out, memory_out)\n", __FUNCTION__, static_cast<unsigned>(type));
 	if (!options || !memory)
 		return kIOReturnBadArgument;
-	IOBufferMemoryDescriptor* md = IOBufferMemoryDescriptor::withOptions(kIOMemoryPageable |
-																		 kIOMemoryKernelUserShared |
-																		 kIODirectionInOut,
-																		 PAGE_SIZE,
-																		 PAGE_SIZE);
+#if 0
+	// GLD never calls this
+	IOBufferMemoryDescriptor* md = IOBufferMemoryDescriptor::inTaskWithOptions(0,
+																			   kIOMemoryPageable |
+																			   kIOMemoryKernelUserShared |
+																			   kIODirectionInOut,
+																			   page_size,
+																			   page_size);
 	*memory = md;
 	*options = kIOMapAnywhere;
 	return kIOReturnSuccess;
-#if 0
+#else
 	return super::clientMemoryForType(type, options, memory);
 #endif
 }
@@ -220,14 +223,29 @@ IOReturn CLASS::get_config(uint32_t* c1, uint32_t* c2, uint32_t* c3, uint32_t* c
 {
 	uint32_t const vram_size = m_provider->getVRAMSize();
 
-	*c1 = 0;
-	*c2 = static_cast<uint32_t>(m_provider->getLogLevelGLD()) & 7U;		// TBD: is this safe?
-	*c3 = vram_size;
-	*c4 = vram_size;
+	/*
+	 * c1 used by GLD to discern Intel 915/965/Ironlake(HD)
+	 *   0x100000U - "HD Graphics"
+	 *   0x080000U - "GMA X3100"
+	 *   0x040000U - "GMA 950"
+	 *   else      - "GMA 900" [Unsupported in OS 10.7]
+	 */
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1070
+	*c1 = 0x40000U;
+#else
+	*c1 = 0U;
+#endif
+#ifdef USE_OWN_GLD
+	*c2 = static_cast<uint32_t>(m_provider->getLogLevelGLD()) & 7U;
+#else
+	*c2 = 0U;
+#endif
+	*c3 = vram_size;	// total memory available for textures (no accounting by VMsvga2)
+	*c4 = vram_size;	// total VRAM size
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
 	*c5 = m_provider->getSurfaceRootUUID();
 #else
-	*c5 = 0;
+	*c5 = 0U;
 #endif
 	DVLog(2, "%s(*%u, *%u, *%u, *%u, *%#x)\n", __FUNCTION__, *c1, *c2, *c3, *c4, *c5);
 	return kIOReturnSuccess;
@@ -296,22 +314,22 @@ IOReturn CLASS::get_channel_memory(struct sIODeviceChannelMemoryData* struct_out
 	DVLog(2, "%s(struct_out, %lu)\n", __FUNCTION__, *struct_out_size);
 	if (*struct_out_size < sizeof *struct_out)
 		return kIOReturnBadArgument;
-	if (m_channel_memory_map) {
-		*struct_out_size = sizeof *struct_out;
-		struct_out->addr = m_channel_memory_map->getAddress();
-		return kIOReturnSuccess;
-	}
+	if (m_channel_memory_map)
+		goto done;
 	channel_memory = m_provider->getChannelMemory();
 	if (!channel_memory)
 		return kIOReturnNoResources;
 	m_channel_memory_map = channel_memory->createMappingInTask(m_owning_task,
 															   0,
-															   kIOMapAnywhere /* | kIOMapUnique */);
+															   kIOMapAnywhere | kIOMapReadOnly /* | kIOMapUnique */,
+															   0,
+															   page_size);
 	if (!m_channel_memory_map)
 		return kIOReturnNoResources;
+done:
 	*struct_out_size = sizeof *struct_out;
-	struct_out->addr = m_channel_memory_map->getAddress();
-	DVLog(2, "%s:   mapped to client @%#llx\n", __FUNCTION__, struct_out->addr);
+	struct_out->addr = m_channel_memory_map->getAddress() + SVGA_FIFO_FENCE * sizeof(uint32_t) - 64;
+	DVLog(3, "%s:   mapped to client @%#llx\n", __FUNCTION__, struct_out->addr);
 	return kIOReturnSuccess;
 }
 
@@ -322,7 +340,7 @@ IOReturn CLASS::get_channel_memory(struct sIODeviceChannelMemoryData* struct_out
 HIDDEN
 IOReturn CLASS::kernel_printf(char const* str, size_t str_size)
 {
-	DVLog(2, "%s: %.80s\n", __FUNCTION__, str);	// TBD: limit str by str_size
+	DVLog(2, "%s: %.80s\n", __FUNCTION__, str);
 	return kIOReturnSuccess;
 }
 

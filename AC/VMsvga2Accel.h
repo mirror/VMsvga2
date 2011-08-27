@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -72,11 +72,13 @@ private:
 	 */
 	unsigned bHaveSVGA3D:1;
 	unsigned bHaveScreenObject:1;
-	uint64_t m_surface_id_mask;
+	uint64_t m_surface_id_mask[4];
 	uint64_t m_context_id_mask;
 	uint64_t m_gmr_id_mask[2];
 	uint32_t m_surface_ids_unmanaged;
 	uint32_t m_context_ids_unmanaged;
+	uint32_t m_surface_id_idx;
+	uint32_t m_gmr_id_idx;
 	int volatile m_master_surface_retain_count;
 	uint32_t m_master_surface_id;
 	IOReturn m_blitbug_result;
@@ -100,11 +102,6 @@ private:
 #endif
 
 	/*
-	 * GL Area
-	 */
-	IOMemoryDescriptor* m_channel_memory;
-
-	/*
 	 * Private support methods
 	 */
 	void Cleanup();
@@ -122,8 +119,6 @@ private:
 								   SInt32 event,
 								   void* info);
 #endif
-	void initGLStuff();
-	void cleanGLStuff();
 
 public:
 	/*
@@ -187,6 +182,13 @@ public:
 		int dstDeltaY;
 		uint32_t mem_gmr_id;
 	};
+	struct ExtraInfoEx {
+		vm_offset_t mem_offset_in_gmr;
+		vm_size_t mem_pitch;
+		vm_size_t mem_limit;
+		uint32_t mem_gmr_id;
+		uint32_t suffix_flags;
+	};
 	/*
 	 * SVGA3D Methods
 	 */
@@ -214,17 +216,9 @@ public:
 									void /* IOAccelDeviceRegion */ const* region,
 									ExtraInfo const* extra);
 	IOReturn surfacePresentReadback(void /* IOAccelDeviceRegion */ const* region);
-#if 0
-	IOReturn setupRenderContext(uint32_t cid,
-								uint32_t color_sid,
-								uint32_t depth_sid,
-								uint32_t width,
-								uint32_t height);
-#else
 	IOReturn setRenderTarget(uint32_t cid,
 							 SVGA3dRenderTargetType rtype,
 							 uint32_t sid);
-#endif
 	IOReturn clear(uint32_t cid,
 				   SVGA3dClearFlag flags,
 				   void /* IOAccelDeviceRegion */ const* region,
@@ -233,12 +227,6 @@ public:
 				   uint32_t stencil);
 	IOReturn createContext(uint32_t cid);
 	IOReturn destroyContext(uint32_t cid);
-	bool createClearSurface(uint32_t sid,
-							uint32_t cid,
-							SVGA3dSurfaceFormat format,
-							uint32_t width,
-							uint32_t height,
-							uint32_t color = 0U);
 	IOReturn drawPrimitives(uint32_t cid,
 							uint32_t numVertexDecls,
 							uint32_t numRanges,
@@ -250,10 +238,11 @@ public:
 	IOReturn setRenderState(uint32_t cid,
 							uint32_t numStates,
 							SVGA3dRenderState const* states);
-	IOReturn setViewPort(uint32_t cid,
-						 void /* IOAccelBounds */ const* rect);
-	IOReturn setZRange(uint32_t cid, float zMin, float zMax);
-	IOReturn setTransform(uint32_t cid, SVGA3dTransformType type, float const* matrix);
+	IOReturn surfaceDMA3DEx(SVGA3dSurfaceImageId const* hostImage,
+							SVGA3dTransferType transfer,
+							SVGA3dCopyBox const* copyBox,
+							ExtraInfoEx const* extra,
+							uint32_t* fence = 0);
 
 	/*
 	 * Screen Methods
@@ -306,9 +295,10 @@ public:
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
 	unsigned getSurfaceRootUUID() const { return m_surface_root_uuid; }
 #endif
-	IOMemoryDescriptor* getChannelMemory() const { return m_channel_memory; }
+	IOMemoryDescriptor* getChannelMemory() const;
 	uint32_t getVRAMSize() const;
-	vm_offset_t offsetInVRAM(void* vram_ptr);
+	vm_offset_t offsetInVRAM(void* vram_ptr) const;
+	class VMsvga2Surface* findSurfaceForID(uint32_t surface_id);
 
 	/*
 	 * Video Support

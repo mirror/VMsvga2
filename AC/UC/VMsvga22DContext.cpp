@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 10th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -109,11 +109,11 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 IOReturn CLASS::clientClose()
 {
 	TDLog(2, "%s\n", __FUNCTION__);
-	if (surface_client) {
-		surface_client->release();
-		surface_client = 0;
+	if (m_surface_client) {
+		m_surface_client->release();
+		m_surface_client = 0;
 	}
-	framebufferIndex = 0;
+	m_framebufferIndex = 0;
 	bTargetIsCGSSurface = false;
 	if (m_provider)
 		m_provider->useAccelUpdates(0, m_owning_task);
@@ -171,34 +171,14 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, uint32_t type)
 #pragma mark -
 
 HIDDEN
-VMsvga2Surface* CLASS::findSurface(uint32_t surface_id)
-{
-	VMsvga2Accel::FindSurface fs;
-
-	if (!m_provider)
-		return 0;
-	bzero(&fs, sizeof fs);
-	fs.cgsSurfaceID = surface_id;
-	m_provider->messageClients(kIOMessageFindSurface, &fs, sizeof fs);
-	return OSDynamicCast(VMsvga2Surface, fs.client);
-}
-
-HIDDEN
 IOReturn CLASS::locateSurface(uint32_t surface_id)
 {
-	VMsvga2Accel::FindSurface fs;
-
 	if (!m_provider)
 		return kIOReturnNotReady;
-	bzero(&fs, sizeof fs);
-	fs.cgsSurfaceID = surface_id;
-	m_provider->messageClients(kIOMessageFindSurface, &fs, sizeof fs);
-	if (!fs.client)
+	m_surface_client = m_provider->findSurfaceForID(surface_id);
+	if (!m_surface_client)
 		return kIOReturnNotFound;
-	surface_client = OSDynamicCast(VMsvga2Surface, fs.client);
-	if (!surface_client)
-		return kIOReturnNotFound;
-	surface_client->retain();
+	m_surface_client->retain();
 	return kIOReturnSuccess;
 }
 
@@ -224,7 +204,7 @@ IOReturn CLASS::RectCopy(struct IOBlitCopyRectangleStruct const* copyRects,
 	}
 	if (!m_provider)
 		return kIOReturnNotReady;
-	return m_provider->RectCopy(framebufferIndex, copyRects, copyRectsSize);
+	return m_provider->RectCopy(m_framebufferIndex, copyRects, copyRectsSize);
 }
 
 HIDDEN
@@ -238,7 +218,7 @@ IOReturn CLASS::RectFill(uintptr_t color,
 	}
 	if (!m_provider)
 		return kIOReturnNotReady;
-	return m_provider->RectFill(framebufferIndex, static_cast<uint32_t>(color), rects, rectsSize);
+	return m_provider->RectFill(m_framebufferIndex, static_cast<uint32_t>(color), rects, rectsSize);
 }
 
 HIDDEN
@@ -256,7 +236,10 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 	if (!region || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(region))
 		return kIOReturnBadArgument;
 
-	if (bTargetIsCGSSurface && !surface_client)
+	if (!m_provider)
+		return kIOReturnNotReady;
+
+	if (bTargetIsCGSSurface && !m_surface_client)
 		return kIOReturnNotReady;
 
 	/*
@@ -267,20 +250,20 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 	_destY = static_cast<int>(destY);
 
 	if (_source_surface_id) {
-		source_surface = findSurface(_source_surface_id);
+		source_surface = m_provider->findSurfaceForID(_source_surface_id);
 		if (!source_surface) {
 			TDLog(1, "%s: Source Surface(%#x) not found\n", __FUNCTION__, _source_surface_id);
 			return kIOReturnNotFound;
 		}
 		source_surface->retain();
 		if (bTargetIsCGSSurface)
-			rc = surface_client->copy_surface_region_to_self(source_surface,
-															 _destX,
-															 _destY,
-															 region,
-															 regionSize);
+			rc = m_surface_client->copy_surface_region_to_self(source_surface,
+															   _destX,
+															   _destY,
+															   region,
+															   regionSize);
 		else
-			rc = source_surface->copy_self_region_to_framebuffer(framebufferIndex,
+			rc = source_surface->copy_self_region_to_framebuffer(m_framebufferIndex,
 																 _destX,
 																 _destY,
 																 region,
@@ -294,16 +277,16 @@ IOReturn CLASS::CopyRegion(uintptr_t source_surface_id,
 		 */
 		if (!m_provider)
 			return kIOReturnNotReady;
-		return m_provider->CopyRegion(framebufferIndex, _destX, _destY, region, regionSize);
+		return m_provider->CopyRegion(m_framebufferIndex, _destX, _destY, region, regionSize);
 	}
 	/*
 	 * destination is a surface
 	 */
-	return surface_client->copy_framebuffer_region_to_self(framebufferIndex,
-														   _destX,
-														   _destY,
-														   region,
-														   regionSize);
+	return m_surface_client->copy_framebuffer_region_to_self(m_framebufferIndex,
+															 _destX,
+															 _destY,
+															 region,
+															 regionSize);
 }
 
 #pragma mark -
@@ -322,9 +305,9 @@ IOReturn CLASS::set_surface(uintptr_t surface_id,
 	if (!struct_out || !struct_out_size)
 		return kIOReturnBadArgument;
 	bzero(struct_out, *struct_out_size);
-	if (surface_client) {
-		surface_client->release();
-		surface_client = 0;
+	if (m_surface_client) {
+		m_surface_client->release();
+		m_surface_client = 0;
 	}
 	/*
 	 * options == 0x800 -- has surface id
@@ -338,7 +321,7 @@ IOReturn CLASS::set_surface(uintptr_t surface_id,
 		 * set target to framebuffer
 		 */
 		bTargetIsCGSSurface = false;
-		framebufferIndex = static_cast<uint32_t>(surface_id);
+		m_framebufferIndex = static_cast<uint32_t>(surface_id);
 		return kIOReturnSuccess;
 	}
 	bTargetIsCGSSurface = true;
@@ -361,7 +344,7 @@ IOReturn CLASS::set_surface(uintptr_t surface_id,
 	rc = locateSurface(static_cast<uint32_t>(surface_id));
 	if (rc != kIOReturnSuccess)
 		return rc;
-	return surface_client->context_set_surface(vmware_pixel_format, apple_pixel_format);
+	return m_surface_client->context_set_surface(vmware_pixel_format, apple_pixel_format);
 }
 
 HIDDEN
@@ -394,9 +377,9 @@ IOReturn CLASS::swap_surface(uintptr_t options, uint32_t* swapFlags)
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
 	}
-	if (!surface_client)
+	if (!m_surface_client)
 		return kIOReturnNotReady;
-	surface_client->surface_flush_video(swapFlags);
+	m_surface_client->surface_flush_video(swapFlags);
 	return kIOReturnSuccess;
 }
 
@@ -407,11 +390,11 @@ IOReturn CLASS::scale_surface(uintptr_t options, uintptr_t width, uintptr_t heig
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
 	}
-	if (!surface_client)
+	if (!m_surface_client)
 		return kIOReturnNotReady;
-	return surface_client->context_scale_surface(static_cast<IOOptionBits>(options),
-												 static_cast<uint32_t>(width),
-												 static_cast<uint32_t>(height));
+	return m_surface_client->context_scale_surface(static_cast<IOOptionBits>(options),
+												   static_cast<uint32_t>(width),
+												   static_cast<uint32_t>(height));
 }
 
 HIDDEN
@@ -423,9 +406,9 @@ IOReturn CLASS::lock_memory(uintptr_t options, uint64_t* struct_out, size_t* str
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
 	}
-	if (!surface_client)
+	if (!m_surface_client)
 		return kIOReturnNotReady;
-	return surface_client->context_lock_memory(m_owning_task, &struct_out[0], &struct_out[1]);
+	return m_surface_client->context_lock_memory(m_owning_task, &struct_out[0], &struct_out[1]);
 }
 
 HIDDEN
@@ -435,9 +418,9 @@ IOReturn CLASS::unlock_memory(uintptr_t options, uint32_t* swapFlags)
 		TDLog(2, "%s: called with non-surface destination - unsupported\n", __FUNCTION__);
 		return kIOReturnUnsupported;
 	}
-	if (!surface_client)
+	if (!m_surface_client)
 		return kIOReturnNotReady;
-	return surface_client->context_unlock_memory(swapFlags);
+	return m_surface_client->context_unlock_memory(swapFlags);
 }
 
 HIDDEN

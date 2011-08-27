@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -234,7 +234,6 @@ void CLASS::Cleanup()
 		m_surface_root = 0;
 	}
 #endif
-	cleanGLStuff();
 	if (bHaveSVGA3D) {
 		bHaveSVGA3D = false;
 		svga3d.Init(0);
@@ -298,27 +297,29 @@ void CLASS::timeSyncs()
 HIDDEN
 bool CLASS::createMasterSurface(uint32_t width, uint32_t height)
 {
-	bool rc;
-	uint32_t cid;
+	IOReturn rc;
 
 	m_master_surface_id = AllocSurfaceID();
-	cid = AllocContextID();
-	rc = createClearSurface(m_master_surface_id,
-							cid,
-							SVGA3D_X8R8G8B8,
-							width,
-							height);
-	FreeContextID(cid);
-	if (!rc)
+	rc = createSurface(m_master_surface_id,
+					   SVGA3dSurfaceFlags(0),
+					   SVGA3D_X8R8G8B8,
+					   width,
+					   height);
+	if (rc != kIOReturnSuccess) {
 		FreeSurfaceID(m_master_surface_id);
-	return rc;
+		m_master_surface_id = SVGA_ID_INVALID;
+	}
+	return rc == kIOReturnSuccess;
 }
 
 HIDDEN
 void CLASS::destroyMasterSurface()
 {
+	if (static_cast<int>(m_master_surface_id) < 0)
+		return;
 	destroySurface(m_master_surface_id);
 	FreeSurfaceID(m_master_surface_id);
+	m_master_surface_id = SVGA_ID_INVALID;
 }
 
 HIDDEN
@@ -326,7 +327,7 @@ void CLASS::processOptions()
 {
 	uint32_t boot_arg;
 
-	vmw_options_ac = VMW_OPTION_AC_GL_CONTEXT | VMW_OPTION_AC_2D_CONTEXT | VMW_OPTION_AC_SURFACE_CONNECT;
+	vmw_options_ac = VMW_OPTION_AC_2D_CONTEXT | VMW_OPTION_AC_SURFACE_CONNECT;
 	if (PE_parse_boot_argn("vmw_options_ac", &boot_arg, sizeof boot_arg))
 		vmw_options_ac = boot_arg;
 	if (PE_parse_boot_argn("-svga3d", &boot_arg, sizeof boot_arg))
@@ -337,10 +338,12 @@ void CLASS::processOptions()
 		vmw_options_ac |= VMW_OPTION_AC_DIRECT_BLIT;
 	if (PE_parse_boot_argn("-vmw_no_screen_object", &boot_arg, sizeof boot_arg))
 		vmw_options_ac |= VMW_OPTION_AC_NO_SCREEN_OBJECT;
+	if (PE_parse_boot_argn("-vmw_gl", &boot_arg, sizeof boot_arg))
+		vmw_options_ac |= VMW_OPTION_AC_GL_CONTEXT;
 	if (PE_parse_boot_argn("-vmw_qe", &boot_arg, sizeof boot_arg))
-		vmw_options_ac |= VMW_OPTION_AC_QE | VMW_OPTION_AC_GLD;
-	if (PE_parse_boot_argn("-vmw_gld", &boot_arg, sizeof boot_arg))
-		vmw_options_ac |= VMW_OPTION_AC_GLD;
+		vmw_options_ac |= VMW_OPTION_AC_QE;
+	if (checkOptionAC(VMW_OPTION_AC_QE))
+		vmw_options_ac |= VMW_OPTION_AC_GL_CONTEXT;
 	setProperty("VMwareSVGAAccelOptions", static_cast<uint64_t>(vmw_options_ac), 32U);
 	if (PE_parse_boot_argn("vmw_options_ga", &boot_arg, sizeof boot_arg)) {
 		m_options_ga = boot_arg;
@@ -462,28 +465,6 @@ IOReturn CLASS::fbNotificationHandler(void* ref,
 }
 #endif
 
-HIDDEN
-void CLASS::initGLStuff()
-{
-	m_channel_memory = IOBufferMemoryDescriptor::withOptions(kIOMemoryKernelUserShared |
-															 kIOMemoryPageable |
-															 kIODirectionOut,
-															 page_size,
-															 page_size);
-	if (m_channel_memory)
-		m_channel_memory->prepare(kIODirectionInOut);
-}
-
-HIDDEN
-void CLASS::cleanGLStuff()
-{
-	if (m_channel_memory) {
-		m_channel_memory->complete();
-		m_channel_memory->release();
-		m_channel_memory = 0;
-	}
-}
-
 #pragma mark -
 #pragma mark Methods from IOService
 #pragma mark -
@@ -497,6 +478,7 @@ bool CLASS::init(OSDictionary* dictionary)
 	m_log_level_ac = LOGGING_LEVEL;
 	m_log_level_ga = -1;
 	m_log_level_gld = -1;
+	m_master_surface_id = SVGA_ID_INVALID;
 	m_blitbug_result = kIOReturnNotFound;
 	m_present_tracker.init();
 	return true;
@@ -516,15 +498,6 @@ bool CLASS::start(IOService* provider)
 	IOLog("IOAC: start\n");
 	VMLog_SendString("log IOAC: start\n");
 	processOptions();
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
-	if (checkOptionAC(VMW_OPTION_AC_GLD)) {
-		m_surface_root = static_cast<IOSurfaceRoot*>(IOService::waitForService(IOService::nameMatching("IOSurfaceRoot")));
-		if (m_surface_root) {
-			m_surface_root->retain();
-			m_surface_root_uuid = m_surface_root->generateUniqueAcceleratorID(this);
-		}
-	}
-#endif
 	/*
 	 * TBD: is there a possible race condition here where VMsvga2Accel::start
 	 *   is called before VMsvga2 gets attached to its provider?
@@ -551,20 +524,31 @@ bool CLASS::start(IOService* provider)
 		bHaveScreenObject = true;
 		ACLog(1, "Screen Object On\n");
 	}
-	if ((bHaveScreenObject || checkOptionAC(VMW_OPTION_AC_SVGA3D)) && svga3d.Init(m_svga)) {
+	if ((bHaveScreenObject || checkOptionAC(VMW_OPTION_AC_SVGA3D | VMW_OPTION_AC_GL_CONTEXT)) &&
+		svga3d.Init(m_svga)) {
 		uint32_t hwv = svga3d.getHWVersion();
 		bHaveSVGA3D = true;
 		ACLog(1, "SVGA3D On, 3D HWVersion == %u.%u\n", SVGA3D_MAJOR_HWVERSION(hwv), SVGA3D_MINOR_HWVERSION(hwv));
 	}
 	if (checkOptionAC(VMW_OPTION_AC_NO_YUV))
 		ACLog(1, "YUV Off\n");
-	if (!HaveGLBaseline()) {
+	if (checkOptionAC(VMW_OPTION_AC_GL_CONTEXT) && !HaveGLBaseline()) {
 		/*
 		 * Disable GL User Clients
 		 */
-		vmw_options_ac &= ~(VMW_OPTION_AC_GL_CONTEXT | VMW_OPTION_AC_GLD | VMW_OPTION_AC_QE);
 		ACLog(1, "Disabling OpenGL support due to lack of baseline capabilities\n");
+		vmw_options_ac &= ~(VMW_OPTION_AC_GL_CONTEXT | VMW_OPTION_AC_QE);
+		setProperty("VMwareSVGAAccelOptions", static_cast<uint64_t>(vmw_options_ac), 32U);
 	}
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060
+	if (checkOptionAC(VMW_OPTION_AC_GL_CONTEXT)) {
+		m_surface_root = static_cast<IOSurfaceRoot*>(IOService::waitForService(IOService::nameMatching("IOSurfaceRoot")));
+		if (m_surface_root) {
+			m_surface_root->retain();
+			m_surface_root_uuid = m_surface_root->generateUniqueAcceleratorID(this);
+		}
+	}
+#endif
 	plug = getProperty(kIOCFPlugInTypesKey);
 	if (plug)
 		m_framebuffer->setProperty(kIOCFPlugInTypesKey, plug);
@@ -591,9 +575,12 @@ bool CLASS::start(IOService* provider)
 	 *   GeForce7xxxGLDriver
 	 *   GeForce8xxxGLDriver
 	 */
-	if (checkOptionAC(VMW_OPTION_AC_GLD)) {
+	if (checkOptionAC(VMW_OPTION_AC_GL_CONTEXT)) {
+#ifdef USE_OWN_GLD
 		setProperty("IOGLBundleName", "VMsvga2GLDriver");
-		initGLStuff();
+#else
+		setProperty("IOGLBundleName", "AppleIntelGMA950GLDriver");
+#endif
 	}
 	/*
 	 * Stupid bug in AppleVA attempts to CFRelease a NULL pointer
@@ -871,13 +858,17 @@ IOReturn CLASS::RectFill3D(uint32_t color,
 		IOFree(rgn, s);
 		return kIOReturnError;
 	}
-	setupRenderContext(cid, sid);
-	clearContext(cid,
-				 static_cast<SVGA3dClearFlag>(SVGA3D_CLEAR_COLOR),
-				 rgn,
-				 color,
-				 1.0F,
-				 0);
+	/*
+	 * Note: I think MasterSurface needs to have flags
+	 *   SVGA3D_SURFACE_HINT_RENDERTARGET for this to work.
+	 */
+	setRenderTarget(cid, SVGA3D_RT_COLOR0, sid);
+	clear(cid,
+		  static_cast<SVGA3dClearFlag>(SVGA3D_CLEAR_COLOR),
+		  rgn,
+		  color,
+		  1.0F,
+		  0);
 	destroyContext(cid);
 	FreeContextID(cid);
 	bzero(&extra, sizeof extra);
@@ -1005,10 +996,10 @@ IOReturn CLASS::createSurface(uint32_t sid,
 	rc = svga3d.BeginDefineSurface(sid, surfaceFlags, surfaceFormat, &faces, &mipSizes, 1U);
 	if (!rc)
 		goto exit;
-	faces[0].numMipLevels = 1;
+	faces[0].numMipLevels = 1U;
 	mipSizes[0].width = width;
 	mipSizes[0].height = height;
-	mipSizes[0].depth = 1;
+	mipSizes[0].depth = 1U;
 	m_svga->FIFOCommitAll();
 exit:
 	m_framebuffer->unlockDevice();
@@ -1224,42 +1215,6 @@ exit:
 	return kIOReturnSuccess;
 }
 
-#if 0
-HIDDEN
-IOReturn CLASS::setupRenderContext(uint32_t cid,
-								   uint32_t color_sid,
-								   uint32_t depth_sid,
-								   uint32_t width,
-								   uint32_t height)
-{
-	SVGA3dRenderState* rs;
-	SVGA3dSurfaceImageId colorImage;
-	SVGA3dSurfaceImageId depthImage;
-	SVGA3dRect rect;
-
-	if (!bHaveSVGA3D)
-		return kIOReturnNoDevice;
-	bzero(&colorImage, sizeof(SVGA3dSurfaceImageId));
-	bzero(&depthImage, sizeof(SVGA3dSurfaceImageId));
-	bzero(&rect, sizeof(SVGA3dRect));
-	colorImage.sid = color_sid;
-	depthImage.sid = depth_sid;
-	rect.w = width;
-	rect.h = height;
-	m_framebuffer->lockDevice();
-	svga3d.SetRenderTarget(cid, SVGA3D_RT_COLOR0, &colorImage);
-	svga3d.SetRenderTarget(cid, SVGA3D_RT_DEPTH, &depthImage);
-	svga3d.SetViewport(cid, &rect);
-	svga3d.SetZRange(cid, 0.0F, 1.0F);
-	if (svga3d.BeginSetRenderState(cid, &rs, 1)) {
-		rs->state = SVGA3D_RS_SHADEMODE;
-		rs->uintValue = SVGA3D_SHADEMODE_SMOOTH;
-		m_svga->FIFOCommitAll();
-	}
-	m_framebuffer->unlockDevice();
-	return kIOReturnSuccess;
-}
-#else
 HIDDEN
 IOReturn CLASS::setRenderTarget(uint32_t cid,
 								SVGA3dRenderTargetType rtype,
@@ -1276,7 +1231,6 @@ IOReturn CLASS::setRenderTarget(uint32_t cid,
 	m_framebuffer->unlockDevice();
 	return kIOReturnSuccess;
 }
-#endif
 
 HIDDEN
 IOReturn CLASS::clear(uint32_t cid,
@@ -1331,45 +1285,6 @@ IOReturn CLASS::destroyContext(uint32_t cid)
 	svga3d.DestroyContext(cid);
 	m_framebuffer->unlockDevice();
 	return kIOReturnSuccess;
-}
-
-HIDDEN
-bool CLASS::createClearSurface(uint32_t sid,
-							   uint32_t cid,
-							   SVGA3dSurfaceFormat format,
-							   uint32_t width,
-							   uint32_t height,
-							   uint32_t color)
-{
-	DefineRegion<1U> tmpRegion;
-
-	if (!width || !height)
-		return false;
-	/*
-	 * Note: according to VMware documentation, if a surface with the same
-	 *   sid already exists, the old surface is deleted and a new one
-	 *   is created in its place.
-	 */
-	if (createSurface(sid,
-					  SVGA3dSurfaceFlags(0),
-					  format,
-					  width,
-					  height) != kIOReturnSuccess)
-		return false;
-	if (createContext(cid) != kIOReturnSuccess) {
-		destroySurface(sid);
-		return false;
-	}
-	setRenderTarget(cid, SVGA3D_RT_COLOR0, sid);
-	set_region(&tmpRegion.r, 0, 0, width, height);
-	clear(cid,
-		  static_cast<SVGA3dClearFlag>(SVGA3D_CLEAR_COLOR),
-		  &tmpRegion.r,
-		  color,
-		  1.0F,
-		  0);
-	destroyContext(cid);
-	return true;
 }
 
 HIDDEN
@@ -1439,43 +1354,38 @@ exit:
 }
 
 HIDDEN
-IOReturn CLASS::setViewPort(uint32_t cid, void /* IOAccelBounds */ const* rect)
+IOReturn CLASS::surfaceDMA3DEx(SVGA3dSurfaceImageId const* hostImage,
+							   SVGA3dTransferType transfer,
+							   SVGA3dCopyBox const* copyBox,
+							   ExtraInfoEx const* extra,
+							   uint32_t* fence)
 {
-	IOAccelBounds const* _rect;
-	SVGA3dRect __rect;
-	if (!rect)
+	bool rc;
+	SVGA3dCopyBox* copyBoxes;
+	SVGA3dGuestImage guestImage;
+
+	if (!extra || !copyBox)
 		return kIOReturnBadArgument;
 	if (!bHaveSVGA3D)
 		return kIOReturnNoDevice;
-	_rect = static_cast<IOAccelBounds const*>(rect);
-	__rect.x = _rect->x;
-	__rect.y = _rect->y;
-	__rect.w = _rect->w;
-	__rect.h = _rect->h;
+	guestImage.ptr.gmrId = extra->mem_gmr_id;
+	guestImage.ptr.offset = static_cast<uint32_t>(extra->mem_offset_in_gmr);
+	guestImage.pitch = static_cast<uint32_t>(extra->mem_pitch);
 	m_framebuffer->lockDevice();
-	svga3d.SetViewport(cid, &__rect);
-	m_framebuffer->unlockDevice();
-	return kIOReturnSuccess;
-}
-
-HIDDEN
-IOReturn CLASS::setZRange(uint32_t cid, float zMin, float zMax)
-{
-	if (!bHaveSVGA3D)
-		return kIOReturnNoDevice;
-	m_framebuffer->lockDevice();
-	svga3d.SetZRange(cid, zMin, zMax);
-	m_framebuffer->unlockDevice();
-	return kIOReturnSuccess;
-}
-
-HIDDEN
-IOReturn CLASS::setTransform(uint32_t cid, SVGA3dTransformType type, float const* matrix)
-{
-	if (!bHaveSVGA3D)
-		return kIOReturnNoDevice;
-	m_framebuffer->lockDevice();
-	svga3d.SetTransform(cid, type, matrix);
+	rc = svga3d.BeginSurfaceDMAwithSuffix(&guestImage,
+										  hostImage,
+										  transfer,
+										  &copyBoxes,
+										  1U,
+										  static_cast<uint32_t>(extra->mem_limit),
+										  *reinterpret_cast<SVGA3dSurfaceDMAFlags const*>(&extra->suffix_flags));
+	if (!rc)
+		goto exit;
+	memcpy(&copyBoxes[0], copyBox, sizeof *copyBox);
+	m_svga->FIFOCommitAll();
+	if (fence)
+		*fence = m_svga->InsertFence();
+exit:
 	m_framebuffer->unlockDevice();
 	return kIOReturnSuccess;
 }
@@ -1792,6 +1702,14 @@ void CLASS::unlockAccel()
 }
 
 HIDDEN
+IOMemoryDescriptor* CLASS::getChannelMemory() const
+{
+	if (!m_provider)
+		return 0;
+	return m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
+}
+
+HIDDEN
 uint32_t CLASS::getVRAMSize() const
 {
 	if (m_svga)
@@ -1802,7 +1720,7 @@ uint32_t CLASS::getVRAMSize() const
 }
 
 HIDDEN
-vm_offset_t CLASS::offsetInVRAM(void* vram_ptr)
+vm_offset_t CLASS::offsetInVRAM(void* vram_ptr) const
 {
 	/*
 	 * Note: skip locking the framebuffer device here, seems fairly safe.
@@ -1817,8 +1735,18 @@ bool CLASS::HaveGLBaseline() const
 {
 	return m_svga &&
 		bHaveSVGA3D &&
-		bHaveScreenObject &&	// TBD: may be removed in the future
 		m_svga->HasCapability(SVGA_CAP_GMR);
+}
+
+HIDDEN
+VMsvga2Surface* CLASS::findSurfaceForID(uint32_t surface_id)
+{
+	FindSurface fs;
+
+	bzero(&fs, sizeof fs);
+	fs.cgsSurfaceID = surface_id;
+	messageClients(kIOMessageFindSurface, &fs, sizeof fs);
+	return OSDynamicCast(VMsvga2Surface, fs.client);
 }
 
 #pragma mark -
@@ -1870,12 +1798,19 @@ IOReturn CLASS::VideoSetReg(uint32_t streamId,
 HIDDEN
 uint32_t CLASS::AllocSurfaceID()
 {
-	uint32_t r;
+	uint32_t r, t;
+	uint32_t const num_entries = 4U;
 
 	lockAccel();
-	r = find_bit_in_array64(&m_surface_id_mask, 1U);
-	if (static_cast<int>(r) < 0)
-		r = 8U * static_cast<uint32_t>(sizeof(uint64_t)) + m_surface_ids_unmanaged++;
+	r = find_bit_in_array64(&m_surface_id_mask[m_surface_id_idx], num_entries - m_surface_id_idx);
+	if (static_cast<int>(r) < 0) {
+		r = (num_entries << 6) + (m_surface_ids_unmanaged++);
+		m_surface_id_idx = num_entries;
+	} else {
+		t = r >> 6;
+		r += (m_surface_id_idx << 6);
+		m_surface_id_idx += t;
+	}
 	unlockAccel();
 	return r;
 }
@@ -1883,10 +1818,15 @@ uint32_t CLASS::AllocSurfaceID()
 HIDDEN
 void CLASS::FreeSurfaceID(uint32_t sid)
 {
-	if (sid >= 8U * static_cast<uint32_t>(sizeof(uint64_t)))
+	uint32_t r;
+	uint32_t const num_entries = 4U;
+	r = sid >> 6;
+	if (r >= num_entries)
 		return;
 	lockAccel();
-	m_surface_id_mask &= ~(1ULL << sid);
+	m_surface_id_mask[r] &= ~(1ULL << (sid & 63U));
+	if (r < m_surface_id_idx)
+		m_surface_id_idx = r;
 	unlockAccel();
 }
 
@@ -1937,10 +1877,18 @@ void CLASS::FreeStreamID(uint32_t streamId)
 HIDDEN
 uint32_t CLASS::AllocGMRID()
 {
-	uint r;
+	uint32_t r, t;
+	uint32_t const num_entries = 2U;
 
 	lockAccel();
-	r = find_bit_in_array64(&m_gmr_id_mask[0], 2U);
+	r = find_bit_in_array64(&m_gmr_id_mask[m_gmr_id_idx], num_entries - m_gmr_id_idx);
+	if (static_cast<int>(r) < 0)
+		m_gmr_id_idx = num_entries;
+	else {
+		t = r >> 6;
+		r += (m_gmr_id_idx << 6);
+		m_gmr_id_idx += t;
+	}
 	unlockAccel();
 	return r;
 }
@@ -1948,10 +1896,15 @@ uint32_t CLASS::AllocGMRID()
 HIDDEN
 void CLASS::FreeGMRID(uint32_t gmrId)
 {
-	if (gmrId >= 2U * 8U * static_cast<uint32_t>(sizeof(uint64_t)))
+	uint32_t r;
+	uint32_t const num_entries = 2U;
+	r = gmrId >> 6;
+	if (r >= num_entries)
 		return;
 	lockAccel();
-	m_gmr_id_mask[gmrId >> 6] &= ~(1ULL << (gmrId & 63U));
+	m_gmr_id_mask[r] &= ~(1ULL << (gmrId & 63U));
+	if (r < m_gmr_id_idx)
+		m_gmr_id_idx = r;
 	unlockAccel();
 }
 
@@ -2061,7 +2014,7 @@ IOReturn CLASS::createGMR(uint32_t gmrId, IOMemoryDescriptor* md)
 	if (num_physical_ranges + num_pages > m_svga->getMaxGMRDescriptorLength())
 		return kIOReturnNoResources;
 	helper = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
-															  0U,
+															  kIODirectionInOut,
 															  num_pages << PAGE_SHIFT,
 															  ((1ULL << max_bits) - 1ULL) & -PAGE_SIZE);
 	if (!helper)
