@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on September 4th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -60,6 +60,9 @@ enum eIOVMGLMethods {
 	kIOVMGLGetChannelMemory,
 #else
 	kIOVMGLSubmitCommandBuffer,
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
+	kIOVMGLFilterControl,	// This method only appeared in OS 10.6.8
+#endif
 #endif
 
 	kIOVMGLGetQueryBuffer,

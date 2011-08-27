@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on August 11th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -57,6 +57,8 @@ public:
 
 	bool Init(SVGADevice*);
 	uint32_t getHWVersion() const { return HWVersion; }
+	void FIFOCommitAll();			// passthrough
+	uint32_t InsertFence();			// passthrough
 	bool BeginPresent(uint32_t sid, SVGA3dCopyRect **rects, size_t numRects);
 	bool BeginPresentReadback(SVGA3dRect **rects, size_t numRects);
 	bool BeginBlitSurfaceToScreen(SVGA3dSurfaceImageId const* srcImage,
@@ -152,6 +154,13 @@ public:
 	bool DestroyShader(uint32_t cid, uint32_t shid, SVGA3dShaderType type);
 	IOReturn SetShaderConst(uint32_t cid, uint32_t reg, SVGA3dShaderType type, SVGA3dShaderConstType ctype, void const* value);
 	bool SetShader(uint32_t cid, SVGA3dShaderType type, uint32_t shid);
+
+	/*
+	 * Query
+	 */
+	bool BeginQuery(uint32_t cid, SVGA3dQueryType qtype);
+	bool EndQuery(uint32_t cid, SVGA3dQueryType qtype, uint32_t gmrid, uint32_t offset_in_gmr);
+	bool WaitForQuery(uint32_t cid, SVGA3dQueryType qtype, uint32_t gmrid, uint32_t offset_in_gmr);
 };
 
 #endif /* __SVGA3D_H__ */

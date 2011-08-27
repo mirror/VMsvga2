@@ -1,9 +1,9 @@
 /*
- *  vmw_options_ac.h
+ *  VendorTransferBuffer.h
  *  VMsvga2Accel
  *
- *  Created by Zenith432 on August 18th 2009.
- *  Copyright 2009-2011 Zenith432. All rights reserved.
+ *  Created by Zenith432 on January 24th 2011.
+ *  Copyright 2011 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -26,35 +26,25 @@
  *  SOFTWARE.
  */
 
-#ifndef __VMW_OPTIONS_AC_H__
-#define __VMW_OPTIONS_AC_H__
+#ifndef __VENDORTRANSFERBUFFER_H__
+#define __VENDORTRANSFERBUFFER_H__
 
-#define VMW_OPTION_AC_SURFACE_CONNECT		0x0001
-#define VMW_OPTION_AC_2D_CONTEXT			0x0002
-#define VMW_OPTION_AC_GL_CONTEXT			0x0004
-#define VMW_OPTION_AC_DVD_CONTEXT			0x0008
+struct VendorTransferBuffer {
+	uint32_t pad1;			//   0
+	uint32_t gart_ptr;		//   4
+	class IOMemoryDescriptor* md;
+							//   8
+	uint16_t offset12;		// offset 0xC - initialized to 4 in VMsvga2TextureBuffer
+	uint16_t counter14;		// offset 0xE
+							// 0x10 end
+	uint32_t gmr_id;
+	uint32_t fence;
 
-#define VMW_OPTION_AC_SVGA3D				0x0010
-#define VMW_OPTION_AC_NO_YUV				0x0020
-#define VMW_OPTION_AC_DIRECT_BLIT			0x0040
-#define VMW_OPTION_AC_NO_SCREEN_OBJECT		0x0080
-#define VMW_OPTION_AC_QE					0x0100
-#define VMW_OPTION_AC_PACKED_BACKING		0x0200
-#define VMW_OPTION_AC_REGION_BOUNDS_COPY	0x0400
+	void init(void);
+	IOReturn prepare(class VMsvga2Accel* provider);
+	void sync(class VMsvga2Accel* provider);
+	void complete(class VMsvga2Accel* provider);
+	void discard(void);
+};
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern uint32_t vmw_options_ac;
-
-static inline bool checkOptionAC(uint32_t mask)
-{
-	return (vmw_options_ac & mask) != 0;
-}
-	
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* __VMW_OPTIONS_AC_H__ */
+#endif /* __VENDORTRANSFERBUFFER_H__ */
