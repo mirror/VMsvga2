@@ -1095,6 +1095,7 @@ void CLASS::stop(IOService* provider)
  *   but this involves too much messing around with
  *   IOKit internals.
  */
+extern "C" bool _ZN9IOService12passiveMatchEP12OSDictionaryb(IOService*, OSDictionary*, bool);
 bool CLASS::passiveMatch(OSDictionary* matching, bool changesOK)
 {
 	OSString* str;
@@ -1113,7 +1114,7 @@ bool CLASS::passiveMatch(OSDictionary* matching, bool changesOK)
 		goto done;
 	}
 done:
-	return super::passiveMatch(matching, changesOK);
+	return _ZN9IOService12passiveMatchEP12OSDictionaryb(this, matching, changesOK);
 }
 #endif
 

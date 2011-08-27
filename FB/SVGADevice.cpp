@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -732,7 +732,7 @@ bool CLASS::VideoFlush(uint32_t streamId)
 #pragma mark Added Methods
 #pragma mark -
 
-bool CLASS::get3DHWVersion(uint32_t* HWVersion)
+bool CLASS::get3DHWVersion(uint32_t* HWVersion) const
 {
 	if (!HWVersion)
 		return false;
@@ -749,6 +749,13 @@ void CLASS::RegDump()
 	for (uint32_t i = SVGA_REG_ID; i < SVGA_REG_TOP; ++i)
 		regs[i] = ReadReg(i);
 	m_provider->setProperty("VMwareSVGADump", static_cast<void*>(&regs[0]), static_cast<unsigned>(sizeof regs));
+}
+
+uint32_t const* CLASS::get3DCapsBlock() const
+{
+	if (m_fifo_ptr[SVGA_FIFO_MIN] <= static_cast<uint32_t>(sizeof(uint32_t) * SVGA_FIFO_3D_CAPS_LAST))
+		return 0;
+	return m_fifo_ptr + SVGA_FIFO_3D_CAPS;
 }
 
 bool CLASS::RectCopy(uint32_t const* copyRect)

@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -143,8 +143,9 @@ public:
 	uint32_t getCurrentFBOffset() const { return m_fb_offset; }
 	uint32_t getVRAMSize() const { return m_vram_size; }
 	uint32_t getCurrentFBSize() const { return m_fb_size; }
-	bool get3DHWVersion(uint32_t* HWVersion);
+	bool get3DHWVersion(uint32_t* HWVersion) const;
 	void RegDump();
+	uint32_t const* get3DCapsBlock() const; // use judiciously
 
 	bool RectCopy(uint32_t const* copyRect);				// copyRect is an array of 6 uint32_t - same order as SVGAFifoCmdRectCopy
 	bool RectFill(uint32_t color, uint32_t const* rect);	// rect is an array of 4 uint32_t - same order as SVGAFifoCmdFrontRopFill
