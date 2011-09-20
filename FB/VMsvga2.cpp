@@ -668,7 +668,7 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 	if (!m_accel_updates)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
-	if (m_custom_switch == 1)
+	if (!m_accel_updates && m_custom_switch == 1)
 		bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getCurrentFBOffset()),
 			  svga.getCurrentFBSize());
 	svga.SetMode(dme->width, dme->height, 32);

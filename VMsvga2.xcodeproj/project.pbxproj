@@ -621,6 +621,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx;
+				STRIPFLAGS = "-no_uuid";
 			};
 			name = ReleaseLeo;
 		};
@@ -669,6 +670,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx;
+				STRIPFLAGS = "-no_uuid";
 			};
 			name = ReleaseSnowLeo;
 		};
@@ -732,6 +734,7 @@
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				SDKROOT = macosx;
+				STRIPFLAGS = "-no_uuid";
 			};
 			name = ReleaseLion;
 		};
