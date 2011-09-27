@@ -60,5 +60,6 @@ DisplayModeEntry const modeList[NUM_DISPLAY_MODES] =
 	2048, 1152, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 16x9
 	2048, 1536, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3
 	2360, 1770, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 4x3 Note: was 2364x1773
+	2560, 1440, kDisplayModeValidFlag | kDisplayModeSafeFlag,	// 16x9
 	2560, 1600, kDisplayModeValidFlag | kDisplayModeSafeFlag	// 8x5
 };
