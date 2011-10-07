@@ -68,6 +68,8 @@ private:
 	uint32_t m_max_height;
 	uint32_t m_max_gmr_ids;
 	uint32_t m_max_gmr_descriptor_length;
+	uint32_t m_max_gmr_pages;
+	uint32_t m_total_memory;
 	uint32_t m_fb_offset;
 	uint32_t m_vram_size;
 	uint32_t m_fb_size;
@@ -140,6 +142,8 @@ public:
 	uint32_t getMaxHeight() const { return m_max_height; }
 	uint32_t getMaxGMRIDs() const { return m_max_gmr_ids; }
 	uint32_t getMaxGMRDescriptorLength() const { return m_max_gmr_descriptor_length; }
+	uint32_t getMaxGMRPages() const { return m_max_gmr_pages; }
+	uint32_t getTotalMemory() const { return m_total_memory; }
 	uint32_t getCurrentFBOffset() const { return m_fb_offset; }
 	uint32_t getVRAMSize() const { return m_vram_size; }
 	uint32_t getCurrentFBSize() const { return m_fb_size; }
@@ -151,11 +155,10 @@ public:
 	bool RectFill(uint32_t color, uint32_t const* rect);	// rect is an array of 4 uint32_t - same order as SVGAFifoCmdFrontRopFill
 	bool UpdateFramebuffer2(uint32_t const* rect);			// rect is an array of 4 uint32_t - same order as SVGAFifoCmdUpdate
 
-	bool defineGMR(uint32_t gmrID, uint32_t ppn);			// ppn == 0 delete GMR [ppn == physical page number]
-
-#ifdef TESTING
-	static void test_ram_size(char const* name, IOVirtualAddress ptr, IOByteCount count);
-#endif
+	bool defineGMR(uint32_t gmrId, uint32_t ppn);			// ppn == 0 delete GMR [ppn == physical page number]
+	bool defineGMR2(uint32_t gmrId, uint32_t numPages);
+	bool remapGMR2(uint32_t gmrId, uint32_t flags, uint32_t offsetPages,
+				   uint32_t numPages, void const* suffix, uint32_t suffixSize);
 };
 
 #endif /* __SVGADEVICE_H__ */

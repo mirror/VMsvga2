@@ -59,9 +59,9 @@
 #endif
 
 #if LOGGING_LEVEL >= 1
-#define LogPrintf(log_level, fmt, ...) do { if (log_level <= logLevelFB) VLog("SVGADev: ", fmt, ##__VA_ARGS__); } while (false)
+#define LogPrintf(log_level, ...) do { if (log_level <= logLevelFB) VLog("SVGADev: ", ##__VA_ARGS__); } while (false)
 #else
-#define LogPrintf(log_level, fmt, ...)
+#define LogPrintf(log_level, ...)
 #endif
 
 #define TO_BYTE_PTR(x) reinterpret_cast<uint8_t*>(const_cast<uint32_t*>(x))
@@ -118,26 +118,16 @@ bool CLASS::Init()
 __attribute__((noinline))
 uint32_t CLASS::ReadReg(uint32_t index)
 {
-#if 0
-	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0_map);
-	return m_provider->ioRead32(SVGA_VALUE_PORT, m_bar0_map);
-#else
 	__asm__ volatile ( "outl %0, %1" : : "a"(index), "d"(static_cast<uint16_t>(m_io_base + SVGA_INDEX_PORT)) );
 	__asm__ ( "inl %1, %0" : "=a"(index) : "d"(static_cast<uint16_t>(m_io_base + SVGA_VALUE_PORT)) );
 	return index;
-#endif
 }
 
 __attribute__((noinline))
 void CLASS::WriteReg(uint32_t index, uint32_t value)
 {
-#if 0
-	m_provider->ioWrite32(SVGA_INDEX_PORT, index, m_bar0_map);
-	m_provider->ioWrite32(SVGA_VALUE_PORT, value, m_bar0_map);
-#else
 	__asm__ volatile ( "outl %0, %1" : : "a"(index), "d"(static_cast<uint16_t>(m_io_base + SVGA_INDEX_PORT)) );
 	__asm__ volatile ( "outl %0, %1" : : "a"(value), "d"(static_cast<uint16_t>(m_io_base + SVGA_VALUE_PORT)) );
-#endif
 }
 
 void CLASS::Cleanup()
@@ -184,15 +174,6 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 	}
 	m_provider->setMemoryEnable(true);
 	m_provider->setIOEnable(true);
-#if 0
-	m_bar0_map = m_provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0);
-	if (!m_bar0_map) {
-		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
-		Cleanup();
-		return 0;
-	}
-	m_io_base = static_cast<uint16_t>(m_bar0_map->getVirtualAddress());
-#else
 	m_io_base = static_cast<uint16_t>(m_provider->configRead32(kIOPCIConfigBaseAddress0));
 	if (!(m_io_base & 1U)) {
 		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
@@ -200,7 +181,6 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 		return 0;
 	}
 	m_io_base &= ~1U;
-#endif
 	WriteReg(SVGA_REG_ID, SVGA_ID_2);
 	reg_id = ReadReg(SVGA_REG_ID);
 	LogPrintf(3, "%s: REG_ID=%#08x\n", __FUNCTION__, reg_id);
@@ -240,9 +220,6 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 	if (!m_bar2_map)
 		goto bar2_error;
 	m_fifo_ptr = reinterpret_cast<uint32_t*>(m_bar2_map->getVirtualAddress());
-#ifdef TESTING
-	test_ram_size("SVGADevice", reinterpret_cast<IOVirtualAddress>(m_fifo_ptr), m_bar2_map->getLength());
-#endif
 	m_fb_offset = ReadReg(SVGA_REG_FB_OFFSET);
 	m_fb_size = ReadReg(SVGA_REG_FB_SIZE);
 	m_vram_size = ReadReg(SVGA_REG_VRAM_SIZE);
@@ -257,10 +234,17 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 		m_max_gmr_ids = ReadReg(SVGA_REG_GMR_MAX_IDS);
 		m_max_gmr_descriptor_length = ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH);
 	}
+	if (HasCapability(SVGA_CAP_GMR2)) {
+		m_max_gmr_pages = ReadReg(SVGA_REG_GMRS_MAX_PAGES);
+		m_total_memory = ReadReg(SVGA_REG_MEMORY_SIZE);
+	}
 	LogPrintf(3, "%s: SVGA max w, h=%u, %u : host_bpp=%u, bpp=%u\n", __FUNCTION__, m_max_width, m_max_height, host_bpp, guest_bpp);
 	LogPrintf(3, "%s: SVGA VRAM size=%u FB size=%u, FIFO size=%u\n", __FUNCTION__, m_vram_size, m_fb_size, m_fifo_size);
 	if (HasCapability(SVGA_CAP_GMR))
 		LogPrintf(3, "%s: SVGA max GMR IDs == %u, max GMR descriptor length == %u\n", __FUNCTION__, m_max_gmr_ids, m_max_gmr_descriptor_length);
+	if (HasCapability(SVGA_CAP_GMR2))
+		LogPrintf(3, "%s: SVGA max GMR Pages == %u, total dedicated device memory == %u\n", __FUNCTION__,
+				  m_max_gmr_pages, m_total_memory);
 	if (HasCapability(SVGA_CAP_TRACES))
 		WriteReg(SVGA_REG_TRACES, 1);
 	m_bounce_buffer = static_cast<uint8_t*>(IOMalloc(BOUNCE_BUFFER_SIZE));
@@ -269,7 +253,7 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 		Cleanup();
 		return 0;
 	}
-#if 0	/* VMwareGfx 3.1.1 */
+#if 0	/* VMwareGfx 4.x */
 	if (!FIFOInit()) {
 		LogPrintf(1, "%s: Failed FIFOInit.\n", __FUNCTION__);
 		Cleanup();
@@ -565,7 +549,7 @@ void CLASS::setCursorState(uint32_t x, uint32_t y, bool visible)
 
 void CLASS::setCursorState(uint32_t screenId, uint32_t x, uint32_t y, bool visible)
 {
-	if (HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT))
+	if (HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
 		m_fifo_ptr[SVGA_FIFO_CURSOR_SCREEN_ID] = screenId;
 	// CURSOR_BYPASS_3
 	m_fifo_ptr[SVGA_FIFO_CURSOR_ON] = visible ? 1U : 0U;
@@ -619,8 +603,6 @@ void CLASS::SetMode(uint32_t width, uint32_t height, uint32_t bpp)
 	WriteReg(SVGA_REG_HEIGHT, height);
 	WriteReg(SVGA_REG_BITS_PER_PIXEL, bpp);
 	WriteReg(SVGA_REG_ENABLE, 1);
-	if (checkOptionFB(VMW_OPTION_FB_LINUX))	// Added
-		WriteReg(SVGA_REG_GUEST_ID, GUEST_OS_LINUX);
 	m_pitch = ReadReg(SVGA_REG_BYTES_PER_LINE);
 	LogPrintf(2, "%s: pitch=%u\n", __FUNCTION__, m_pitch);
 	m_fb_size = ReadReg(SVGA_REG_FB_SIZE);
@@ -738,7 +720,10 @@ bool CLASS::get3DHWVersion(uint32_t* HWVersion) const
 		return false;
 	if (m_fifo_ptr[SVGA_FIFO_MIN] <= static_cast<uint32_t>(sizeof(uint32_t) * SVGA_FIFO_GUEST_3D_HWVERSION))
 		return false;
-	*HWVersion = m_fifo_ptr[SVGA_FIFO_3D_HWVERSION];
+	if (HasFIFOCap(SVGA_FIFO_CAP_3D_HWVERSION_REVISED))
+		*HWVersion = m_fifo_ptr[SVGA_FIFO_3D_HWVERSION_REVISED];
+	else
+		*HWVersion = m_fifo_ptr[SVGA_FIFO_3D_HWVERSION];
 	return true;
 }
 
@@ -790,29 +775,41 @@ bool CLASS::UpdateFramebuffer2(uint32_t const* rect)
 	return true;
 }
 
-bool CLASS::defineGMR(uint32_t gmrID, uint32_t ppn)
+bool CLASS::defineGMR(uint32_t gmrId, uint32_t ppn)
 {
 	if (!HasCapability(SVGA_CAP_GMR))
 		return false;
-	WriteReg(SVGA_REG_GMR_ID, gmrID);
+	WriteReg(SVGA_REG_GMR_ID, gmrId);
 	WriteReg(SVGA_REG_GMR_DESCRIPTOR, ppn);
 	return true;
 }
 
-#ifdef TESTING
-void CLASS::test_ram_size(char const* name, IOVirtualAddress ptr, IOByteCount count)
+bool CLASS::defineGMR2(uint32_t gmrId, uint32_t numPages)
 {
-	IOVirtualAddress a;
-	for (a = ptr; a < ptr + count; a += PAGE_SIZE)
-	{
-		uint32_t volatile* p = reinterpret_cast<uint32_t volatile*>(a);
-		*p = 0x55AA55AAU;
-		if (*p != 0x55AA55AAU)
-			break;
-		*p = 0xAA55AA55U;
-		if (*p != 0xAA55AA55U)
-			break;
-	}
-	IOLog("%s: test_ram_size(%p, %lu), result %lu\n", name, reinterpret_cast<void*>(ptr), count, a - ptr);
+	SVGAFifoCmdDefineGMR2* cmd = static_cast<SVGAFifoCmdDefineGMR2*>(FIFOReserveCmd(SVGA_CMD_DEFINE_GMR2, sizeof *cmd));
+	if (!cmd)
+		return false;
+	cmd->gmrId = gmrId;
+	cmd->numPages = numPages;
+	FIFOCommitAll();
+	return true;
 }
-#endif
+
+bool CLASS::remapGMR2(uint32_t gmrId, uint32_t flags, uint32_t offsetPages,
+					  uint32_t numPages, void const* suffix, uint32_t suffixSize)
+{
+	if (!suffix && suffixSize)
+		return false;
+	SVGAFifoCmdRemapGMR2* cmd = static_cast<SVGAFifoCmdRemapGMR2*>(FIFOReserveCmd(SVGA_CMD_REMAP_GMR2,
+																				  sizeof *cmd + suffixSize));
+	if (!cmd)
+		return false;
+	cmd->gmrId = gmrId;
+	cmd->flags = static_cast<SVGARemapGMR2Flags>(flags);
+	cmd->offsetPages = offsetPages;
+	cmd->numPages = numPages;
+	if (suffix)
+		memcpy(&cmd[1], suffix, suffixSize);
+	FIFOCommitAll();
+	return true;
+}

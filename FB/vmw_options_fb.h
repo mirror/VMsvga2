@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on August 20th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -29,12 +29,11 @@
 #ifndef __VMW_OPTIONS_FB_H__
 #define __VMW_OPTIONS_FB_H__
 
-#define VMW_OPTION_FB_FIFO_INIT			0x1
-#define VMW_OPTION_FB_REFRESH_TIMER		0x2
-#define VMW_OPTION_FB_ACCEL				0x4
-#define VMW_OPTION_FB_CURSOR_BYPASS_2	0x8
-#define VMW_OPTION_FB_REG_DUMP			0x10
-#define VMW_OPTION_FB_LINUX				0x20
+#define VMW_OPTION_FB_FIFO_INIT			0x01U
+#define VMW_OPTION_FB_REFRESH_TIMER		0x02U
+#define VMW_OPTION_FB_ACCEL				0x04U
+#define VMW_OPTION_FB_CURSOR_BYPASS_2	0x08U
+#define VMW_OPTION_FB_REG_DUMP			0x10U
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,7 +43,7 @@ extern unsigned vmw_options_fb;
 
 static inline int checkOptionFB(unsigned mask)
 {
-	return (vmw_options_fb & mask) != 0;
+	return (vmw_options_fb & mask) != 0U;
 }
 
 #ifdef __cplusplus

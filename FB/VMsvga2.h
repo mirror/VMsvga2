@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -39,57 +39,65 @@
 #include "SVGADevice.h"
 #include "common_fb.h"
 
-class IOTimerEventSource;
-
 class VMsvga2 : public IOFramebuffer
 {
 	OSDeclareDefaultStructors(VMsvga2);
 
 private:
 	SVGADevice svga;				// (now * at 0x10C)
-	IOPCIDevice* m_provider;		// (eliminated)
 	IODeviceMemory* m_bar1;			// offset 0x110
 	IOMemoryMap* m_bar1_map;		// offset 0x114
 	IOVirtualAddress m_bar1_ptr;	// offset 0x118
 #if 0
 	IOPhysicalAddress m_fb_offset;	// offset 0x11C
-	UInt m_aperture_size;			// offset 0x120
+	uint32_t m_aperture_size;		// offset 0x120
 #endif
-	IODisplayModeID m_display_mode;	// offset 0x124
-	IOIndex m_depth_mode;			// offset 0x128
-	thread_call_t m_restore_call;	// offset 0x12C
-	IODisplayModeID m_modes[NUM_DISPLAY_MODES];	// offset 0x130 (14 entries)
-	UInt m_custom_switch;			// offset 0x168
+	uint32_t m_num_active_modes;	// offset 0x124
+#if 0
+	uint32_t m_max_width;			// offset 0x128
+	uint32_t m_max_height;			// offset 0x12C
+#endif
+	IODisplayModeID m_display_mode;	// offset 0x130
+	IOIndex m_depth_mode;			// offset 0x134
+	thread_call_t m_restore_call;	// offset 0x138
+	IODisplayModeID m_modes[NUM_DISPLAY_MODES];	// offset 0x13C (16 entries)
+	uint32_t m_custom_switch;		// offset 0x17C
+	bool m_custom_mode_switched;	// offset 0x180
+#if 0
+	uint32_t m_custom_mode_width;	// offset 0x184
+	uint32_t m_custom_mode_height;	// offset 0x188
+#endif
 	struct {
 		OSObject* target;
 		void* ref;
 		IOFBInterruptProc proc;
-	} m_intr;						// offset 0x16C
-	IOLock* m_iolock;				// offset 0x178
-//	void* m_cursor_image;			// offset 0x17C
-	SInt m_hotspot_x;				// offset 0x180
-	SInt m_hotspot_y;				// offset 0x184
+	} m_intr;						// offset 0x18C
+	IOLock* m_iolock;				// offset 0x198
+	void* m_cursor_image;			// offset 0x19C
+	int32_t m_hotspot_x;			// offset 0x1A0
+	int32_t m_hotspot_y;			// offset 0x1A4
 
 	/*
 	 * Begin Added
 	 */
 	bool m_intr_enabled;
 	bool m_accel_updates;
+	bool m_have_edid;
 	thread_call_t m_refresh_call;
-	UInt m_refresh_quantum_ms;
-	UInt m_num_active_modes;
+	uint32_t m_refresh_quantum_ms;
 	DisplayModeEntry customMode;
+	uint8_t m_edid[128];
 	/*
 	 * End Added
 	 */
 
 	void Cleanup();
-	static UInt FindDepthMode(IOIndex depth);
+	static uint32_t FindDepthMode(IOIndex depth);
 	DisplayModeEntry const* GetDisplayMode(IODisplayModeID displayMode);
 	static void IOSelectToString(IOSelect io_select, char* output);
-	static void ConvertAlphaCursor(UInt* cursor, UInt width, UInt height);
-	void CustomSwitchStepWait(UInt value);
-	void CustomSwitchStepSet(UInt value);
+	static void ConvertAlphaCursor(uint32_t* cursor, uint32_t width, uint32_t height);
+	void CustomSwitchStepWait(uint32_t value);
+	void CustomSwitchStepSet(uint32_t value);
 	void EmitConnectChangedEvent();
 	void RestoreAllModes();
 	static void _RestoreAllModes(thread_call_param_t param0, thread_call_param_t param1);
@@ -97,14 +105,16 @@ private:
 	/*
 	 * Begin Added
 	 */
-	void scheduleRefreshTimer(UInt milliSeconds);
+	void scheduleRefreshTimer(uint32_t milliSeconds);
 	void scheduleRefreshTimer();
 	void cancelRefreshTimer();
-	void refreshTimerAction(IOTimerEventSource* sender);
+	void refreshTimerAction();
 	static void _RefreshTimerAction(thread_call_param_t param0, thread_call_param_t param1);
 	void setupRefreshTimer();
 	void deleteRefreshTimer();
 	IODisplayModeID TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) const;
+	IODeviceMemory* getBar1() const;
+	void LegacyBlankFB();
 	/*
 	 * End Added
 	 */
@@ -121,10 +131,8 @@ public:
 	IOItemCount getDisplayModeCount();
 	const char* getPixelFormats();
 	IODeviceMemory* getVRAMRange();
-	UInt getApertureSize(IODisplayModeID displayMode, IOIndex depth);
 	IODeviceMemory* getApertureRange(IOPixelAperture aperture);
 	bool isConsoleDevice();
-	IOReturn setupForCurrentConfig();
 	bool start(IOService* provider);
 	void stop(IOService* provider);
 	IOReturn getAttribute(IOSelect attribute, uintptr_t* value);

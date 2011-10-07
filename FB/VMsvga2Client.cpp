@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 4th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -40,12 +40,12 @@
 OSDefineMetaClassAndStructors(VMsvga2Client, IOUserClient);
 
 #if LOGGING_LEVEL >= 1
-#define LogPrintf(log_level, fmt, ...) do { if (log_level <= logLevelFB) VLog("IOFBClient: ", fmt, ##__VA_ARGS__); } while (false)
+#define LogPrintf(log_level, ...) do { if (log_level <= logLevelFB) VLog("IOFBClient: ", ##__VA_ARGS__); } while (false)
 #else
-#define LogPrintf(log_level, fmt, ...)
+#define LogPrintf(log_level, ...)
 #endif
 
-static IOExternalMethod iofbFuncsCache[1] =
+static IOExternalMethod const iofbFuncsCache[1] =
 {
 	{0, reinterpret_cast<IOMethod>(&VMsvga2::CustomMode), kIOUCStructIStructO, sizeof(CustomModeData), sizeof(CustomModeData)}
 };
@@ -61,7 +61,7 @@ IOExternalMethod* VMsvga2Client::getTargetAndMethodForIndex(IOService** targetP,
 		return 0;
 	}
 	*targetP = getProvider();
-	return &iofbFuncsCache[0];
+	return const_cast<IOExternalMethod*>(&iofbFuncsCache[0]);
 }
 
 IOReturn VMsvga2Client::clientClose()

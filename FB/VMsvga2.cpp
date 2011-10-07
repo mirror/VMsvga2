@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -49,9 +49,9 @@
 OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 
 #if LOGGING_LEVEL >= 1
-#define LogPrintf(log_level, fmt, ...) do { if (log_level <= logLevelFB) VLog("IOFB: ", fmt, ##__VA_ARGS__); } while (false)
+#define LogPrintf(log_level, ...) do { if (log_level <= logLevelFB) VLog("IOFB: ", ##__VA_ARGS__); } while (false)
 #else
-#define LogPrintf(log_level, fmt, ...)
+#define LogPrintf(log_level, ...)
 #endif
 
 #define FMT_D(x) static_cast<int>(x)
@@ -72,15 +72,11 @@ OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 
 typedef unsigned long long __m64 __attribute__((vector_size(8), may_alias));
 
-static __attribute__((used)) char const copyright[] = "Copyright 2009-2010 Zenith432";
+static __attribute__((used)) char const copyright[] = "Copyright 2009-2011 Zenith432";
 
 static char const pixelFormatStrings[] = IO32BitDirectPixels "\0";
 
-static UInt8 edid[128];
-
-static bool have_edid = false;
-
-unsigned __attribute__((visibility("hidden"))) vmw_options_fb = 0;
+unsigned __attribute__((visibility("hidden"))) vmw_options_fb = 0U;
 
 int __attribute__((visibility("hidden"))) logLevelFB = LOGGING_LEVEL;
 
@@ -104,12 +100,10 @@ void CLASS::Cleanup()
 		thread_call_free(m_restore_call);
 		m_restore_call = 0;
 	}
-#if 0	/* VMwareGfx 3.1.1 */
 	if (m_cursor_image) {
 		IOFree(m_cursor_image, 16384U);
 		m_cursor_image = 0;
 	}
-#endif
 	if (m_bar1_map) {
 		m_bar1_map->release();
 		m_bar1_map = 0;
@@ -126,7 +120,7 @@ void CLASS::Cleanup()
 }
 
 __attribute__((visibility("hidden")))
-UInt CLASS::FindDepthMode(IOIndex depth)
+uint32_t CLASS::FindDepthMode(IOIndex depth)
 {
 	return depth ? 0 : 32;
 }
@@ -155,12 +149,39 @@ void CLASS::IOSelectToString(IOSelect io_select, char* output)
 __attribute__((visibility("hidden")))
 IODisplayModeID CLASS::TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) const
 {
-	UInt w = svga.getCurrentWidth();
-	UInt h = svga.getCurrentHeight();
-	for (unsigned i = 1; i < NUM_DISPLAY_MODES; ++i)
+	IODisplayModeID tableDefault = 0;
+	uint32_t w = svga.getCurrentWidth();
+	uint32_t h = svga.getCurrentHeight();
+	for (IODisplayModeID i = 1; i < NUM_DISPLAY_MODES; ++i) {
 		if (w == modeList[i].width && h == modeList[i].height)
 			return i + 1;
-	return defaultMode;
+		if (modeList[i].flags & kDisplayModeDefaultFlag)
+			tableDefault = i + 1;
+	}
+	return tableDefault ? : defaultMode;
+}
+
+__attribute__((visibility("hidden")))
+IODeviceMemory* CLASS::getBar1() const
+{
+	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
+	if (!provider)
+		return 0;
+	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
+}
+
+__attribute__((visibility("hidden")))
+void CLASS::LegacyBlankFB()
+{
+#if 0
+	/*
+	 * Used in VMwareGfx 4.x
+	 */
+	memset32(m_bar1_ptr + svga.getCurrentFBOffset(), 0x4969AC, svga.getCurrentFBSize() / sizeof(uint32_t));
+#else
+	bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getCurrentFBOffset()),
+		  svga.getCurrentFBSize());
+#endif
 }
 
 #pragma mark -
@@ -180,15 +201,15 @@ IOReturn CLASS::setCursorState(SInt32 x, SInt32 y, bool visible)
 		y = 0;
 	IOLockLock(m_iolock);
 	svga.setCursorState(
-		static_cast<UInt>(x),
-		static_cast<UInt>(y),
+		static_cast<uint32_t>(x),
+		static_cast<uint32_t>(y),
 		visible);
 	IOLockUnlock(m_iolock);
-	return kIOReturnSuccess /* kIOReturnUnsupported */;
+	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::ConvertAlphaCursor(UInt* cursor, UInt width, UInt height)
+void CLASS::ConvertAlphaCursor(uint32_t* cursor, uint32_t width, uint32_t height)
 {
 	/*
 	 * Pre-multiply alpha cursor
@@ -197,10 +218,10 @@ void CLASS::ConvertAlphaCursor(UInt* cursor, UInt width, UInt height)
 	static __m64 const datum = { 0x808180818081ULL };
 	__m64 const mm_zero = { 0ULL };
 	__m64 mm0;
-	UInt alpha, num_pixels;
+	uint32_t alpha, num_pixels;
 	for (num_pixels = width * height; num_pixels; --num_pixels, ++cursor) {
 		alpha = (*cursor) >> 24U;
-		if (!alpha || static_cast<UInt8>(alpha) == 255U)
+		if (!alpha || static_cast<uint8_t>(alpha) == 255U)
 			continue;
 		mm0 = __builtin_ia32_punpcklbw((__m64){*cursor}, mm_zero);
 		*cursor = __builtin_ia32_vec_ext_v2si(
@@ -213,32 +234,31 @@ void CLASS::ConvertAlphaCursor(UInt* cursor, UInt width, UInt height)
 	}
 	__builtin_ia32_emms();
 #else /* VECTORIZE */
-	UInt i, pixel, alpha, r, g, b;
-	UInt num_pixels = width * height;
+	uint32_t num_pixels, pixel, alpha, r, g, b;
 #if 0
 	LogPrintf(2, "%s: %ux%u pixels @ %p\n", __FUNCTION__, width, height, cursor);
 #endif
-	for (i = 0; i < num_pixels; ++i) {
-		pixel = cursor[i];
+	for (num_pixels = width * height; num_pixels; --num_pixels, ++cursor) {
+		pixel = *cursor;
 		alpha = pixel >> 24;
-		if (!alpha || alpha == 255U)
+		if (!alpha || static_cast<uint8_t>(alpha) == 255U)
 			continue;
 		b = (pixel & 0xFFU) * alpha / 255U;
 		g = ((pixel >> 8) & 0xFFU) * alpha / 255U;
 		r = ((pixel >> 16) & 0xFFU) * alpha / 255U;
-		cursor[i] = (pixel & 0xFF000000U) | (r << 16) | (g << 8) | b;
+		*cursor = (pixel & 0xFF000000U) | (r << 16) | (g << 8) | b;
 	}
 #endif /* VECTORIZE */
 }
 
 IOReturn CLASS::setCursorImage(void* cursorImage)
 {
-	void* harware_cursor;
+	void* device_cursor;
 #ifndef HAVE_CURSOR_HOTSPOT
 	static int once = 1;
 	StdFBShmem_t *shmem;
 #else
-	UInt16 const* p_hotspots;
+	uint16_t const* p_hotspots;
 #endif
 	IOHardwareCursorDescriptor curd;
 	IOHardwareCursorInfo curi;
@@ -246,40 +266,34 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	if (!checkOptionFB(VMW_OPTION_FB_FIFO_INIT))
 		return kIOReturnUnsupported;
 	LogPrintf(2, "%s: cursor wxh=%dx%d\n", __FUNCTION__, 64, 64);
-	IOLockLock(m_iolock);
-#if 0	/* VMwareGfx 3.1.1 */
 	if (!m_cursor_image) {
 		m_cursor_image = IOMalloc(16384U);
 		if (!m_cursor_image) {
-			LogPrintf(1, "%s: out of memory on cacheCursorMemory %ux%u\n",
-					  __FUNCTION__, FMT_U(curi.cursorWidth), FMT_U(curi.cursorHeight));
+			LogPrintf(1, "%s: out of memory on cacheCursorMemory\n", __FUNCTION__);
 			return kIOReturnUnsupported;
 		}
 	}
-#else
-	harware_cursor = svga.BeginDefineAlphaCursor(64, 64, 4);
-#endif
 	m_hotspot_x = 0;
 	m_hotspot_y = 0;
 	bzero(&curd, sizeof curd);
 	curd.majorVersion = kHardwareCursorDescriptorMajorVersion;
 	curd.minorVersion = kHardwareCursorDescriptorMinorVersion;
-	curd.width = 64;
-	curd.height = 64;
-	curd.bitDepth = 32;
+	curd.width = 64U;
+	curd.height = 64U;
+	curd.bitDepth = 32U;
 	curd.supportedSpecialEncodings = kInvertingEncodedPixel;
 	curd.specialEncodings[kInvertingEncoding] = 0xFF000000U;
 	bzero(&curi, sizeof curi);
 	curi.majorVersion = kHardwareCursorInfoMajorVersion;
 	curi.minorVersion = kHardwareCursorInfoMinorVersion;
-	curi.hardwareCursorData = static_cast<UInt8*>(harware_cursor); /* m_cursor_image in VMwareGfx 3.1.1 */
+	curi.hardwareCursorData = static_cast<uint8_t*>(m_cursor_image);
 #ifdef HAVE_CURSOR_HOTSPOT
-	p_hotspots = reinterpret_cast<UInt16 const*>(&curi.hardwareCursorData + 1);
+	p_hotspots = reinterpret_cast<uint16_t const*>(&curi.hardwareCursorData + 1);
 #else
 	shmem = GetShmem(this);
 	if (shmem) {
 		if (shmem->version == kIOFBTenPtTwoShmemVersion) {
-			UInt u = (cursorImage != 0 ? 1 : 0);
+			unsigned u = (cursorImage != 0 ? 1U : 0U);
 			m_hotspot_x = shmem->hotSpot[u].x;
 			m_hotspot_y = shmem->hotSpot[u].y;
 #if 0
@@ -297,9 +311,11 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	LogPrintf(3, "%s: cursor %p: desc %ux%u @ %u\n", __FUNCTION__,
 			  curi.hardwareCursorData, FMT_U(curd.width), FMT_U(curd.height), FMT_U(curd.bitDepth));
 	if (!convertCursorImage(cursorImage, &curd, &curi)) {
-		svga.FIFOCommit(0); /* not needed in VMwareGfx 3.1.1 */
-		IOLockUnlock(m_iolock);
-		LogPrintf(1, "%s: convertCursorImage() failed %ux%u\n", __FUNCTION__,
+		LogPrintf(1, "%s: convertCursorImage() failed\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
+	if (!curi.cursorWidth || !curi.cursorHeight) {
+		LogPrintf(1, "%s: convertCursorImage() returned bad size %ux%u", __FUNCTION__,
 				  FMT_U(curi.cursorWidth), FMT_U(curi.cursorHeight));
 		return kIOReturnUnsupported;
 	}
@@ -311,17 +327,21 @@ IOReturn CLASS::setCursorImage(void* cursorImage)
 	m_hotspot_x = *p_hotspots;
 	m_hotspot_y = p_hotspots[1];
 #endif
-	ConvertAlphaCursor(
-		reinterpret_cast<UInt*>(curi.hardwareCursorData),
-		curi.cursorWidth,
-		curi.cursorHeight);
-#if 0	/* VMwareGfx 3.1.1 */
-	memcpy(svga.BeginDefineAlphaCursor(64, 64, 4), curi.hardwareCursorData, 16384U);
-#endif
+	ConvertAlphaCursor(reinterpret_cast<uint32_t*>(curi.hardwareCursorData),
+					   curi.cursorWidth,
+					   curi.cursorHeight);
+	IOLockLock(m_iolock);
+	device_cursor = svga.BeginDefineAlphaCursor(curi.cursorWidth, curi.cursorHeight, 4U);
+	if (!device_cursor) {
+		IOLockUnlock(m_iolock);
+		LogPrintf(1, "%s: BeginDefineAlphaCursor() failed\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
+	memcpy(device_cursor, curi.hardwareCursorData, curi.cursorWidth * curi.cursorHeight * 4U);
 	svga.EndDefineAlphaCursor(
 		curi.cursorWidth,
 		curi.cursorHeight,
-		4,
+		4U,
 		m_hotspot_x,
 		m_hotspot_y);
 	IOLockUnlock(m_iolock);
@@ -359,7 +379,7 @@ IOReturn CLASS::unregisterInterrupt(void* interruptRef)
 IOItemCount CLASS::getConnectionCount()
 {
 	LogPrintf(2, "%s: \n", __FUNCTION__);
-	return 1;
+	return 1U;
 }
 
 IOReturn CLASS::getCurrentDisplayMode(IODisplayModeID* displayMode, IOIndex* depth)
@@ -402,16 +422,22 @@ const char* CLASS::getPixelFormats()
 
 IODeviceMemory* CLASS::getVRAMRange()
 {
+	IODeviceMemory* mem;
+
 	LogPrintf(2, "%s: \n", __FUNCTION__);
-	if (!m_bar1)
+	mem = getBar1();
+	if (!mem)
 		return 0;
-	m_bar1->retain();
-	return m_bar1;
+	if (svga.getVRAMSize() >= mem->getLength()) {
+		mem->retain();
+		return mem;
+	}
+	return IODeviceMemory::withSubRange(mem, 0U, svga.getVRAMSize());
 }
 
 IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 {
-	UInt fb_offset, fb_size;
+	uint32_t fb_offset, fb_size;
 	IODeviceMemory* mem;
 
 	if (aperture != kIOFBSystemAperture) {
@@ -419,7 +445,8 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 				  FMT_D(aperture), kIOFBSystemAperture);
 		return 0;
 	}
-	if (!m_bar1)
+	mem = getBar1();
+	if (!mem)
 		return 0;
 	IOLockLock(m_iolock);
 	fb_offset = svga.getCurrentFBOffset();
@@ -427,7 +454,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 	IOLockUnlock(m_iolock);
 	LogPrintf(2, "%s: aperture=%d, fb offset=%u, fb size=%u\n", __FUNCTION__,
 			  FMT_D(aperture), fb_offset, fb_size);
-	mem = IODeviceMemory::withSubRange(m_bar1, fb_offset, fb_size);
+	mem = IODeviceMemory::withSubRange(mem, fb_offset, fb_size);
 	if (!mem)
 		LogPrintf(1, "%s: Failed to create IODeviceMemory, aperture=%d\n", __FUNCTION__, kIOFBSystemAperture);
 	return mem;
@@ -436,17 +463,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 bool CLASS::isConsoleDevice()
 {
 	LogPrintf(2, "%s: \n", __FUNCTION__);
-	return 0 != m_provider->getProperty("AAPL,boot-display");
-}
-
-IOReturn CLASS::setupForCurrentConfig()
-{
-	IOReturn r;
-
-	LogPrintf(2, "%s: begins.\n", __FUNCTION__);
-	r = super::setupForCurrentConfig();
-	LogPrintf(2, "%s: ends return=%u.\n", __FUNCTION__, r);
-	return r;
+	return 0 != getProvider()->getProperty("AAPL,boot-display");
 }
 
 IOReturn CLASS::getAttribute(IOSelect attribute, uintptr_t* value)
@@ -454,9 +471,14 @@ IOReturn CLASS::getAttribute(IOSelect attribute, uintptr_t* value)
 	IOReturn r;
 	char attr[5];
 
+	/*
+	 * Also called from base class:
+	 *   kIOMirrorDefaultAttribute
+	 *   kIOVRAMSaveAttribute
+	 */
 	if (attribute == kIOHardwareCursorAttribute) {
 		if (value)
-			*value = checkOptionFB(VMW_OPTION_FB_FIFO_INIT) ? 1 : 0;
+			*value = checkOptionFB(VMW_OPTION_FB_FIFO_INIT) ? 1U : 0U;
 		r = kIOReturnSuccess;
 	} else
 		r = super::getAttribute(attribute, value);
@@ -475,6 +497,10 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	IOReturn r;
 	char attr[5];
 
+	/*
+	 * Also called from base class:
+	 *   kConnectionCheckEnable
+	 */
 	switch (attribute) {
 		case kConnectionSupportsAppleSense:
 		case kConnectionDisplayParameterCount:
@@ -494,17 +520,17 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 		case kConnectionEnable:
 			LogPrintf(2, "%s: kConnectionEnable\n", __FUNCTION__);
 			if (value)
-				*value = 1;
+				*value = 1U;
 			r = kIOReturnSuccess;
 			break;
 		case kConnectionFlags:
 			LogPrintf(2, "%s: kConnectionFlags\n", __FUNCTION__);
 			if (value)
-				*value = 0;
+				*value = 0U;
 			r = kIOReturnSuccess;
 			break;
 		case kConnectionSupportsHLDDCSense:
-			r = have_edid ? kIOReturnSuccess : kIOReturnUnsupported;
+			r = m_have_edid ? kIOReturnSuccess : kIOReturnUnsupported;
 			break;
 		default:
 			r = super::getAttributeForConnection(connectIndex, attribute, value);
@@ -535,9 +561,9 @@ IOReturn CLASS::setAttribute(IOSelect attribute, uintptr_t value)
 	}
 	if (attribute == kIOCapturedAttribute &&
 		!value &&
-		m_custom_switch == 1 &&
+		m_custom_switch == 1U &&
 		m_display_mode == CUSTOM_MODE_ID) {
-		CustomSwitchStepSet(2);
+		CustomSwitchStepSet(2U);
 	}
 	return r;
 }
@@ -576,6 +602,13 @@ IOReturn CLASS::registerForInterruptType(IOSelect interruptType, IOFBInterruptPr
 		IOSelectToString(interruptType, &int_type[0]);
 		LogPrintf(2, "%s: interruptType=%s\n", __FUNCTION__, &int_type[0]);
 	}
+	/*
+	 * Also called from base class:
+	 *   kIOFBVBLInterruptType
+	 *   kIOFBDisplayPortInterruptType
+	 */
+	if (interruptType == kIOFBMCCSInterruptType)
+		return super::registerForInterruptType(interruptType, proc, target, ref, interruptRef);
 	if (interruptType != kIOFBConnectInterruptType)
 		return kIOReturnUnsupported;
 	bzero(&m_intr, sizeof m_intr);
@@ -642,11 +675,11 @@ IOReturn CLASS::getPixelInformation(IODisplayModeID displayMode, IOIndex depth, 
 	pixelInfo->componentMasks[0] = 0xFF0000U;
 	pixelInfo->componentMasks[1] = 0x00FF00U;
 	pixelInfo->componentMasks[2] = 0x0000FFU;
-	pixelInfo->bitsPerPixel = 32;
-	pixelInfo->componentCount = 3;
-	pixelInfo->bitsPerComponent = 8;
+	pixelInfo->bitsPerPixel = 32U;
+	pixelInfo->componentCount = 3U;
+	pixelInfo->bitsPerComponent = 8U;
 	pixelInfo->bytesPerRow = ((pixelInfo->activeWidth + 7U) & (~7U)) << 2;
-	LogPrintf(2, "%s: bytesPerRow=%u\n", __FUNCTION__, FMT_U(pixelInfo->bytesPerRow));
+	LogPrintf(2, "%s: bitsPerPixel=%u, bytesPerRow=%u\n", __FUNCTION__, 32U, FMT_U(pixelInfo->bytesPerRow));
 	return kIOReturnSuccess;
 }
 
@@ -665,25 +698,30 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 		LogPrintf(1, "%s: Display mode %d not found.\n", __FUNCTION__, FMT_D(displayMode));
 		return kIOReturnBadArgument;
 	}
+	if (m_custom_mode_switched) {
+		if (customMode.width == dme->width && customMode.height == dme->height)
+			m_custom_mode_switched = false;
+		else
+			LogPrintf(3, "%s: Not setting mode in virtual hardware\n", __FUNCTION__);
+		m_display_mode = displayMode;
+		m_depth_mode = 0;
+		return kIOReturnSuccess;
+	}
 	if (!m_accel_updates)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
-	if (!m_accel_updates && m_custom_switch == 1)
-		bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getCurrentFBOffset()),
-			  svga.getCurrentFBSize());
-	svga.SetMode(dme->width, dme->height, 32);
-	m_display_mode = displayMode;
-	m_depth_mode = 0;
-#if 0
-	m_aperture_size = svga.getCurrentFBSize();
-#endif
+	if (!m_accel_updates && m_custom_switch == 1U)
+		LegacyBlankFB();
+	svga.SetMode(dme->width, dme->height, 32U);
 	if (checkOptionFB(VMW_OPTION_FB_REG_DUMP))	// Added
 		svga.RegDump();						// Added
 	IOLockUnlock(m_iolock);
+	m_display_mode = displayMode;
+	m_depth_mode = 0;
 	LogPrintf(2, "%s: display mode ID=%d, depth mode ID=%d\n", __FUNCTION__,
 			  FMT_D(m_display_mode), FMT_D(m_depth_mode));
 	if (!m_accel_updates)
-		scheduleRefreshTimer(200 /* m_refresh_quantum_ms */);	// Added
+		scheduleRefreshTimer(200U /* m_refresh_quantum_ms */);	// Added
 	return kIOReturnSuccess;
 }
 
@@ -694,14 +732,14 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 IOReturn CLASS::getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect blockType, IOOptionBits options, UInt8* data, IOByteCount* length)
 {
 	if (connectIndex == 0 &&
-		have_edid &&
-		blockNumber == 1 &&
+		m_have_edid &&
+		blockNumber == 1U &&
 		blockType == kIODDCBlockTypeEDID &&
 		data &&
 		length &&
-		*length >= sizeof edid) {
-		memcpy(data, &edid[0], sizeof edid);
-		*length = sizeof edid;
+		*length >= sizeof m_edid) {
+		memcpy(data, &m_edid[0], sizeof m_edid);
+		*length = sizeof m_edid;
 		return kIOReturnSuccess;
 	}
 	return super::getDDCBlock(connectIndex, blockNumber, blockType, options, data, length);
@@ -709,22 +747,9 @@ IOReturn CLASS::getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect b
 
 bool CLASS::hasDDCConnect(IOIndex connectIndex)
 {
-	if (connectIndex == 0 && have_edid)
+	if (connectIndex == 0 && m_have_edid)
 		return true;
 	return super::hasDDCConnect(connectIndex);
-}
-
-#pragma mark -
-#pragma mark Public Methods
-#pragma mark -
-
-UInt CLASS::getApertureSize(IODisplayModeID displayMode, IOIndex depth)
-{
-	IOPixelInformation pixelInfo;
-	LogPrintf(2, "%s: mode ID=%d, depth=%d\n", __FUNCTION__,
-			  FMT_D(displayMode), FMT_D(depth));
-	getPixelInformation(displayMode, depth, kIOFBSystemAperture, &pixelInfo);
-	return pixelInfo.bytesPerRow * pixelInfo.activeHeight;
 }
 
 #pragma mark -
@@ -732,7 +757,7 @@ UInt CLASS::getApertureSize(IODisplayModeID displayMode, IOIndex depth)
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-void CLASS::CustomSwitchStepWait(UInt value)
+void CLASS::CustomSwitchStepWait(uint32_t value)
 {
 	LogPrintf(2, "%s: value=%u.\n", __FUNCTION__, value);
 	while (m_custom_switch != value) {
@@ -746,7 +771,7 @@ void CLASS::CustomSwitchStepWait(UInt value)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::CustomSwitchStepSet(UInt value)
+void CLASS::CustomSwitchStepSet(uint32_t value)
 {
 	LogPrintf(2, "%s: value=%u.\n", __FUNCTION__, value);
 	m_custom_switch = value;
@@ -756,11 +781,13 @@ void CLASS::CustomSwitchStepSet(UInt value)
 __attribute__((visibility("hidden")))
 void CLASS::EmitConnectChangedEvent()
 {
-#if 0	/* VMwareGfx 3.1.1 */
-	while (!m_intr.proc || !m_intr_enabled) {
+#if 0	/* VMwareGfx 4.x */
+	while (!m_intr.proc) {
 		LogPrintf(2, "%s: Waiting for WindowServer.\n", __FUNCTION__);
 		IOSleep(1000);
 	}
+	if (!m_intr_enabled)
+		return;
 #else
 	if (!m_intr.proc || !m_intr_enabled)
 		return;
@@ -773,31 +800,32 @@ void CLASS::EmitConnectChangedEvent()
 __attribute__((visibility("hidden")))
 void CLASS::RestoreAllModes()
 {
-	UInt i;
+	uint32_t i;
 	IODisplayModeID t;
 	DisplayModeEntry const* dme1;
 	DisplayModeEntry const* dme2 = 0;
 
-	if (m_custom_switch != 2)
+	if (m_custom_switch != 2U)
 		return;
 
 	dme1 = GetDisplayMode(CUSTOM_MODE_ID);
 	if (!dme1)
 		return;
-	for (i = 0; i < m_num_active_modes; ++i) {
+	for (i = 0U; i != m_num_active_modes; ++i) {
 		dme2 = GetDisplayMode(m_modes[i]);
 		if (!dme2)
 			continue;
 		if (dme2->width != dme1->width || dme2->height != dme1->height)
-			break;
+			goto found_slot;
 	}
-	if (i == m_num_active_modes)
-		return;
+	return;
+found_slot:
 	t = m_modes[0];
 	m_modes[0] = m_modes[i];
 	m_modes[i] = t;
 	LogPrintf(2, "%s: Swapped mode IDs in slots 0 and %u.\n", __FUNCTION__, i);
-	CustomSwitchStepSet(0);
+	m_custom_mode_switched = true;
+	CustomSwitchStepSet(0U);
 	EmitConnectChangedEvent();
 }
 
@@ -810,8 +838,7 @@ void CLASS::_RestoreAllModes(thread_call_param_t param0, thread_call_param_t par
 IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData, size_t inSize, size_t* outSize)
 {
 	DisplayModeEntry const* dme1;
-	DisplayModeEntry* dme2;
-	UInt w, h;
+	unsigned w, h;
 	uint64_t deadline;
 
 	if (!m_restore_call)
@@ -837,24 +864,27 @@ IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData
 	dme1 = GetDisplayMode(m_display_mode);
 	if (!dme1)
 		return kIOReturnUnsupported;
-	if (inData->flags & 1) {
+	if (inData->flags & 1U) {
 		LogPrintf(3, "%s: Set resolution to %ux%u.\n", __FUNCTION__, inData->width, inData->height);
 		w = inData->width;
-		if (w < 800)
-			w = 800;
+		if (w < 800U)
+			w = 800U;
+		else if (w > svga.getMaxWidth())
+			w = svga.getMaxWidth();
 		h = inData->height;
-		if (h < 600)
-			h = 600;
+		if (h < 600U)
+			h = 600U;
+		else if (h > svga.getMaxHeight())
+			h = svga.getMaxHeight();
 		if (w == dme1->width && h == dme1->height)
 			goto finish_up;
-		dme2 = &customMode;
-		dme2->width = w;
-		dme2->height = h;
-		CustomSwitchStepSet(1);
+		customMode.width = w;
+		customMode.height = h;
+		CustomSwitchStepSet(1U);
 		EmitConnectChangedEvent();
-		CustomSwitchStepWait(2);	// TBD: this wait for the UserClient should be time-bounded
+		CustomSwitchStepWait(2U);	// TBD: this wait for the WindowServer should be time-bounded
 		LogPrintf(3, "%s: Scheduling RestoreAllModes().\n", __FUNCTION__);
-		clock_interval_to_deadline(2000, kMillisecondScale, &deadline);
+		clock_interval_to_deadline(2000U, kMillisecondScale, &deadline);
 		thread_call_enter_delayed(m_restore_call, deadline);
 	}
 finish_up:
@@ -872,7 +902,7 @@ finish_up:
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-void CLASS::refreshTimerAction(IOTimerEventSource* sender)
+void CLASS::refreshTimerAction()
 {
 	IOLockLock(m_iolock);
 	svga.UpdateFullscreen();
@@ -885,11 +915,11 @@ void CLASS::refreshTimerAction(IOTimerEventSource* sender)
 __attribute__((visibility("hidden")))
 void CLASS::_RefreshTimerAction(thread_call_param_t param0, thread_call_param_t param1)
 {
-	static_cast<CLASS*>(param0)->refreshTimerAction(0);
+	static_cast<CLASS*>(param0)->refreshTimerAction();
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::scheduleRefreshTimer(UInt milliSeconds)
+void CLASS::scheduleRefreshTimer(uint32_t milliSeconds)
 {
 	uint64_t deadline;
 
@@ -933,12 +963,11 @@ void CLASS::deleteRefreshTimer()
 
 bool CLASS::start(IOService* provider)
 {
-	UInt boot_arg, max_w, max_h;
+	uint32_t boot_arg, max_w, max_h;
 	OSString* o_name;	// Added
 	OSData* o_edid;		// Added
 
-	m_provider = OSDynamicCast(IOPCIDevice, provider);
-	if (!m_provider)
+	if (!OSDynamicCast(IOPCIDevice, provider))
 		return false;
 	if (!super::start(provider)) {
 		LogPrintf(1, "%s: super::start failed.\n", __FUNCTION__);
@@ -951,21 +980,21 @@ bool CLASS::start(IOService* provider)
 	/*
 	 * Begin Added
 	 */
-	setProperty("VMwareSVGAFBLogLevel", static_cast<UInt64>(logLevelFB), 32U);
+	setProperty("VMwareSVGAFBLogLevel", static_cast<uint64_t>(logLevelFB), 32U);
 	vmw_options_fb = VMW_OPTION_FB_FIFO_INIT | VMW_OPTION_FB_REFRESH_TIMER | VMW_OPTION_FB_ACCEL;
 	if (PE_parse_boot_argn("vmw_options_fb", &boot_arg, sizeof boot_arg))
 		vmw_options_fb = boot_arg;
-	setProperty("VMwareSVGAFBOptions", static_cast<UInt64>(vmw_options_fb), 32U);
+	setProperty("VMwareSVGAFBOptions", static_cast<uint64_t>(vmw_options_fb), 32U);
 	m_refresh_quantum_ms = 50U;
 	if (PE_parse_boot_argn("vmw_fps", &boot_arg, sizeof boot_arg) &&
-		boot_arg > 0 && boot_arg <= 100U)
+		boot_arg && boot_arg <= 100U)
 		m_refresh_quantum_ms = 1000U / boot_arg;
-	setProperty("VMwareSVGARefreshQuantumMS", static_cast<UInt64>(m_refresh_quantum_ms), 32U);
+	setProperty("VMwareSVGARefreshQuantumMS", static_cast<uint64_t>(m_refresh_quantum_ms), 32U);
 	o_edid = OSDynamicCast(OSData, getProperty("EDID"));
-	if (o_edid && o_edid->getLength() <= sizeof edid) {
-		bzero(&edid, sizeof edid);
-		memcpy(&edid, o_edid->getBytesNoCopy(), o_edid->getLength());
-		have_edid = true;
+	if (o_edid && o_edid->getLength() <= sizeof m_edid) {
+		bzero(&m_edid[0], sizeof m_edid);
+		memcpy(&m_edid[0], o_edid->getBytesNoCopy(), o_edid->getLength());
+		m_have_edid = true;
 	}
 	o_name = OSDynamicCast(OSString, getProperty("IOHardwareModel"));
 	if (o_name) {
@@ -981,7 +1010,7 @@ bool CLASS::start(IOService* provider)
 	m_bar1_map = 0;
 	m_restore_call = 0;
 	m_iolock = 0;
-//	m_cursor_image = 0; /* VMwareGfx 3.1.1 */
+	m_cursor_image = 0;
 	/*
 	 * Begin Added
 	 */
@@ -989,11 +1018,12 @@ bool CLASS::start(IOService* provider)
 	m_refresh_call = 0;
 	m_intr_enabled = false;
 	m_accel_updates = false;
+	m_have_edid = false;
 	/*
 	 * End Added
 	 */
 	svga.Init();
-	m_bar1 = svga.Start(m_provider);
+	m_bar1 = svga.Start(static_cast<IOPCIDevice*>(provider));
 	if (!m_bar1)
 		goto fail;
 	m_bar1->retain();
@@ -1002,7 +1032,7 @@ bool CLASS::start(IOService* provider)
 	 */
 	if (svga.getVRAMSize() < m_bar1->getLength()) {
 		IODeviceMemory* mem = IODeviceMemory::withSubRange(m_bar1,
-														   0,
+														   0U,
 														   svga.getVRAMSize());
 		if (mem) {
 			m_bar1->release();
@@ -1013,21 +1043,16 @@ bool CLASS::start(IOService* provider)
 	 * End Added
 	 */
 	m_bar1_map = m_bar1->createMappingInTask(kernel_task,
-											 0,
+											 0U,
 											 kIOMapAnywhere);
 	if (!m_bar1_map) {
 		LogPrintf(1, "%s: Failed to map the VRAM.\n", __FUNCTION__);
 		goto fail;
 	}
 	m_bar1_ptr = m_bar1_map->getVirtualAddress();
-#ifdef TESTING
-	SVGADevice::test_ram_size(getName(), m_bar1_ptr, m_bar1->getLength());
-#endif
 	/*
 	 * Begin Added
 	 */
-	if (checkOptionFB(VMW_OPTION_FB_LINUX))
-		svga.WriteReg(SVGA_REG_GUEST_ID, GUEST_OS_LINUX);
 	if (checkOptionFB(VMW_OPTION_FB_REG_DUMP))
 		svga.RegDump();
 	memcpy(&customMode, &modeList[0], sizeof(DisplayModeEntry));
@@ -1036,11 +1061,16 @@ bool CLASS::start(IOService* provider)
 	 */
 	max_w = svga.getMaxWidth();
 	max_h = svga.getMaxHeight();
-	m_num_active_modes = 0;
-	for (unsigned i = 0; i < NUM_DISPLAY_MODES; ++i)
+	m_num_active_modes = 0U;
+	for (uint32_t i = 0U; i != NUM_DISPLAY_MODES; ++i)
 		if (modeList[i].width <= max_w &&
 			modeList[i].height <= max_h)
-			m_modes[m_num_active_modes++] = i + 1;
+			m_modes[m_num_active_modes++] = i + 1U;
+	LogPrintf(3, "%s: Display mode count = %u: %ux%u.\n", __FUNCTION__, m_num_active_modes, max_w, max_h);
+	if (m_num_active_modes <= 2U) {
+		LogPrintf(1, "%s: Display mode count invalid %u.\n", __FUNCTION__, m_num_active_modes);
+		goto fail;
+	}
 	m_restore_call = thread_call_allocate(&_RestoreAllModes, this);
 	if (!m_restore_call) {
 		LogPrintf(1, "%s: Failed to allocate timer.\n", __FUNCTION__);
@@ -1048,7 +1078,8 @@ bool CLASS::start(IOService* provider)
 		goto fail;
 #endif
 	}
-	m_custom_switch = 0;
+	m_custom_switch = 0U;
+	m_custom_mode_switched = false;
 	if (checkOptionFB(VMW_OPTION_FB_FIFO_INIT)) {	// Added
 		if (!svga.FIFOInit()) {
 			LogPrintf(1, "%s: Failed FIFOInit.\n", __FUNCTION__);
@@ -1064,9 +1095,6 @@ bool CLASS::start(IOService* provider)
 	}
 	m_display_mode = TryDetectCurrentDisplayMode(3);
 	m_depth_mode = 0;
-#if 0
-	m_aperture_size = svga.getCurrentFBSize();
-#endif
 	scheduleRefreshTimer(1000U /* m_refresh_quantum_ms */);		// Added
 	return true;
 
@@ -1146,13 +1174,13 @@ void CLASS::useAccelUpdates(bool state)
 		cancelRefreshTimer();
 		IOLockLock(m_iolock);
 		if (svga.HasCapability(SVGA_CAP_TRACES))
-			svga.WriteReg(SVGA_REG_TRACES, 0);
+			svga.WriteReg(SVGA_REG_TRACES, 0U);
 		IOLockUnlock(m_iolock);
 	} else {
-		scheduleRefreshTimer(200);
+		scheduleRefreshTimer(200U);
 		IOLockLock(m_iolock);
 		if (svga.HasCapability(SVGA_CAP_TRACES)) {
-			svga.WriteReg(SVGA_REG_TRACES, 1);
+			svga.WriteReg(SVGA_REG_TRACES, 1U);
 			svga.UpdateFullscreen();
 			svga.RingDoorBell();
 		}

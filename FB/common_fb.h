@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 4th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *
  */
 
@@ -35,10 +35,8 @@
 #ifndef __VMSVGA2_COMMON_FB_H__
 #define __VMSVGA2_COMMON_FB_H__
 
-#define NUM_DISPLAY_MODES 25
+#define NUM_DISPLAY_MODES 26
 #define CUSTOM_MODE_ID 1
-
-#define GUEST_OS_LINUX 0x5008U
 
 #ifdef __cplusplus
 extern "C" {
