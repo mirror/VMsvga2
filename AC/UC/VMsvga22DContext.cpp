@@ -52,7 +52,7 @@ OSDefineMetaClassAndStructors(VMsvga22DContext, IOUserClient);
 #define HIDDEN __attribute__((visibility("hidden")))
 
 static
-IOExternalMethod iofbFuncsCache[kIOVM2DNumMethods] =
+IOExternalMethod const iofbFuncsCache[kIOVM2DNumMethods] =
 {
 // Note: methods from IONV2DContext
 {0, reinterpret_cast<IOMethod>(&CLASS::set_surface), kIOUCScalarIStructO, 2, kIOUCVariableStructureSize},
@@ -103,7 +103,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 			*targetP = this;
 			break;
 	}
-	return &iofbFuncsCache[index];
+	return const_cast<IOExternalMethod*>(&iofbFuncsCache[index]);
 }
 
 IOReturn CLASS::clientClose()

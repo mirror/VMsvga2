@@ -29,6 +29,7 @@
 
 #include <IOKit/IOLib.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
+#include <libkern/version.h>
 #include "VLog.h"
 #include "UCMethods.h"
 #include "VMsvga2Accel.h"
@@ -47,7 +48,7 @@ OSDefineMetaClassAndStructors(VMsvga2Device, IOUserClient);
 #define HIDDEN __attribute__((visibility("hidden")))
 
 static
-IOExternalMethod iofbFuncsCache[kIOVMDeviceNumMethods] =
+IOExternalMethod const iofbFuncsCache[kIOVMDeviceNumMethods] =
 {
 // IONVDevice
 {0, reinterpret_cast<IOMethod>(&CLASS::create_shared), kIOUCScalarIScalarO, 0, 0},
@@ -122,7 +123,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 #else
 	*targetP = this;
 #endif
-	return &iofbFuncsCache[index];
+	return const_cast<IOExternalMethod*>(&iofbFuncsCache[index]);
 }
 
 IOReturn CLASS::clientClose()
@@ -230,11 +231,7 @@ IOReturn CLASS::get_config(uint32_t* c1, uint32_t* c2, uint32_t* c3, uint32_t* c
 	 *   0x040000U - "GMA 950"
 	 *   else      - "GMA 900" [Unsupported in OS 10.7]
 	 */
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1070
-	*c1 = 0x40000U;
-#else
-	*c1 = 0U;
-#endif
+	*c1 = version_major >= 11 ? 0x40000U : 0U;
 #ifdef USE_OWN_GLD
 	*c2 = static_cast<uint32_t>(m_provider->getLogLevelGLD()) & 7U;
 #else

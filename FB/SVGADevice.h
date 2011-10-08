@@ -85,7 +85,7 @@ public:
 	uint32_t ReadReg(uint32_t index);
 	void WriteReg(uint32_t index, uint32_t value);
 	void Cleanup();
-	IODeviceMemory* Start(IOPCIDevice* provider);
+	bool Start(IOPCIDevice* provider);
 	void Disable();				// Added
 
 	/*

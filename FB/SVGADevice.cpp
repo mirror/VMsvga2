@@ -152,33 +152,33 @@ void CLASS::Cleanup()
 	m_capabilities = 0;
 }
 
-IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
+bool CLASS::Start(IOPCIDevice* provider)
 {
 	uint32_t host_bpp, guest_bpp, reg_id;
-	IODeviceMemory *bar1, *bar2;
+	IODeviceMemory* bar2;
 
 	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = provider;
 	if (logLevelFB >= 3) {
 		LogPrintf(3, "%s: PCI bus %u device %u function %u\n", __FUNCTION__,
-				  m_provider->getBusNumber(),
-				  m_provider->getDeviceNumber(),
-				  m_provider->getFunctionNumber());
+				  provider->getBusNumber(),
+				  provider->getDeviceNumber(),
+				  provider->getFunctionNumber());
 		LogPrintf(3, "%s: PCI device %#04x vendor %#04x revision %#02x\n", __FUNCTION__,
-				  m_provider->configRead16(kIOPCIConfigDeviceID),
-				  m_provider->configRead16(kIOPCIConfigVendorID),
-				  m_provider->configRead8(kIOPCIConfigRevisionID));
+				  provider->configRead16(kIOPCIConfigDeviceID),
+				  provider->configRead16(kIOPCIConfigVendorID),
+				  provider->configRead8(kIOPCIConfigRevisionID));
 		LogPrintf(3, "%s: PCI subsystem %#04x vendor %#04x\n", __FUNCTION__,
-				  m_provider->configRead16(kIOPCIConfigSubSystemID),
-				  m_provider->configRead16(kIOPCIConfigSubSystemVendorID));
+				  provider->configRead16(kIOPCIConfigSubSystemID),
+				  provider->configRead16(kIOPCIConfigSubSystemVendorID));
 	}
-	m_provider->setMemoryEnable(true);
-	m_provider->setIOEnable(true);
-	m_io_base = static_cast<uint16_t>(m_provider->configRead32(kIOPCIConfigBaseAddress0));
+	provider->setMemoryEnable(true);
+	provider->setIOEnable(true);
+	m_io_base = static_cast<uint16_t>(provider->configRead32(kIOPCIConfigBaseAddress0));
 	if (!(m_io_base & 1U)) {
 		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
 		Cleanup();
-		return 0;
+		return false;
 	}
 	m_io_base &= ~1U;
 	WriteReg(SVGA_REG_ID, SVGA_ID_2);
@@ -187,7 +187,7 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 	if (reg_id != SVGA_ID_2) {
 		LogPrintf(1, "%s: REG_ID != %#08lx\n", __FUNCTION__, SVGA_ID_2);
 		Cleanup();
-		return 0;
+		return false;
 	}
 	m_capabilities = ReadReg(SVGA_REG_CAPABILITIES);
 	LogPrintf(3, "%s: caps=%#08x\n", __FUNCTION__, m_capabilities);
@@ -195,22 +195,16 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 	if (!HasCapability(SVGA_CAP_TRACES)) {
 		LogPrintf(1, "%s: CAP_TRACES failed\n", __FUNCTION__);
 		Cleanup();
-		return 0;
+		return false;
 	}
 #endif
 	m_fifo_size = ReadReg(SVGA_REG_MEM_SIZE);
-	bar1 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
-	if (!bar1) {
-		LogPrintf(1, "%s: Failed to retrieve the VRAM memory descriptor.\n", __FUNCTION__);
-		Cleanup();
-		return 0;
-	}
-	bar2 = m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
+	bar2 = provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
 	if (!bar2) {
 	bar2_error:
 		LogPrintf(1, "%s: Failed to map the FIFO.\n", __FUNCTION__);
 		Cleanup();
-		return 0;
+		return false;
 	}
 	m_bar2_map = bar2->createMappingInTask(kernel_task,
 										   0U,
@@ -251,18 +245,18 @@ IODeviceMemory* CLASS::Start(IOPCIDevice* provider)
 	if (!m_bounce_buffer) {
 		LogPrintf(1, "%s: Failed to allocate the bounce buffer.\n", __FUNCTION__);
 		Cleanup();
-		return 0;
+		return false;
 	}
 #if 0	/* VMwareGfx 4.x */
 	if (!FIFOInit()) {
 		LogPrintf(1, "%s: Failed FIFOInit.\n", __FUNCTION__);
 		Cleanup();
-		return 0;
+		return false;
 	}
 #endif
 	m_cursor_ptr = 0;
 	provider->setProperty("VMwareSVGACapabilities", static_cast<uint64_t>(m_capabilities), 32U);
-	return bar1;
+	return true;
 }
 
 void CLASS::Disable()

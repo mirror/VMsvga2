@@ -71,7 +71,7 @@ typedef unsigned __v4si __attribute__((vector_size(16), may_alias));
 typedef long long __v2di __attribute__((vector_size(16), may_alias));
 
 static
-IOExternalMethod iofbFuncsCache[kIOAccelNumSurfaceMethods] =
+IOExternalMethod const iofbFuncsCache[kIOAccelNumSurfaceMethods] =
 {
 	{0, reinterpret_cast<IOMethod>(&CLASS::surface_read_lock_options), kIOUCScalarIStructO, 1, kIOUCVariableStructureSize},
 	{0, reinterpret_cast<IOMethod>(&CLASS::surface_read_unlock_options), kIOUCScalarIScalarO, 1, 0},
@@ -187,7 +187,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 	if (!targetP || index >= kIOAccelNumSurfaceMethods)
 		return 0;
 	*targetP = this;
-	return &iofbFuncsCache[index];
+	return const_cast<IOExternalMethod*>(&iofbFuncsCache[index]);
 }
 
 IOReturn CLASS::clientClose()

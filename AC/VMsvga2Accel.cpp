@@ -50,7 +50,7 @@ OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
 
 #define HIDDEN __attribute__((visibility("hidden")))
 
-static __attribute__((used)) char const copyright[] = "Copyright 2009-2010 Zenith432";
+static __attribute__((used)) char const copyright[] = "Copyright 2009-2011 Zenith432";
 
 HIDDEN
 uint32_t vmw_options_ac = 0;
@@ -252,9 +252,9 @@ void CLASS::Cleanup()
 		m_allocator->release();
 		m_allocator = 0;
 	}
-	if (m_bar1) {
-		m_bar1->release();
-		m_bar1 = 0;
+	if (m_vram_kernel_map) {
+		m_vram_kernel_map->release();
+		m_vram_kernel_map = 0;
 	}
 	if (m_framebuffer) {
 		m_svga = 0;
@@ -365,13 +365,15 @@ void CLASS::processOptions()
 HIDDEN
 IOReturn CLASS::findFramebuffer()
 {
+	IOService* provider;
 	OSIterator* it;
 	OSObject* obj;
 	VMsvga2* fb = 0;
 
-	if (!m_provider)
+	provider = getProvider();
+	if (!provider)
 		return kIOReturnNotReady;
-	it = m_provider->getClientIterator();
+	it = provider->getClientIterator();
 	if (!it)
 		return kIOReturnNotFound;
 	while ((obj = it->getNextObject()) != 0) {
@@ -395,23 +397,36 @@ IOReturn CLASS::findFramebuffer()
 }
 
 HIDDEN
+IODeviceMemory* CLASS::getVRAM() const
+{
+	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
+	if (!provider)
+		return 0;
+	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
+}
+
+HIDDEN
 IOReturn CLASS::setupAllocator()
 {
 	IOReturn rc;
 	IOByteCount bytes_reserve, s;
 	void* p;
+	IODeviceMemory* vram;
 
-	if (m_bar1)
+	if (m_vram_kernel_map)
 		return kIOReturnSuccess;
 	if (!m_framebuffer)
 		return kIOReturnNotReady;
-	m_bar1 = m_framebuffer->getVRAMRange();
-	if (!m_bar1)
+	vram = getVRAM();
+	if (!vram)
 		return kIOReturnInternalError;
-	p = reinterpret_cast<void*>(m_framebuffer->getVRAMPtr());
-	s = m_bar1->getLength();
+	s = vram->getLength();
 	if (m_svga->getVRAMSize() < s)
 		s = m_svga->getVRAMSize();
+	m_vram_kernel_map = vram->createMappingInTask(kernel_task, 0U, kIOMapAnywhere, 0U, s);
+	if (!m_vram_kernel_map)
+		return kIOReturnInternalError;
+	p = reinterpret_cast<void*>(m_vram_kernel_map->getVirtualAddress());
 	s &= ~(static_cast<IOByteCount>(PAGE_SIZE - 1));
 
 	if (!p || !s) {
@@ -446,8 +461,8 @@ IOReturn CLASS::setupAllocator()
 	}
 exit:
 	if (rc != kIOReturnSuccess) {
-		m_bar1->release();
-		m_bar1 = 0;
+		m_vram_kernel_map->release();
+		m_vram_kernel_map = 0;
 	}
 	return rc;
 }
@@ -490,8 +505,7 @@ bool CLASS::start(IOService* provider)
 	int len;
 	OSObject* plug;
 
-	m_provider = OSDynamicCast(IOPCIDevice, provider);
-	if (!m_provider)
+	if (!OSDynamicCast(IOPCIDevice, provider))
 		return false;
 	if (!super::start(provider))
 		return false;
@@ -818,7 +832,7 @@ IOReturn CLASS::RectFillScreen(uint32_t framebufferIndex,
 	c.value = color;
 	m_framebuffer->lockDevice();
 	extra.mem_gmr_id = GMR_VRAM();
-	extra.mem_offset_in_gmr = reinterpret_cast<vm_offset_t>(p) - m_framebuffer->getVRAMPtr();
+	extra.mem_offset_in_gmr = reinterpret_cast<vm_offset_t>(p) - m_vram_kernel_ptr->getVirtualAddress();
 	screen.AnnotateFill(c);
 	m_framebuffer->unlockDevice();
 	blitToScreen(framebufferIndex,
@@ -1544,7 +1558,7 @@ IOReturn CLASS::blitGFB(uint32_t framebufferIndex,
 	rgn = static_cast<IOAccelDeviceRegion const*>(region);
 	numRects = rgn ? rgn->num_rects : 0;
 	m_framebuffer->lockDevice();
-	vram_ptr = m_framebuffer->getVRAMPtr();
+	vram_ptr = m_vram_kernel_map->getVirtualAddress();
 	gfb_start = vram_ptr + m_svga->getCurrentFBOffset();
 	gfb_pitch = m_svga->getCurrentPitch();
 	gfb_end = gfb_start + m_svga->getCurrentFBSize();
@@ -1601,7 +1615,7 @@ IOReturn CLASS::clearGFB(uint32_t color,
 	if (!m_framebuffer)
 		return kIOReturnNotReady;
 	m_framebuffer->lockDevice();
-	gfb_start = m_framebuffer->getVRAMPtr() + m_svga->getCurrentFBOffset();
+	gfb_start = m_vram_kernel_map->getVirtualAddress() + m_svga->getCurrentFBOffset();
 	gfb_w = m_svga->getCurrentWidth();
 	gfb_h = m_svga->getCurrentHeight();
 	gfb_pitch = m_svga->getCurrentPitch();
@@ -1644,9 +1658,9 @@ IOReturn CLASS::getScreenInfo(IOAccelSurfaceReadData* info)
 	info->w = m_svga->getCurrentWidth();
 	info->h = m_svga->getCurrentHeight();
 #if IOACCELTYPES_10_5 || (IOACCEL_TYPES_REV < 12 && !defined(kIODescriptionKey))
-	info->client_addr = reinterpret_cast<void*>(m_framebuffer->getVRAMPtr());
+	info->client_addr = reinterpret_cast<void*>(m_vram_kernel_map->getVirtualAddress());
 #else
-	info->client_addr = static_cast<mach_vm_address_t>(m_framebuffer->getVRAMPtr());
+	info->client_addr = static_cast<mach_vm_address_t>(m_vram_kernel_map->getAddress());
 #endif
 	info->client_row_bytes = m_svga->getCurrentPitch();
 	m_framebuffer->unlockDevice();
@@ -1704,9 +1718,10 @@ void CLASS::unlockAccel()
 HIDDEN
 IOMemoryDescriptor* CLASS::getChannelMemory() const
 {
-	if (!m_provider)
+	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
+	if (!provider)
 		return 0;
-	return m_provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
+	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
 }
 
 HIDDEN
@@ -1714,19 +1729,16 @@ uint32_t CLASS::getVRAMSize() const
 {
 	if (m_svga)
 		return m_svga->getVRAMSize();
-	if (m_bar1)
-		return static_cast<uint32_t>(m_bar1->getLength());
+	if (m_vram_kernel_map)
+		return static_cast<uint32_t>(m_vram_kernel_map->getLength());
 	return 134217728U;
 }
 
 HIDDEN
 vm_offset_t CLASS::offsetInVRAM(void* vram_ptr) const
 {
-	/*
-	 * Note: skip locking the framebuffer device here, seems fairly safe.
-	 */
-	if (m_framebuffer)
-		return reinterpret_cast<vm_offset_t>(vram_ptr) - m_framebuffer->getVRAMPtr();
+	if (m_vram_kernel_map)
+		return reinterpret_cast<vm_offset_t>(vram_ptr) - m_vram_kernel_map->getVirtualAddress();
 	return 0U;
 }
 
@@ -1959,15 +1971,16 @@ void CLASS::VRAMFree(void* ptr)
 }
 
 HIDDEN
-IOMemoryMap* CLASS::mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_bar1, vm_size_t size)
+IOMemoryMap* CLASS::mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_vram, vm_size_t size)
 {
-	if (!m_bar1)
+	IODeviceMemory* vram = getVRAM();
+	if (!vram)
 		return 0;
-	return m_bar1->createMappingInTask(task,
-									   0,
-									   kIOMapAnywhere,
-									   offset_in_bar1,
-									   size);
+	return vram->createMappingInTask(task,
+									 0U,
+									 kIOMapAnywhere,
+									 offset_in_vram,
+									 size);
 }
 
 #pragma mark -

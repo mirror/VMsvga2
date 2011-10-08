@@ -44,7 +44,7 @@ OSDefineMetaClassAndStructors(VMsvga2DVDContext, IOUserClient);
 #endif
 
 static
-IOExternalMethod iofbFuncsCache[kIOVMDVDNumMethods] =
+IOExternalMethod const iofbFuncsCache[kIOVMDVDNumMethods] =
 {
 // TBD: IONVDVDContext
 // TBD: NVDVDContext
@@ -70,7 +70,7 @@ IOExternalMethod* CLASS::getTargetAndMethodForIndex(IOService** targetP, UInt32 
 #else
 	*targetP = this;
 #endif
-	return &iofbFuncsCache[index];
+	return const_cast<IOExternalMethod*>(&iofbFuncsCache[index]);
 }
 
 IOReturn CLASS::clientClose()

@@ -45,10 +45,10 @@ class VMsvga2 : public IOFramebuffer
 
 private:
 	SVGADevice svga;				// (now * at 0x10C)
-	IODeviceMemory* m_bar1;			// offset 0x110
-	IOMemoryMap* m_bar1_map;		// offset 0x114
-	IOVirtualAddress m_bar1_ptr;	// offset 0x118
 #if 0
+	IODeviceMemory* m_vram;			// offset 0x110
+	IOMemoryMap* m_vram_kernel_map;	// offset 0x114
+	IOVirtualAddress m_vram_kernel_ptr;	// offset 0x118
 	IOPhysicalAddress m_fb_offset;	// offset 0x11C
 	uint32_t m_aperture_size;		// offset 0x120
 #endif
@@ -82,11 +82,11 @@ private:
 	 */
 	bool m_intr_enabled;
 	bool m_accel_updates;
-	bool m_have_edid;
 	thread_call_t m_refresh_call;
 	uint32_t m_refresh_quantum_ms;
 	DisplayModeEntry customMode;
-	uint8_t m_edid[128];
+	uint32_t m_edid_size;
+	uint8_t* m_edid;
 	/*
 	 * End Added
 	 */
@@ -113,8 +113,7 @@ private:
 	void setupRefreshTimer();
 	void deleteRefreshTimer();
 	IODisplayModeID TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) const;
-	IODeviceMemory* getBar1() const;
-	void LegacyBlankFB();
+	IODeviceMemory* getVRAM() const;
 	/*
 	 * End Added
 	 */
@@ -161,7 +160,6 @@ public:
 	 * Accelerator Support
 	 */
 	SVGADevice* getDevice() { return &svga; }
-	IOVirtualAddress getVRAMPtr() const { return m_bar1_ptr; }
 	void lockDevice();
 	void unlockDevice();
 	bool supportsAccel();

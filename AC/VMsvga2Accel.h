@@ -48,10 +48,9 @@ private:
 	 */
 	SVGA3D svga3d;
 	SVGAScreen screen;
-	class IOPCIDevice* m_provider;
 	class VMsvga2* m_framebuffer;
 	SVGADevice* m_svga;
-	IODeviceMemory* m_bar1;
+	IOMemoryMap* m_vram_kernel_map;
 	class VMsvga2Allocator* m_allocator;
 	IOLock* m_iolock;
 #ifdef FB_NOTIFIER
@@ -112,6 +111,7 @@ private:
 	void destroyMasterSurface();
 	void processOptions();
 	IOReturn findFramebuffer();
+	IODeviceMemory* getVRAM() const;
 	IOReturn setupAllocator();
 #ifdef FB_NOTIFIER
 	IOReturn fbNotificationHandler(void* ref,
@@ -331,7 +331,7 @@ public:
 	void* VRAMMalloc(size_t bytes);
 	void* VRAMRealloc(void* ptr, size_t bytes);
 	void VRAMFree(void* ptr);
-	IOMemoryMap* mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_bar1, vm_size_t size);
+	IOMemoryMap* mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_vram, vm_size_t size);
 
 	/*
 	 * GMR Allocation

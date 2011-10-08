@@ -143,12 +143,10 @@ public:
 	IOReturn submit_command_buffer(uintptr_t do_get_data,
 								   struct sIOGLGetCommandBuffer*,
 								   size_t*);
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1070
 	IOReturn filter_control(struct sIOGLFilterControl const*,		// OS 10.6.8 Only
 							struct sIOGLFilterControl*,
 							size_t,
 							size_t*);
-#endif
 #endif
 
 	/*

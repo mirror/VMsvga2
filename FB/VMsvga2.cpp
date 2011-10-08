@@ -104,14 +104,10 @@ void CLASS::Cleanup()
 		IOFree(m_cursor_image, 16384U);
 		m_cursor_image = 0;
 	}
-	if (m_bar1_map) {
-		m_bar1_map->release();
-		m_bar1_map = 0;
-		m_bar1_ptr = 0;
-	}
-	if (m_bar1) {
-		m_bar1->release();
-		m_bar1 = 0;
+	if (m_edid) {
+		IOFree(m_edid, m_edid_size);
+		m_edid_size = 0U;
+		m_edid = 0;
 	}
 	if (m_iolock) {
 		IOLockFree(m_iolock);
@@ -162,26 +158,12 @@ IODisplayModeID CLASS::TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) 
 }
 
 __attribute__((visibility("hidden")))
-IODeviceMemory* CLASS::getBar1() const
+IODeviceMemory* CLASS::getVRAM() const
 {
 	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
 	if (!provider)
 		return 0;
 	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
-}
-
-__attribute__((visibility("hidden")))
-void CLASS::LegacyBlankFB()
-{
-#if 0
-	/*
-	 * Used in VMwareGfx 4.x
-	 */
-	memset32(m_bar1_ptr + svga.getCurrentFBOffset(), 0x4969AC, svga.getCurrentFBSize() / sizeof(uint32_t));
-#else
-	bzero(reinterpret_cast<void*>(m_bar1_ptr + svga.getCurrentFBOffset()),
-		  svga.getCurrentFBSize());
-#endif
 }
 
 #pragma mark -
@@ -425,7 +407,7 @@ IODeviceMemory* CLASS::getVRAMRange()
 	IODeviceMemory* mem;
 
 	LogPrintf(2, "%s: \n", __FUNCTION__);
-	mem = getBar1();
+	mem = getVRAM();
 	if (!mem)
 		return 0;
 	if (svga.getVRAMSize() >= mem->getLength()) {
@@ -445,7 +427,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 				  FMT_D(aperture), kIOFBSystemAperture);
 		return 0;
 	}
-	mem = getBar1();
+	mem = getVRAM();
 	if (!mem)
 		return 0;
 	IOLockLock(m_iolock);
@@ -530,7 +512,7 @@ IOReturn CLASS::getAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 			r = kIOReturnSuccess;
 			break;
 		case kConnectionSupportsHLDDCSense:
-			r = m_have_edid ? kIOReturnSuccess : kIOReturnUnsupported;
+			r = m_edid ? kIOReturnSuccess : kIOReturnUnsupported;
 			break;
 		default:
 			r = super::getAttributeForConnection(connectIndex, attribute, value);
@@ -710,8 +692,6 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 	if (!m_accel_updates)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
-	if (!m_accel_updates && m_custom_switch == 1U)
-		LegacyBlankFB();
 	svga.SetMode(dme->width, dme->height, 32U);
 	if (checkOptionFB(VMW_OPTION_FB_REG_DUMP))	// Added
 		svga.RegDump();						// Added
@@ -731,15 +711,17 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 
 IOReturn CLASS::getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect blockType, IOOptionBits options, UInt8* data, IOByteCount* length)
 {
+	uint32_t const oneBlock = 128U;
 	if (connectIndex == 0 &&
-		m_have_edid &&
-		blockNumber == 1U &&
+		m_edid &&
+		blockNumber &&
+		(blockNumber * oneBlock) <= m_edid_size &&
 		blockType == kIODDCBlockTypeEDID &&
 		data &&
 		length &&
-		*length >= sizeof m_edid) {
-		memcpy(data, &m_edid[0], sizeof m_edid);
-		*length = sizeof m_edid;
+		*length >= oneBlock) {
+		memcpy(data, &m_edid[(blockNumber - 1U) * oneBlock], oneBlock);
+		*length = oneBlock;
 		return kIOReturnSuccess;
 	}
 	return super::getDDCBlock(connectIndex, blockNumber, blockType, options, data, length);
@@ -747,7 +729,7 @@ IOReturn CLASS::getDDCBlock(IOIndex connectIndex, UInt32 blockNumber, IOSelect b
 
 bool CLASS::hasDDCConnect(IOIndex connectIndex)
 {
-	if (connectIndex == 0 && m_have_edid)
+	if (connectIndex == 0 && m_edid)
 		return true;
 	return super::hasDDCConnect(connectIndex);
 }
@@ -991,10 +973,15 @@ bool CLASS::start(IOService* provider)
 		m_refresh_quantum_ms = 1000U / boot_arg;
 	setProperty("VMwareSVGARefreshQuantumMS", static_cast<uint64_t>(m_refresh_quantum_ms), 32U);
 	o_edid = OSDynamicCast(OSData, getProperty("EDID"));
-	if (o_edid && o_edid->getLength() <= sizeof m_edid) {
-		bzero(&m_edid[0], sizeof m_edid);
-		memcpy(&m_edid[0], o_edid->getBytesNoCopy(), o_edid->getLength());
-		m_have_edid = true;
+	max_w = o_edid ? o_edid->getLength() : 0U;
+	if (max_w && max_w <= 256U) {
+		m_edid_size = (max_w + 127U) & -128;
+		m_edid = static_cast<uint8_t*>(IOMalloc(m_edid_size));
+		if (m_edid) {
+			memcpy(m_edid, o_edid->getBytesNoCopy(), max_w);
+			bzero(&m_edid[max_w], m_edid_size - max_w);
+		} else
+			m_edid_size = 0U;
 	}
 	o_name = OSDynamicCast(OSString, getProperty("IOHardwareModel"));
 	if (o_name) {
@@ -1007,49 +994,21 @@ bool CLASS::start(IOService* provider)
 	/*
 	 * End Added
 	 */
-	m_bar1_map = 0;
 	m_restore_call = 0;
 	m_iolock = 0;
 	m_cursor_image = 0;
 	/*
 	 * Begin Added
 	 */
-	m_bar1 = 0;
 	m_refresh_call = 0;
 	m_intr_enabled = false;
 	m_accel_updates = false;
-	m_have_edid = false;
 	/*
 	 * End Added
 	 */
 	svga.Init();
-	m_bar1 = svga.Start(static_cast<IOPCIDevice*>(provider));
-	if (!m_bar1)
+	if (!svga.Start(static_cast<IOPCIDevice*>(provider)))
 		goto fail;
-	m_bar1->retain();
-	/*
-	 * Begin Added
-	 */
-	if (svga.getVRAMSize() < m_bar1->getLength()) {
-		IODeviceMemory* mem = IODeviceMemory::withSubRange(m_bar1,
-														   0U,
-														   svga.getVRAMSize());
-		if (mem) {
-			m_bar1->release();
-			m_bar1 = mem;
-		}
-	}
-	/*
-	 * End Added
-	 */
-	m_bar1_map = m_bar1->createMappingInTask(kernel_task,
-											 0U,
-											 kIOMapAnywhere);
-	if (!m_bar1_map) {
-		LogPrintf(1, "%s: Failed to map the VRAM.\n", __FUNCTION__);
-		goto fail;
-	}
-	m_bar1_ptr = m_bar1_map->getVirtualAddress();
 	/*
 	 * Begin Added
 	 */

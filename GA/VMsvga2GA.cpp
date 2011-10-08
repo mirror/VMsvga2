@@ -3,7 +3,7 @@
  *  VMsvga2GA
  *
  *  Created by Zenith432 on August 6th 2009.
- *  Copyright 2009-2010 Zenith432. All rights reserved.
+ *  Copyright 2009-2011 Zenith432. All rights reserved.
  *  Portions Copyright (c) Apple Computer, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person
@@ -67,7 +67,7 @@ extern "C" {
 #define FMT_D(x) static_cast<int>(x)
 #define FMT_U(x) static_cast<unsigned>(x)
 
-static __attribute__((used)) char const copyright[] = "Copyright 2009-2010 Zenith432";
+static __attribute__((used)) char const copyright[] = "Copyright 2009-2011 Zenith432";
 
 static IOGraphicsAcceleratorInterface ga;
 static int ga_initialized = 0;
