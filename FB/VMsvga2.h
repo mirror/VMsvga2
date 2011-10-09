@@ -45,8 +45,8 @@ class VMsvga2 : public IOFramebuffer
 
 private:
 	SVGADevice svga;				// (now * at 0x10C)
-#if 0
 	IODeviceMemory* m_vram;			// offset 0x110
+#if 0
 	IOMemoryMap* m_vram_kernel_map;	// offset 0x114
 	IOVirtualAddress m_vram_kernel_ptr;	// offset 0x118
 	IOPhysicalAddress m_fb_offset;	// offset 0x11C
@@ -113,7 +113,6 @@ private:
 	void setupRefreshTimer();
 	void deleteRefreshTimer();
 	IODisplayModeID TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) const;
-	IODeviceMemory* getVRAM() const;
 	/*
 	 * End Added
 	 */

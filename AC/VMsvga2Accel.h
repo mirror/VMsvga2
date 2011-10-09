@@ -50,6 +50,7 @@ private:
 	SVGAScreen screen;
 	class VMsvga2* m_framebuffer;
 	SVGADevice* m_svga;
+	IODeviceMemory* m_vram;
 	IOMemoryMap* m_vram_kernel_map;
 	class VMsvga2Allocator* m_allocator;
 	IOLock* m_iolock;
@@ -111,7 +112,6 @@ private:
 	void destroyMasterSurface();
 	void processOptions();
 	IOReturn findFramebuffer();
-	IODeviceMemory* getVRAM() const;
 	IOReturn setupAllocator();
 #ifdef FB_NOTIFIER
 	IOReturn fbNotificationHandler(void* ref,

@@ -397,33 +397,20 @@ IOReturn CLASS::findFramebuffer()
 }
 
 HIDDEN
-IODeviceMemory* CLASS::getVRAM() const
-{
-	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
-	if (!provider)
-		return 0;
-	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
-}
-
-HIDDEN
 IOReturn CLASS::setupAllocator()
 {
 	IOReturn rc;
 	IOByteCount bytes_reserve, s;
 	void* p;
-	IODeviceMemory* vram;
 
 	if (m_vram_kernel_map)
 		return kIOReturnSuccess;
-	if (!m_framebuffer)
-		return kIOReturnNotReady;
-	vram = getVRAM();
-	if (!vram)
+	if (!m_vram)
 		return kIOReturnInternalError;
-	s = vram->getLength();
+	s = m_vram->getLength();
 	if (m_svga->getVRAMSize() < s)
 		s = m_svga->getVRAMSize();
-	m_vram_kernel_map = vram->createMappingInTask(kernel_task, 0U, kIOMapAnywhere, 0U, s);
+	m_vram_kernel_map = m_vram->createMappingInTask(kernel_task, 0U, kIOMapAnywhere, 0U, s);
 	if (!m_vram_kernel_map)
 		return kIOReturnInternalError;
 	p = reinterpret_cast<void*>(m_vram_kernel_map->getVirtualAddress());
@@ -527,6 +514,7 @@ bool CLASS::start(IOService* provider)
 		stop(provider);
 		return false;
 	}
+	m_vram = provider->getDeviceMemoryWithIndex(1U);
 	m_allocator = VMsvga2Allocator::factory();
 	if (!m_allocator) {
 		ACLog(1, "Unable to create Allocator\n");
@@ -1718,10 +1706,10 @@ void CLASS::unlockAccel()
 HIDDEN
 IOMemoryDescriptor* CLASS::getChannelMemory() const
 {
-	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
+	IOService* provider = getProvider();
 	if (!provider)
 		return 0;
-	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
+	return provider->getDeviceMemoryWithIndex(2U);
 }
 
 HIDDEN
@@ -1973,14 +1961,9 @@ void CLASS::VRAMFree(void* ptr)
 HIDDEN
 IOMemoryMap* CLASS::mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_vram, vm_size_t size)
 {
-	IODeviceMemory* vram = getVRAM();
-	if (!vram)
+	if (!m_vram)
 		return 0;
-	return vram->createMappingInTask(task,
-									 0U,
-									 kIOMapAnywhere,
-									 offset_in_vram,
-									 size);
+	return m_vram->createMappingInTask(task, 0U, kIOMapAnywhere, offset_in_vram, size);
 }
 
 #pragma mark -

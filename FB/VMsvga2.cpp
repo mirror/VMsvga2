@@ -157,15 +157,6 @@ IODisplayModeID CLASS::TryDetectCurrentDisplayMode(IODisplayModeID defaultMode) 
 	return tableDefault ? : defaultMode;
 }
 
-__attribute__((visibility("hidden")))
-IODeviceMemory* CLASS::getVRAM() const
-{
-	IOPCIDevice* provider = static_cast<IOPCIDevice*>(getProvider());
-	if (!provider)
-		return 0;
-	return provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress1);
-}
-
 #pragma mark -
 #pragma mark Cursor Methods
 #pragma mark -
@@ -404,17 +395,14 @@ const char* CLASS::getPixelFormats()
 
 IODeviceMemory* CLASS::getVRAMRange()
 {
-	IODeviceMemory* mem;
-
 	LogPrintf(2, "%s: \n", __FUNCTION__);
-	mem = getVRAM();
-	if (!mem)
+	if (!m_vram)
 		return 0;
-	if (svga.getVRAMSize() >= mem->getLength()) {
-		mem->retain();
-		return mem;
+	if (svga.getVRAMSize() >= m_vram->getLength()) {
+		m_vram->retain();
+		return m_vram;
 	}
-	return IODeviceMemory::withSubRange(mem, 0U, svga.getVRAMSize());
+	return IODeviceMemory::withSubRange(m_vram, 0U, svga.getVRAMSize());
 }
 
 IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
@@ -427,8 +415,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 				  FMT_D(aperture), kIOFBSystemAperture);
 		return 0;
 	}
-	mem = getVRAM();
-	if (!mem)
+	if (!m_vram)
 		return 0;
 	IOLockLock(m_iolock);
 	fb_offset = svga.getCurrentFBOffset();
@@ -436,7 +423,7 @@ IODeviceMemory* CLASS::getApertureRange(IOPixelAperture aperture)
 	IOLockUnlock(m_iolock);
 	LogPrintf(2, "%s: aperture=%d, fb offset=%u, fb size=%u\n", __FUNCTION__,
 			  FMT_D(aperture), fb_offset, fb_size);
-	mem = IODeviceMemory::withSubRange(mem, fb_offset, fb_size);
+	mem = IODeviceMemory::withSubRange(m_vram, fb_offset, fb_size);
 	if (!mem)
 		LogPrintf(1, "%s: Failed to create IODeviceMemory, aperture=%d\n", __FUNCTION__, kIOFBSystemAperture);
 	return mem;
@@ -1006,6 +993,7 @@ bool CLASS::start(IOService* provider)
 	/*
 	 * End Added
 	 */
+	m_vram = provider->getDeviceMemoryWithIndex(1U);
 	svga.Init();
 	if (!svga.Start(static_cast<IOPCIDevice*>(provider)))
 		goto fail;

@@ -155,7 +155,7 @@ void CLASS::Cleanup()
 bool CLASS::Start(IOPCIDevice* provider)
 {
 	uint32_t host_bpp, guest_bpp, reg_id;
-	IODeviceMemory* bar2;
+	IODeviceMemory* bar;
 
 	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = provider;
@@ -174,13 +174,13 @@ bool CLASS::Start(IOPCIDevice* provider)
 	}
 	provider->setMemoryEnable(true);
 	provider->setIOEnable(true);
-	m_io_base = static_cast<uint16_t>(provider->configRead32(kIOPCIConfigBaseAddress0));
-	if (!(m_io_base & 1U)) {
+	bar = provider->getDeviceMemoryWithIndex(0U);
+	if (!bar) {
 		LogPrintf(1, "%s: Failed to map the I/O registers.\n", __FUNCTION__);
 		Cleanup();
 		return false;
 	}
-	m_io_base &= ~1U;
+	m_io_base = static_cast<uint16_t>(bar->getPhysicalAddress());
 	WriteReg(SVGA_REG_ID, SVGA_ID_2);
 	reg_id = ReadReg(SVGA_REG_ID);
 	LogPrintf(3, "%s: REG_ID=%#08x\n", __FUNCTION__, reg_id);
@@ -199,18 +199,14 @@ bool CLASS::Start(IOPCIDevice* provider)
 	}
 #endif
 	m_fifo_size = ReadReg(SVGA_REG_MEM_SIZE);
-	bar2 = provider->getDeviceMemoryWithRegister(kIOPCIConfigBaseAddress2);
-	if (!bar2) {
+	bar = provider->getDeviceMemoryWithIndex(2U);
+	if (!bar) {
 	bar2_error:
 		LogPrintf(1, "%s: Failed to map the FIFO.\n", __FUNCTION__);
 		Cleanup();
 		return false;
 	}
-	m_bar2_map = bar2->createMappingInTask(kernel_task,
-										   0U,
-										   kIOMapAnywhere,
-										   0U,
-										   m_fifo_size);
+	m_bar2_map = bar->createMappingInTask(kernel_task, 0U, kIOMapAnywhere, 0U, m_fifo_size);
 	if (!m_bar2_map)
 		goto bar2_error;
 	m_fifo_ptr = reinterpret_cast<uint32_t*>(m_bar2_map->getVirtualAddress());
