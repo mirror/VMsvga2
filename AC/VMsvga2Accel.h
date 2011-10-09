@@ -299,6 +299,8 @@ public:
 	uint32_t getVRAMSize() const;
 	vm_offset_t offsetInVRAM(void* vram_ptr) const;
 	class VMsvga2Surface* findSurfaceForID(uint32_t surface_id);
+	SVGA3D* lock3D();
+	void unlock3D();
 
 	/*
 	 * Video Support

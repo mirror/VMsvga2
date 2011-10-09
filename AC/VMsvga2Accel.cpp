@@ -1749,6 +1749,23 @@ VMsvga2Surface* CLASS::findSurfaceForID(uint32_t surface_id)
 	return OSDynamicCast(VMsvga2Surface, fs.client);
 }
 
+HIDDEN
+SVGA3D* CLASS::lock3D()
+{
+	if (!bHaveSVGA3D)
+		return 0;
+	m_framebuffer->lockDevice();
+	return &svga3d;
+}
+
+HIDDEN
+void CLASS::unlock3D()
+{
+	if (!m_framebuffer)
+		return;
+	m_framebuffer->unlockDevice();
+}
+
 #pragma mark -
 #pragma mark Video Methods
 #pragma mark -
