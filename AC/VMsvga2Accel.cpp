@@ -53,7 +53,7 @@ OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
 static __attribute__((used)) char const copyright[] = "Copyright 2009-2011 Zenith432";
 
 HIDDEN
-uint32_t vmw_options_ac = 0;
+unsigned vmw_options_ac = 0U;
 
 #if LOGGING_LEVEL >= 1
 #define ACLog(log_level, ...) do { if (log_level <= m_log_level_ac) VLog("IOAC: ", ##__VA_ARGS__); } while(false)

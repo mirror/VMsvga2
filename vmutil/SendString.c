@@ -43,19 +43,20 @@
 #define BDOORHB_CMD_MESSAGE 0U
 
 #define BACKDOOR_VARS() \
-	unsigned long eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
+	unsigned eax = 0U, edx = 0U, edi = 0U; \
+	unsigned long ebx = 0U, ecx = 0U, esi = 0U;
 
 #define BACKDOOR_ASM(op, port) \
 	{ \
 		eax = BDOOR_MAGIC; \
 		edx = (edx & 0xFFFF0000U) | port; \
-		asm volatile (op : "+a" (eax), "+b" (ebx), \
+		__asm__ (op : "+a" (eax), "+b" (ebx), \
 			"+c" (ecx), "+d" (edx), "+S" (esi), "+D" (edi)); \
 	}
 
 #define BACKDOOR_ASM_IN()       BACKDOOR_ASM("in %%dx, %0", BDOOR_PORT)
-#define BACKDOOR_ASM_HB_OUT()   BACKDOOR_ASM("cld; rep; outsb", BDOORHB_PORT)
-#define BACKDOOR_ASM_HB_IN()    BACKDOOR_ASM("cld; rep; insb", BDOORHB_PORT)
+#define BACKDOOR_ASM_HB_OUT()   BACKDOOR_ASM("cld; rep outsb", BDOORHB_PORT)
+#define BACKDOOR_ASM_HB_IN()    BACKDOOR_ASM("cld; rep insb", BDOORHB_PORT)
 
 __attribute__((visibility("hidden")))
 char VMLog_SendString(char const* str)
@@ -77,12 +78,12 @@ char VMLog_SendString(char const* str)
 	}
 
 	channel_id = edx >> 16;
-	for (size = 0; str[size]; ++size);
+	for (size = 0U; str[size]; ++size);
 
 	ecx = BDOOR_CMD_MESSAGE | 0x00010000U;  /* Send size */
 	ebx = size;
 	edx = channel_id << 16;
-	esi = edi = 0;
+	esi = edi = 0U;
 	BACKDOOR_ASM_IN()
 
 	/* We only support the high-bandwidth backdoor port. */
@@ -94,7 +95,7 @@ char VMLog_SendString(char const* str)
 	ecx = size;
 	edx = channel_id << 16;
 	esi = (unsigned long) str;
-	edi = 0;
+	edi = 0U;
 	BACKDOOR_ASM_HB_OUT()
 
 	/* Success? */
@@ -103,9 +104,9 @@ char VMLog_SendString(char const* str)
 	}
 
 	ecx = BDOOR_CMD_MESSAGE | 0x00060000U;  /* Close */
-	ebx = 0;
+	ebx = 0U;
 	edx = channel_id << 16;
-	esi = edi = 0;
+	esi = edi = 0U;
 	BACKDOOR_ASM_IN()
 
 	return 1;

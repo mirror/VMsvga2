@@ -23,7 +23,6 @@
  * references
  */
 
-#include <string.h>
 #include <IOKit/IOLib.h>
 #include "VMsvga2Allocator.h"
 
@@ -41,11 +40,10 @@ OSDefineMetaClassAndStructors(VMsvga2Allocator, OSObject);
 #define FREEBLOCK (HEADER_LEN + TRAILER_LEN)
 
 /* define FRAGILE if you want more speed. This means that the worst				[We do, and it's defined]
- * case cost
- * of poolMalloc() and poolFree() grows only with the number of
+ * case cost of Malloc() and Free() grows only with the number of
  * different block sizes, not the size of each block. The flip side
  * of this is less error checking to pick up store corruption from
- * bugs here or in user code. The worst case dependency of realloc()
+ * bugs here or in user code. The worst case dependency of Realloc()
  * is inevitable - it may have to copy the old data
  */
 
@@ -54,11 +52,11 @@ static __attribute__((used)) char const version[] = "A.G.McDowell 19990501" ;
 /* Bit macros, since it should be both faster and more compact to use
  * macros than functions for this
  */
-#define BITTEST(p, n) ((p)->map[(n) >> 3] & (128U >>((n) & 7)))
+#define BITTEST(p, n) ((p)->map[(n) >> 3] & (128U >> ((n) & 7)))
 #define BITSET(p, n) {(p)->map[(n) >> 3] |= (128U >> ((n) & 7));}
 #define BITCLEAR(p, n) {(p)->map[(n) >> 3] &= ~(128U >> ((n) & 7));}
 
-/* The top of a free block contains HEADER_LEN size_t s. We could
+/* The top of a free block contains HEADER_LEN pool_size_ts. We could
  * use either pointers or block offsets. We choose block offsets
  * to make it
  * easy to run this in shared memory, where different processes
@@ -70,14 +68,14 @@ static __attribute__((used)) char const version[] = "A.G.McDowell 19990501" ;
 /*
  * use OURNULL in our own lists.
  */
-#define OURNULL static_cast<size_t>(-1)
+#define OURNULL static_cast<pool_size_t>(-1)
 /* magic number. The first block in a series
  * of free blocks starts with this value. The
  * later blocks start with zero. Any non-zero
  * value would do, but picking something unlikely
  * helps us pick up corruption earlier
  */
-#define MAGIC static_cast<size_t>(0xA7130423U)
+#define MAGIC static_cast<pool_size_t>(0xA7130423U)
 /*
  * offset of magic number in a free block
  */
@@ -99,6 +97,8 @@ static __attribute__((used)) char const version[] = "A.G.McDowell 19990501" ;
  */
 #define LEN_OFFSET 1234
 
+#define POOL_ONE static_cast<pool_size_t>(1U)
+
 #pragma mark -
 #pragma mark Private Methods
 #pragma mark -
@@ -107,18 +107,13 @@ static __attribute__((used)) char const version[] = "A.G.McDowell 19990501" ;
  * checks if all bytes in a range are 0xFFU
  */
 HIDDEN
-bool CLASS::memAll(void *p, size_t bytes)
+bool CLASS::memAll(void const *p, size_t bytes)
 {
-	uint8_t* pp = static_cast<uint8_t*>(p);
-
-	if (bytes <= 0)
+	if (!p || !bytes)
 		return true;
 
-	if (*pp != 0xFFU)
-		return false;
-	if (memcmp(pp, pp + 1, bytes - 1))
-		return false;
-	return true;
+	__asm__ ("cld; repe scasb" : "+D"(p), "+c"(bytes) : "a"(static_cast<uint8_t>(0xFFU)));
+	return !bytes;
 }
 
 /*
@@ -127,11 +122,10 @@ bool CLASS::memAll(void *p, size_t bytes)
 HIDDEN
 bool CLASS::testAll(size_t firstBit, size_t pastBit)
 {
-	size_t i;
-	size_t firstFull = (firstBit + 7U) & ~7U;
-	size_t pastFull = pastBit & ~7U;
+	size_t firstFull = (firstBit + 7U) & ~7UL;
+	size_t pastFull = pastBit & ~7UL;
 	size_t past = pastBit;
-	size_t bytes;
+	size_t i, bytes;
 
 	if (past > firstFull)
 		past = firstFull;
@@ -157,11 +151,10 @@ bool CLASS::testAll(size_t firstBit, size_t pastBit)
 HIDDEN
 void CLASS::clearAll(size_t firstBit, size_t pastBit)
 {
-	size_t i;
-	size_t firstFull = (firstBit + 7U) & ~7U;
-	size_t pastFull = pastBit & ~7U;
+	size_t firstFull = (firstBit + 7U) & ~7UL;
+	size_t pastFull = pastBit & ~7UL;
 	size_t past = pastBit;
-	size_t bytes;
+	size_t i, bytes;
 
 	if (past > firstFull)
 		past = firstFull;
@@ -193,18 +186,13 @@ IOReturn CLASS::clearCheck(size_t firstBit, size_t pastBit)
  * checks if any bytes in range are non-zero
  */
 HIDDEN
-bool CLASS::memAny(void *p, size_t bytes)
+bool CLASS::memAny(void const *p, size_t bytes)
 {
-	uint8_t* pp = static_cast<uint8_t*>(p);
-	if (bytes <= 0)
+	if (!p || !bytes)
 		return false;
-	if (*pp)
-		return true;
-	if (bytes <= 1)
-		return false;
-	if (memcmp(pp, pp + 1, bytes - 1))
-		return true;
-	return false;
+
+	__asm__ ("cld; repe scasb" : "+D"(p), "+c"(bytes) : "a"(static_cast<uint8_t>(0U)));
+	return bytes != 0U;
 }
 
 /*
@@ -213,11 +201,10 @@ bool CLASS::memAny(void *p, size_t bytes)
 HIDDEN
 bool CLASS::testAny(size_t firstBit, size_t pastBit)
 {
-	size_t i;
-	size_t firstFull = (firstBit + 7U) & ~7U;
-	size_t pastFull = pastBit & ~7U;
+	size_t firstFull = (firstBit + 7U) & ~7UL;
+	size_t pastFull = pastBit & ~7UL;
 	size_t past = pastBit;
-	size_t bytes;
+	size_t i, bytes;
 
 	if (past > firstFull)
 		past = firstFull;
@@ -241,16 +228,13 @@ bool CLASS::testAny(size_t firstBit, size_t pastBit)
  * Adds a single aligned range to a single free list
  */
 HIDDEN
-void CLASS::makeFree(size_t firstFree, int bitsFree, bool zap)
+void CLASS::makeFree(pool_size_t firstFree, int bitsFree, bool zap)
 {
-	size_t *ptr;
-	size_t *pastPtr;
-	size_t *nextPtr;
-	size_t nextOff;
+	pool_size_t *ptr, *pastPtr, *nextPtr, nextOff;
 	int byteBits = bitsFree + minBits;
-	size_t bytesToFree = 1U << byteBits;
-	size_t blocksToFree = 1U << bitsFree;
-	ptr = reinterpret_cast<size_t*>(poolStart + (firstFree << minBits));
+	pool_size_t bytesToFree = POOL_ONE << byteBits;
+	pool_size_t blocksToFree = POOL_ONE << bitsFree;
+	ptr = reinterpret_cast<pool_size_t*>(poolStart + (firstFree << minBits));
 	if (zap) {
 		/*
 		 * Zap free area and bitmap to zero
@@ -279,10 +263,10 @@ void CLASS::makeFree(size_t firstFree, int bitsFree, bool zap)
 	ptr[OFF_PREV] = OURNULL;
 	nextOff = freeList[bitsFree];
 	ptr[OFF_NEXT] = nextOff;
-	pastPtr = ptr + bytesToFree / sizeof(size_t);
-	pastPtr[OFF_BITS] = bitsFree + LEN_OFFSET;
+	pastPtr = ptr + bytesToFree / sizeof *ptr;
+	pastPtr[OFF_BITS] = static_cast<pool_size_t>(bitsFree + LEN_OFFSET);
 	if (nextOff != OURNULL) {
-		nextPtr = reinterpret_cast<size_t*>(poolStart + (nextOff << minBits));
+		nextPtr = reinterpret_cast<pool_size_t*>(poolStart + (nextOff << minBits));
 		nextPtr[OFF_PREV] = firstFree;
 	}
 	freeList[bitsFree] = firstFree;
@@ -293,11 +277,10 @@ void CLASS::makeFree(size_t firstFree, int bitsFree, bool zap)
  * Add an arbitrary range of blocks to free lists
  */
 HIDDEN
-void CLASS::toFree(size_t firstBlock, size_t pastBlock, bool zap)
+void CLASS::toFree(pool_size_t firstBlock, pool_size_t pastBlock, bool zap)
 {
-	size_t i;
+	pool_size_t i, nextLen, tryLen = 1U;
 	int tryBits = 0;
-	size_t tryLen = 1;
 	for(i = firstBlock; i < pastBlock;) {
 		/*
 		 * To avoid cost quadratic in the number of different
@@ -320,20 +303,18 @@ void CLASS::toFree(size_t firstBlock, size_t pastBlock, bool zap)
 		 * is one trip from the lowest blocksize to the highest and
 		 * back again.
 		 */
-		for(;tryBits < numSizes - 1;) {
-			int nextTry = tryBits + 1;
-			size_t nextLen = tryLen + tryLen;
-			if(i + nextTry > pastBlock)
+		for(;tryBits < numSizes - 1; ++tryBits) {
+			nextLen = tryLen << 1;
+			if(i + nextLen > pastBlock)
 				/*
 				 * off end of chunk to be freed
 				 */
 				break;
-			if (i & (nextLen - 1))
+			if (i & (nextLen - 1U))
 				/*
 				 * block would not be on boundary
 				 */
 				break;
-			tryBits = nextTry;
 			tryLen = nextLen;
 		}
 		for(;tryBits >= 0; --tryBits, tryLen >>= 1) {
@@ -342,7 +323,7 @@ void CLASS::toFree(size_t firstBlock, size_t pastBlock, bool zap)
 				 * off end of chunk to be freed
 				 */
 				continue;
-			if (i & (tryLen - 1))
+			if (i & (tryLen - 1U))
 				/*
 				 * block would not be on boundary
 				 */
@@ -366,15 +347,10 @@ HIDDEN
 IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 {
 	int retBits;
-	size_t *ptr;
-	size_t *pastPtr;
-	size_t offset;
-	size_t nextOffset;
-	size_t *nextPtr;
-	size_t past;
-	if (newStore == NULL)
+	pool_size_t *ptr, *pastPtr, offset, nextOffset, *nextPtr, past;
+	if (!newStore)
 		return kIOReturnBadArgument /* "null pointer to new store" */;
-	if (freeBytes < (1U << (bits + minBits)))
+	if (freeBytes < (POOL_ONE << (bits + minBits)))
 		return kIOReturnNoMemory;
     /*
 	 * Find a list with blocks big enough on it
@@ -387,13 +363,13 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 	offset = freeList[retBits];
 	if (offset >= poolBlocks)
 		return kIOReturnInternalError /* "corrupted free list" */;
-	ptr = reinterpret_cast<size_t*>(poolStart + (offset << minBits));
+	ptr = reinterpret_cast<pool_size_t*>(poolStart + (offset << minBits));
 	if (ptr[OFF_MAGIC] != MAGIC)
 		return kIOReturnInternalError /* "corrupted free area" */;
 	if (ptr[OFF_PREV] != OURNULL)
 		return kIOReturnInternalError /* "corrupted free area" */;
-	pastPtr = ptr + (1U << (retBits + minBits)) / sizeof(size_t);
-	if (pastPtr[OFF_BITS] != static_cast<size_t>(retBits + LEN_OFFSET))
+	pastPtr = ptr + (POOL_ONE << (retBits + minBits)) / sizeof *ptr;
+	if (pastPtr[OFF_BITS] != static_cast<pool_size_t>(retBits + LEN_OFFSET))
 		return kIOReturnInternalError /* "corrupted free area" */;
 #ifndef FRAGILE
 	/*
@@ -403,9 +379,9 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 	 * no result except a check for errors which should never occur
 	 * so it's check code only, which you could delete to save time
 	 */
-	if (testAny(offset, offset + (1U << bits)))
+	if (testAny(offset, offset + (POOL_ONE << bits)))
 		return kIOReturnInternalError /* "free area does not match bitmap" */;
-	if (memAny(ptr + HEADER_LEN, (1U << (bits + minBits)) - FREEBLOCK * sizeof(void*)))
+	if (memAny(ptr + HEADER_LEN, (POOL_ONE << (bits + minBits)) - FREEBLOCK * sizeof *ptr))
 		return kIOReturnInternalError /* "corrupted free area" */;
 #endif
 
@@ -416,7 +392,7 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 	if (nextOffset != OURNULL) {
 		if (nextOffset >= poolBlocks)
 			return kIOReturnInternalError /* "corrupted free list" */;
-		nextPtr = reinterpret_cast<size_t*>(poolStart + (nextOffset << minBits));
+		nextPtr = reinterpret_cast<pool_size_t*>(poolStart + (nextOffset << minBits));
 		if (nextPtr[OFF_MAGIC] != MAGIC ||
 			nextPtr[OFF_PREV] != offset)
 			return kIOReturnInternalError /* "corrupted free area" */;
@@ -426,20 +402,16 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
 	/*
 	 * Mark end of allocated area
 	 */
-	past = offset + (1U << bits);
-	BITSET(this, past - 1);
+	past = offset + (POOL_ONE << bits);
+	BITSET(this, past - 1U);
 	/*
 	 * If we used a larger free block than we needed, free the rest
 	 */
-	freeBytes -= (1U << (retBits + minBits));
+	freeBytes -= (POOL_ONE << (retBits + minBits));
 	/*
 	 * accounts for chunks about to be freed again by toFree
 	 */
-#ifdef FRAGILE
-	toFree(past, offset + (1U << retBits), false);
-#else
-	toFree(past, offset + (1U << retBits), true);
-#endif
+	toFree(past, offset + (POOL_ONE << retBits), false);
 	*newStore = ptr;
 	return kIOReturnSuccess;
 }
@@ -448,14 +420,12 @@ IOReturn CLASS::BuddyMalloc(int bits, void **newStore)
  * Determines size of a busy block
  */
 HIDDEN
-IOReturn CLASS::BuddyAllocSize(void *sss, int *numBits)
+IOReturn CLASS::BuddyAllocSize(void const *sss, int *numBits)
 {
-	size_t byteOff;
-	size_t blockOff;
-	uint8_t* storage = static_cast<uint8_t*>(sss);
+	size_t byteOff, blockOff, blocks;
+	uint8_t const* storage = static_cast<uint8_t const*>(sss);
 	int ourBits;
-	size_t blocks;
-	if (numBits == NULL)
+	if (!numBits)
 		return kIOReturnBadArgument /* "nowhere to store result" */;
 	if (storage < poolStart)
 		return kIOReturnNotAligned /* "storage not in pool" */;
@@ -465,15 +435,15 @@ IOReturn CLASS::BuddyAllocSize(void *sss, int *numBits)
 		return kIOReturnNotAligned /* "storage not on block boundary" */;
 	if (blockOff >= poolBlocks)
 		return kIOReturnNotAligned /* "storage not in pool" */;
-	blocks = 1;
+	blocks = 1U;
 	for (ourBits = 0;; ++ourBits) {
 		if ((blockOff + blocks > poolBlocks) ||
 			(ourBits >= numSizes) ||
-			(blockOff & (blocks - 1)))
+			(blockOff & (blocks - 1U)))
 			return kIOReturnNotAligned /* "bad alloc pointer" */;
-		if (BITTEST(this, blockOff + blocks - 1))
+		if (BITTEST(this, blockOff + blocks - 1U))
 			break;
-		blocks += blocks;
+		blocks <<= 1;
 	}
 	*numBits = ourBits;
 	return kIOReturnSuccess;
@@ -509,9 +479,7 @@ void CLASS::free()
 
 CLASS* CLASS::factory()
 {
-	CLASS* inst;
-
-	inst = new CLASS;
+	CLASS* inst = new CLASS;
 
 	if (inst && !inst->init())
 	{
@@ -519,7 +487,7 @@ CLASS* CLASS::factory()
 		inst = 0;
 	}
 
-	return (inst);
+	return inst;
 }
 
 #pragma mark -
@@ -533,20 +501,22 @@ IOReturn CLASS::Init(void* startAddress, size_t bytes)
 	int const minBits = 12;
 	int const numSizes = 13;
 
-	ReleaseMap();	// In case we get reinitialized
 #if 0
-	if ((1U << minBits) < (sizeof(size_t) * FREEBLOCK))
+	if ((1UL << minBits) < sizeof(pool_size_t) * FREEBLOCK)
 		return kIOReturnBadArgument /* "minBits too small" */ ;
 	if (numSizes <= 0)
 		return kIOReturnBadArgument /* "numSizes <= 0" */;
-	if ((1U << (minBits + numSizes - 1)) == 0)
+	if (!(POOL_ONE << (minBits + numSizes - 1)))
 		return kIOReturnBadArgument /* "numSizes + minBits too large" */;
 #endif
-	if (reinterpret_cast<vm_address_t>(startAddress) & ((1U << minBits) - 1))
+	if (reinterpret_cast<vm_address_t>(startAddress) & ((1UL << minBits) - 1U))
 		return kIOReturnBadArgument /* "startAddress not on block boundary" */;
+	if (bytes != static_cast<pool_size_t>(bytes))
+		return kIOReturnBadArgument /* "bytes too big" */;
+	ReleaseMap();	// In case we get reinitialized
 	poolStart = static_cast<uint8_t*>(startAddress);
 	setBits = bytes >> minBits;
-	poolBlocks = static_cast<int>(setBits);
+	poolBlocks = static_cast<pool_size_t>(setBits);
 	this->minBits = minBits;
 	this->numSizes = numSizes;
 	map = static_cast<uint8_t*>(IOMalloc((setBits + 7U) >> 3));
@@ -564,15 +534,23 @@ IOReturn CLASS::Init(void* startAddress, size_t bytes)
 	return kIOReturnSuccess;
 }
 
+IOReturn CLASS::Rebase(void* newStartAddress)
+{
+	if (reinterpret_cast<vm_address_t>(newStartAddress) & ((1UL << minBits) - 1U))
+		return kIOReturnBadArgument /* "newStartAddress not on block boundary" */;
+	poolStart = static_cast<uint8_t*>(newStartAddress);
+	return kIOReturnSuccess;
+}
+
 IOReturn CLASS::Release(size_t startOffsetBytes, size_t endOffsetBytes)
 {
 	size_t startBlock;
 	size_t pastBlockOff;
 	IOReturn ret;
 
-	if (startOffsetBytes & ((1U << minBits) - 1))
+	if (startOffsetBytes & ((1UL << minBits) - 1U))
 		return kIOReturnBadArgument;
-	if (endOffsetBytes & ((1U << minBits) - 1))
+	if (endOffsetBytes & ((1UL << minBits) - 1U))
 		return kIOReturnBadArgument;
 	startBlock = startOffsetBytes >> minBits;
 	pastBlockOff = endOffsetBytes >> minBits;
@@ -584,11 +562,14 @@ IOReturn CLASS::Release(size_t startOffsetBytes, size_t endOffsetBytes)
 	/*
 	 * Now add everything in range to the free list
 	 */
+	toFree(static_cast<pool_size_t>(startBlock),
+		   static_cast<pool_size_t>(pastBlockOff),
 #ifdef FRAGILE
-	toFree(startBlock, pastBlockOff, false);
+		   false
 #else
-	toFree(startBlock, pastBlockOff, true);
+		   true
 #endif
+		   );
 	return kIOReturnSuccess;
 }
 
@@ -596,14 +577,14 @@ IOReturn CLASS::Malloc(size_t bytes, void** newStore)
 {
 	int bits;
 	size_t size;
-	if (newStore == NULL)
+	if (!newStore)
 		return kIOReturnBadArgument /* "null pointer to new store" */;
-	size = 1U << minBits;
+	size = 1UL << minBits;
 	for (bits = 0; size < bytes; ++bits) {
 		if (bits >= numSizes)
 			return kIOReturnNoResources;	// can't allocate blocks this size
-		size += size;
-		if (size == 0)
+		size <<= 1;
+		if (!size)
 			return kIOReturnNoResources;	// can't allocate blocks this size
     }
 	return BuddyMalloc(bits, newStore);
@@ -611,43 +592,42 @@ IOReturn CLASS::Malloc(size_t bytes, void** newStore)
 
 IOReturn CLASS::Realloc(void* ptrv, size_t size, void** newPtr)
 {
-	int canBits;
-	size_t blockNo;
-	int bits;
+	int canBits, bits, lg2Bytes;
+	pool_size_t blockNo, oldBlocks, newBlocks;
 	IOReturn error;
-	size_t oldBlocks;
-	size_t newBlocks;
-	int lg2Bytes;
 	uint8_t* ptr = static_cast<uint8_t*>(ptrv);
-	if (size == 0)
+	if (!size)
 		return Free(ptr);
-	if (ptr == NULL)
+	if (!ptr)
 		return Malloc(size, newPtr);
 	error = BuddyAllocSize(ptr, &bits);
 	if (error != kIOReturnSuccess)
 		return error;
 	lg2Bytes = bits + minBits;
-	if ((1U << lg2Bytes) < size) {
+	if ((1UL << lg2Bytes) < size) {
 		error = Malloc(size, newPtr);
 		if (error != kIOReturnSuccess)
 			return error;
-		memcpy(*newPtr, ptr, 1U << lg2Bytes);
-		return Free(ptr);
+		memcpy(*newPtr, ptr, 1UL << lg2Bytes);
+		error = Free(ptr);
+		if (error != kIOReturnSuccess)
+			Free(*newPtr);
+		return error;
 	}
 	*newPtr = ptr;
-	for (canBits = minBits; (1U << canBits) < size; ++canBits);
+	for (canBits = minBits; (1UL << canBits) < size; ++canBits);
 	if (canBits >= lg2Bytes)
 		return kIOReturnSuccess;
-	oldBlocks = 1U << bits;
-	newBlocks = 1U << (canBits - minBits);
-	blockNo = (ptr - poolStart) >> minBits;
+	oldBlocks = POOL_ONE << bits;
+	newBlocks = POOL_ONE << (canBits - minBits);
+	blockNo = static_cast<pool_size_t>((ptr - poolStart) >> minBits);
 	/*
 	 * set end bits to mark new size
 	 */
-	BITSET(this, blockNo + newBlocks - 1);
+	BITSET(this, blockNo + newBlocks - 1U);
 
 #ifdef FRAGILE
-	BITCLEAR(this, blockNo + oldBlocks - 1);
+	BITCLEAR(this, blockNo + oldBlocks - 1U);
 	toFree(blockNo + newBlocks, blockNo + oldBlocks, false);
 #else
 	/*
@@ -660,34 +640,28 @@ IOReturn CLASS::Realloc(void* ptrv, size_t size, void** newPtr)
 
 IOReturn CLASS::Free(void* storage2)
 {
-	size_t *sptr;
-	size_t *nextPtr;
-	size_t nextOffset;
-	size_t *pastPtr;
+	pool_size_t *sptr, *nextPtr, nextOffset, *pastPtr, blockOff, blocksHere;
 	IOReturn ret;
-	int bits;
-	size_t blockOff;
-	size_t blocksHere;
-	int oldBits;
+	int bits, oldBits;
 	uint8_t* storage = static_cast<uint8_t*>(storage2);
-	if (storage == NULL)
+	if (!storage)
 		return kIOReturnSuccess;
 	ret = BuddyAllocSize(storage, &bits);
 	if (ret != kIOReturnSuccess)
 		return ret;
-	blocksHere = 1U << bits;
-	blockOff = (storage - poolStart) >> minBits;
+	blocksHere = POOL_ONE << bits;
+	blockOff = static_cast<pool_size_t>((storage - poolStart) >> minBits);
     /*
 	 * mark as free in bitmap
 	 */
-	BITCLEAR(this, blockOff + blocksHere - 1);
+	BITCLEAR(this, blockOff + blocksHere - 1U);
 	/*
 	 * clear store. For absolute speed and much less error
 	 * checking could only clear areas checked during buddy
 	 * merge
 	 */
 #ifndef FRAGILE
-	bzero(storage, 1U << (bits + minBits));
+	bzero(storage, 1UL << (bits + minBits));
 #endif
 	/*
 	 * merge with any buddies
@@ -697,19 +671,18 @@ IOReturn CLASS::Free(void* storage2)
 		/*
 		 * while you can merge two blocks and get a legal block size
 		 */
-		size_t *buddyPtr;
-		size_t *prevPtr;
-		size_t prevOffset;
+		pool_size_t *buddyPtr, *prevPtr, prevOffset;
+		pool_size_t buddy = blockOff ^ (POOL_ONE << bits);
+		pool_size_t pastBuddy = buddy + (POOL_ONE << bits);
 		int trueBits;
-		size_t buddy = blockOff ^ (1U << bits);
 		/*
 		 * Could buddy be out of range?
 		 */
-		if (buddy + (1U << bits) > poolBlocks)
+		if (pastBuddy > poolBlocks)
 			break;
-		if (BITTEST(this, buddy + (1U << bits) - 1))
+		if (BITTEST(this, pastBuddy - 1U))
 			break; /* buddy is allocated */
-		pastPtr = reinterpret_cast<size_t*>(poolStart + (buddy << minBits) + (1U << (bits + minBits)));
+		pastPtr = reinterpret_cast<pool_size_t*>(poolStart + (pastBuddy << minBits));
 		trueBits = static_cast<int>(pastPtr[OFF_BITS] - LEN_OFFSET);
 		if (trueBits < 0 || trueBits >= numSizes)
 			return kIOReturnInternalError /* "corruption 1.1 in free store" */;
@@ -718,21 +691,19 @@ IOReturn CLASS::Free(void* storage2)
 		/*
 		 * Found buddy on free list - remove it and merge
 		 */
-		pastPtr[OFF_BITS] = 0;
-		buddyPtr = reinterpret_cast<size_t*>(poolStart + (buddy << minBits));
+		pastPtr[OFF_BITS] = 0U;
+		buddyPtr = reinterpret_cast<pool_size_t*>(poolStart + (buddy << minBits));
 		if (buddyPtr[OFF_MAGIC] != MAGIC)
 			return kIOReturnInternalError /* "corruption 2 in free store" */;
 		if (freeList[bits] == OURNULL)
 			return kIOReturnInternalError /* "corruption 3 in free store" */;
 		prevOffset = buddyPtr[OFF_PREV];
 		if (prevOffset == OURNULL) {
-			size_t *nextPtr;
-			size_t nextOffset;
 			nextOffset = buddyPtr[OFF_NEXT];
 			if (nextOffset != OURNULL) {
 				if (nextOffset >= poolBlocks)
 					return kIOReturnInternalError /* "corruption 3.1 in free store" */;
-				nextPtr = reinterpret_cast<size_t*>(poolStart + (nextOffset << minBits));
+				nextPtr = reinterpret_cast<pool_size_t*>(poolStart + (nextOffset << minBits));
 				if (nextPtr[OFF_MAGIC] != MAGIC)
 					return kIOReturnInternalError /* "corruption 4 in free store" */;
 				if (nextPtr[OFF_PREV] != buddy)
@@ -741,10 +712,9 @@ IOReturn CLASS::Free(void* storage2)
 			}
 			freeList[bits] = nextOffset;
 		} else {
-			size_t nextOffset;
 			if (prevOffset >= poolBlocks)
 				return kIOReturnInternalError /* "corruption 5.1 in free store" */;
-			prevPtr = reinterpret_cast<size_t*>(poolStart + (prevOffset << minBits));
+			prevPtr = reinterpret_cast<pool_size_t*>(poolStart + (prevOffset << minBits));
 			if (prevPtr[OFF_MAGIC] != MAGIC)
 				return kIOReturnInternalError /* "corruption 6 in free store" */;
 			if (prevPtr[OFF_NEXT] != buddy)
@@ -753,7 +723,7 @@ IOReturn CLASS::Free(void* storage2)
 			if (nextOffset != OURNULL) {
 				if (nextOffset >= poolBlocks)
 					return kIOReturnInternalError /* "corruption 7.1 in free store" */;
-				nextPtr = reinterpret_cast<size_t*>(poolStart + (nextOffset << minBits));
+				nextPtr = reinterpret_cast<pool_size_t*>(poolStart + (nextOffset << minBits));
 				if (nextPtr[OFF_MAGIC] != MAGIC)
 					return kIOReturnInternalError /* "corruption 8 in free store" */;
 				if (nextPtr[OFF_PREV] != buddy)
@@ -765,7 +735,7 @@ IOReturn CLASS::Free(void* storage2)
 		/*
 		 * clear buddy's free block
 		 */
-		bzero(buddyPtr, HEADER_LEN * sizeof(size_t));
+		bzero(buddyPtr, HEADER_LEN * sizeof *buddyPtr);
 		++bits;
 		if (buddy < blockOff) {
 			/*
@@ -778,14 +748,14 @@ IOReturn CLASS::Free(void* storage2)
 	/*
 	 * add to free list
 	 */
-	sptr = reinterpret_cast<size_t*>(storage);
+	sptr = reinterpret_cast<pool_size_t*>(storage);
 	sptr[OFF_MAGIC] = MAGIC;
 	sptr[OFF_PREV] = OURNULL;
 	nextOffset = freeList[bits];
 	if (nextOffset != OURNULL) {
 		if (nextOffset >= poolBlocks)
 			return kIOReturnInternalError /* "corruption 9.1 in free store" */;
-		nextPtr = reinterpret_cast<size_t*>(poolStart + (nextOffset << minBits));
+		nextPtr = reinterpret_cast<pool_size_t*>(poolStart + (nextOffset << minBits));
 		if (nextPtr[OFF_MAGIC] != MAGIC)
 			return kIOReturnInternalError /* "corruption 10 in free store" */;
 		if (nextPtr[OFF_PREV] != OURNULL)
@@ -793,16 +763,16 @@ IOReturn CLASS::Free(void* storage2)
 		nextPtr[OFF_PREV] = blockOff;
 	}
 	sptr[OFF_NEXT] = nextOffset;
-	pastPtr = reinterpret_cast<size_t*>(storage + (1U << (minBits + bits)));
-	pastPtr[OFF_BITS] = bits + LEN_OFFSET;
+	pastPtr = reinterpret_cast<pool_size_t*>(storage + (1UL << (minBits + bits)));
+	pastPtr[OFF_BITS] = static_cast<pool_size_t>(bits + LEN_OFFSET);
 	freeList[bits] = blockOff;
-	freeBytes += (1U << (oldBits + minBits));
+	freeBytes += (POOL_ONE << (oldBits + minBits));
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::Available(size_t* bytesFree)
 {
-	if (bytesFree == NULL)
+	if (!bytesFree)
 		return kIOReturnBadArgument /* "no room to store bytes free" */;
 	*bytesFree = freeBytes;
 	return kIOReturnSuccess;
@@ -811,47 +781,43 @@ IOReturn CLASS::Available(size_t* bytesFree)
 IOReturn CLASS::Check(size_t* counts)
 {
 	int size;
-	size_t seenStore = 0;
+	pool_size_t seenStore = 0U;
 	/*
 	 * Check the free list for all possible sizes
 	 */
 	for (size = 0; size < numSizes; ++size) {
-		size_t offset;
-		size_t *ptr;
-		size_t *pastPtr;
-		size_t prevOffset = OURNULL;
+		pool_size_t offset, *ptr, *pastPtr, prevOffset = OURNULL, blocksSeen = 0U;
 		/*
 		 * maxBlocks catches loops in the free list
 		 */
-		size_t maxBlocks = poolBlocks >> size;
-		size_t blocksSeen = 0;
+		pool_size_t maxBlocks = poolBlocks >> size;
 		for (offset = freeList[size];
 			 offset != OURNULL && blocksSeen < maxBlocks; ++blocksSeen) {
 			if (offset >= poolBlocks)
 				return kIOReturnInternalError /* "bad pointer" */;
 			if (testAny(offset,
-						offset + (1U << size)))
+						offset + (POOL_ONE << size)))
 				return kIOReturnInternalError /* "free area not free in bitmap" */;
-			ptr = reinterpret_cast<size_t*>(poolStart + (offset << minBits));
+			ptr = reinterpret_cast<pool_size_t*>(poolStart + (offset << minBits));
 			if (ptr[OFF_MAGIC] != MAGIC)
 				return kIOReturnInternalError /* "bad magic" */;
 			if (ptr[OFF_PREV] != prevOffset)
 				return kIOReturnInternalError /* "crossed pointers" */;
-			pastPtr = ptr + (1U << (minBits + size)) / sizeof(size_t);
-			if (pastPtr[OFF_BITS] != static_cast<size_t>(size + LEN_OFFSET))
+			pastPtr = ptr + (POOL_ONE << (minBits + size)) / sizeof *ptr;
+			if (pastPtr[OFF_BITS] != static_cast<pool_size_t>(size + LEN_OFFSET))
 				return kIOReturnInternalError /* "size mismatch" */;
 #ifndef FRAGILE
 			if (memAny(ptr + HEADER_LEN,
-					   (1U << (size + minBits)) - FREEBLOCK * sizeof(size_t)))
+					   (POOL_ONE << (size + minBits)) - FREEBLOCK * sizeof *ptr))
 				return kIOReturnInternalError /* "free area corrupt" */;
 #endif
 			prevOffset = offset;
 			offset = ptr[OFF_NEXT];
-			seenStore += (1U << size);
+			seenStore += (POOL_ONE << size);
 		}
 		if (offset != OURNULL)
 			return kIOReturnInternalError /* "free list impossibly long - must be cycle" */;
-		if (counts != NULL)
+		if (counts)
 			counts[size] = blocksSeen;
 	}
 	if ((seenStore << minBits) != freeBytes)

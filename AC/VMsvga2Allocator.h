@@ -63,25 +63,27 @@ class VMsvga2Allocator : public OSObject
 	OSDeclareDefaultStructors(VMsvga2Allocator);
 
 private:
+	typedef uint32_t pool_size_t;
+
 	uint8_t* poolStart;		// First byte in the pool
-	size_t poolBlocks;
+	pool_size_t poolBlocks;
 
 	int minBits;			// Minimum block size is 1 << minBits (expect 12 = log_2(PAGE_SIZE))
 	int numSizes;			// sizes go up by powers of two (expect 13, max block == 2^24 bytes == SVGA_FB_MAX_TRACEABLE_SIZE)
-	size_t freeList[13];	// free lists
+	pool_size_t freeList[13];	// free lists
 	uint8_t* map;			// bit map
-	size_t freeBytes;
+	pool_size_t freeBytes;
 
-	static bool memAll(void *p, size_t bytes);
+	static bool memAll(void const *p, size_t bytes);
 	bool testAll(size_t firstBit, size_t pastBit);
 	void clearAll(size_t firstBit, size_t pastBit);
 	IOReturn clearCheck(size_t firstBit, size_t pastBit);
-	static bool memAny(void *p, size_t bytes);
+	static bool memAny(void const *p, size_t bytes);
 	bool testAny(size_t firstBit, size_t pastBit);
-	void makeFree(size_t firstFree, int bitsFree, bool zap);
-	void toFree(size_t firstBlock, size_t pastBlock, bool zap);
+	void makeFree(pool_size_t firstFree, int bitsFree, bool zap);
+	void toFree(pool_size_t firstBlock, pool_size_t pastBlock, bool zap);
 	IOReturn BuddyMalloc(int bits, void **newStore);
-	IOReturn BuddyAllocSize(void *sss, int *numBits);
+	IOReturn BuddyAllocSize(void const *sss, int *numBits);
 	void ReleaseMap();
 
 public:
@@ -96,6 +98,7 @@ public:
 	 * Allocator's Methods
 	 */
 	IOReturn Init(void* startAddress, size_t bytes);
+	IOReturn Rebase(void* newStartAddress);
 	IOReturn Release(size_t startOffsetBytes, size_t endOffsetBytes);
 	IOReturn Malloc(size_t bytes, void** newStore);
 	IOReturn Realloc(void* ptrv, size_t size, void** newPtr);

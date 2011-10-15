@@ -46,11 +46,11 @@
 extern "C" {
 #endif
 
-extern uint32_t vmw_options_ac;
+extern unsigned vmw_options_ac;
 
-static inline bool checkOptionAC(uint32_t mask)
+static inline int checkOptionAC(unsigned mask)
 {
-	return (vmw_options_ac & mask) != 0;
+	return (vmw_options_ac & mask) != 0U;
 }
 	
 #ifdef __cplusplus
