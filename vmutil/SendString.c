@@ -50,7 +50,7 @@
 	{ \
 		eax = BDOOR_MAGIC; \
 		edx = (edx & 0xFFFF0000U) | port; \
-		__asm__ (op : "+a" (eax), "+b" (ebx), \
+		__asm__ volatile (op : "+a" (eax), "+b" (ebx), \
 			"+c" (ecx), "+d" (edx), "+S" (esi), "+D" (edi)); \
 	}
 

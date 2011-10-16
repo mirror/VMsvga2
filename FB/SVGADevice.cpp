@@ -119,7 +119,7 @@ __attribute__((noinline))
 uint32_t CLASS::ReadReg(uint32_t index)
 {
 	__asm__ volatile ( "outl %0, %1" : : "a"(index), "d"(static_cast<uint16_t>(m_io_base + SVGA_INDEX_PORT)) );
-	__asm__ ( "inl %1, %0" : "=a"(index) : "d"(static_cast<uint16_t>(m_io_base + SVGA_VALUE_PORT)) );
+	__asm__ volatile ( "inl %1, %0" : "=a"(index) : "d"(static_cast<uint16_t>(m_io_base + SVGA_VALUE_PORT)) );
 	return index;
 }
 

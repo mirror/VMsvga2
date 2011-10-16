@@ -112,7 +112,7 @@ bool CLASS::memAll(void const *p, size_t bytes)
 	if (!p || !bytes)
 		return true;
 
-	__asm__ ("cld; repe scasb" : "+D"(p), "+c"(bytes) : "a"(static_cast<uint8_t>(0xFFU)));
+	__asm__ volatile ("cld; repe scasb" : "+D"(p), "+c"(bytes) : "a"(static_cast<uint8_t>(0xFFU)));
 	return !bytes;
 }
 
@@ -191,7 +191,7 @@ bool CLASS::memAny(void const *p, size_t bytes)
 	if (!p || !bytes)
 		return false;
 
-	__asm__ ("cld; repe scasb" : "+D"(p), "+c"(bytes) : "a"(static_cast<uint8_t>(0U)));
+	__asm__ volatile ("cld; repe scasb" : "+D"(p), "+c"(bytes) : "a"(static_cast<uint8_t>(0U)));
 	return bytes != 0U;
 }
 
