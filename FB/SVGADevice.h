@@ -158,7 +158,7 @@ public:
 	bool defineGMR(uint32_t gmrId, uint32_t ppn);			// ppn == 0 delete GMR [ppn == physical page number]
 	bool defineGMR2(uint32_t gmrId, uint32_t numPages);
 	bool remapGMR2(uint32_t gmrId, uint32_t flags, uint32_t offsetPages,
-				   uint32_t numPages, void const* suffix, uint32_t suffixSize);
+				   uint32_t numPages, void const* suffix, size_t suffixSize);
 };
 
 #endif /* __SVGADEVICE_H__ */

@@ -340,6 +340,8 @@ public:
 	 */
 	IOReturn createGMR(uint32_t gmrId, IOMemoryDescriptor* md);
 	IOReturn destroyGMR(uint32_t gmrId);
+	IOReturn createGMR2(uint32_t gmrId, IOMemoryDescriptor* md);
+	IOReturn destroyGMR2(uint32_t gmrId);
 };
 
 #endif /* __VMSVGA2ACCEL_H__ */

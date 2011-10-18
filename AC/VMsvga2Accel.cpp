@@ -142,6 +142,27 @@ uint32_t find_bit_in_array64(uint64_t* array, size_t num_entries)
 	return static_cast<uint32_t>(-1);
 }
 
+static
+void mask_array64(uint64_t* array, size_t mask_start, size_t mask_end)
+{
+	size_t firstFull = (mask_start + 63UL) & ~63UL;
+	size_t pastFull = mask_end & ~63UL;
+	size_t i, past, bytes;
+
+	past = mask_end >= firstFull ? firstFull : mask_end;
+	for (i = mask_start; i < past; ++i)
+		array[i >> 6] |= 1ULL << (i & 63UL);
+	if (pastFull > firstFull) {
+		bytes = (pastFull - firstFull) >> 6;
+		for (i = firstFull >> 6; bytes; ++i, --bytes)
+			array[i] = static_cast<uint64_t>(-1);
+	}
+	if (pastFull < past)
+		pastFull = past;
+	for (i = pastFull; i < mask_end; ++i)
+		array[i >> 6] |= 1ULL << (i & 63UL);
+}
+
 HIDDEN
 void set_region(IOAccelDeviceRegion* rgn,
 				uint32_t x,
@@ -551,6 +572,7 @@ bool CLASS::start(IOService* provider)
 		}
 	}
 #endif
+	mask_array64(&m_gmr_id_mask[0], m_svga->getMaxGMRIDs(), 8U * sizeof m_gmr_id_mask);
 	plug = getProperty(kIOCFPlugInTypesKey);
 	if (plug)
 		m_framebuffer->setProperty(kIOCFPlugInTypesKey, plug);
@@ -1648,7 +1670,7 @@ IOReturn CLASS::getScreenInfo(IOAccelSurfaceReadData* info)
 #if IOACCELTYPES_10_5 || (IOACCEL_TYPES_REV < 12 && !defined(kIODescriptionKey))
 	info->client_addr = reinterpret_cast<void*>(m_vram_kernel_map->getVirtualAddress());
 #else
-	info->client_addr = static_cast<mach_vm_address_t>(m_vram_kernel_map->getAddress());
+	info->client_addr = m_vram_kernel_map->getAddress();
 #endif
 	info->client_row_bytes = m_svga->getCurrentPitch();
 	m_framebuffer->unlockDevice();
@@ -2014,10 +2036,8 @@ IOReturn CLASS::createGMR(uint32_t gmrId, IOMemoryDescriptor* md)
 	num_physical_ranges = 0U;
 	offset = 0U;
 	while ((phys_addr = md->getPhysicalSegment(offset, &length, 0U))) {
-#ifdef __LP64__
 		if (phys_addr >> max_bits)
 			return kIOReturnUnsupported;
-#endif
 		++num_physical_ranges;
 		offset += length;
 	}
@@ -2078,6 +2098,63 @@ IOReturn CLASS::createGMR(uint32_t gmrId, IOMemoryDescriptor* md)
 	return kIOReturnSuccess;
 }
 
+HIDDEN
+IOReturn CLASS::createGMR2(uint32_t gmrId, IOMemoryDescriptor* md)
+{
+	addr64_t phys_addr;
+	IOByteCount offset, length = 0U;
+	size_t const max_bits = PAGE_SHIFT + 8U * sizeof(uint32_t);
+	size_t num_pages, list_size;
+	uint32_t *ppn_list, *list_iter;
+
+	if (!md)
+		return kIOReturnBadArgument;
+	if (!m_framebuffer)
+		return kIOReturnNoDevice;
+	if (!m_svga->HasCapability(SVGA_CAP_GMR2))
+		return kIOReturnUnsupported;
+	num_pages = (md->getLength() + PAGE_SIZE - 1U) >> PAGE_SHIFT;		// Note: Assumes start offset is zero
+	if (!num_pages)
+		return kIOReturnBadArgument;
+	/*
+	 * Note: possible to account for actual number
+	 *   of pages in GMRs, but then need to discount
+	 *   them in destroyGMR2 as well.
+	 */
+	if (num_pages > m_svga->getMaxGMRPages())
+		return kIOReturnUnsupported;
+	list_size = num_pages * sizeof *ppn_list;
+	ppn_list = static_cast<uint32_t*>(IOMalloc(list_size));
+	if (!ppn_list)
+		return kIOReturnNoMemory;
+	offset = 0U;
+	list_iter = ppn_list;
+	while ((phys_addr = md->getPhysicalSegment(offset, &length, 0U))) {
+		if (phys_addr >> max_bits) {
+			IOFree(ppn_list, list_size);
+			return kIOReturnUnsupported;	// Note: can support this by using PPN64
+		}
+		offset += length;
+		length += static_cast<IOByteCount>(phys_addr & (PAGE_SIZE - 1U));
+		length = (length + (PAGE_SIZE - 1U)) >> PAGE_SHIFT;
+		phys_addr >>= PAGE_SHIFT;
+		for (; length; --length) {
+			*list_iter++ = static_cast<uint32_t>(phys_addr);
+			++phys_addr;
+		}
+	}
+	m_framebuffer->lockDevice();
+	if (!m_svga->defineGMR2(gmrId, static_cast<uint32_t>(num_pages))) {
+		m_framebuffer->unlockDevice();
+		IOFree(ppn_list, list_size);
+		return kIOReturnDeviceError;
+	}
+	m_svga->remapGMR2(gmrId, 0U, 0U, static_cast<uint32_t>(num_pages), ppn_list, list_size);
+	m_framebuffer->unlockDevice();
+	IOFree(ppn_list, list_size);
+	return kIOReturnSuccess;
+}
+
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1060
 #undef getPhysicalSegment
 #endif
@@ -2091,6 +2168,18 @@ IOReturn CLASS::destroyGMR(uint32_t gmrId)
 		return kIOReturnUnsupported;
 	m_framebuffer->lockDevice();
 	m_svga->defineGMR(gmrId, 0U);
+	m_framebuffer->unlockDevice();
+	return kIOReturnSuccess;
+}
+
+IOReturn CLASS::destroyGMR2(uint32_t gmrId)
+{
+	if (!m_framebuffer)
+		return kIOReturnNoDevice;
+	if (!m_svga->HasCapability(SVGA_CAP_GMR2))
+		return kIOReturnUnsupported;
+	m_framebuffer->lockDevice();
+	m_svga->defineGMR2(gmrId, 0U);
 	m_framebuffer->unlockDevice();
 	return kIOReturnSuccess;
 }

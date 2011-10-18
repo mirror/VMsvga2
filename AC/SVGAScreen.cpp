@@ -51,7 +51,7 @@ bool CLASS::Init(SVGADevice* device)
 		return false;
 	}
 	m_svga = device;
-	if (!device->HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT)) {
+	if (!device->HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2)) {
 		SLog("%s: Virtual device does not have Screen Object support.\n", __FUNCTION__);
 		return false;
 	}

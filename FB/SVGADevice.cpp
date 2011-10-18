@@ -786,7 +786,7 @@ bool CLASS::defineGMR2(uint32_t gmrId, uint32_t numPages)
 }
 
 bool CLASS::remapGMR2(uint32_t gmrId, uint32_t flags, uint32_t offsetPages,
-					  uint32_t numPages, void const* suffix, uint32_t suffixSize)
+					  uint32_t numPages, void const* suffix, size_t suffixSize)
 {
 	if (!suffix && suffixSize)
 		return false;

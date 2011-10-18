@@ -100,9 +100,9 @@ void CLASS::sync(VMsvga2Accel* provider)
 HIDDEN
 void CLASS::complete(VMsvga2Accel* provider)
 {
+	sync(provider);
 	if (!provider || !isIdValid(gmr_id))
 		return;
-	sync(provider);
 	provider->destroyGMR(gmr_id);
 	if (md)
 		md->complete();
