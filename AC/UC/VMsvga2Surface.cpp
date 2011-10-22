@@ -107,7 +107,13 @@ union DefineRegion
 static inline
 uint32_t round_up_to_power2(uint32_t s, uint32_t power2)
 {
-	return (s + power2 - 1) & ~(power2 - 1);
+	return (s + power2 - 1U) & -power2;
+}
+
+static inline
+size_t page_residue(uint64_t addr)
+{
+	return static_cast<size_t>(addr & PAGE_MASK);
 }
 
 static inline
@@ -120,7 +126,7 @@ void memset32(void* dest, uint32_t value, size_t size)
 static inline
 void memset128(void* dest, __v2di value, size_t size)
 {
-	__v2di* d = reinterpret_cast<__v2di*>(dest);
+	__v2di* d = static_cast<__v2di*>(dest);
 	for (; size; --size, ++d)
 		__builtin_ia32_movntdq(d, value);
 }
@@ -156,10 +162,9 @@ void genericBlitCopy(uint8_t* dst_addr,
 {
 	size_t l = width * bytes_per_pixel;
 	for (size_t j = 0U; j != height; ++j) {
-		if (dst_addr + l > dst_limit)
-			continue;
-		if (src_addr + l > src_limit)
-			continue;
+		if (dst_addr + l > dst_limit ||
+			src_addr + l > src_limit)
+			break;
 		memcpy(dst_addr, src_addr, l);
 		dst_addr += dst_pitch;
 		src_addr += src_pitch;
@@ -241,7 +246,7 @@ IOReturn CLASS::externalMethod(uint32_t selector,
 												static_cast<uintptr_t>(arguments->scalarInput[1]),
 												arguments->scalarInput[2],
 												static_cast<size_t>(arguments->scalarInput[3]),
-												0,
+												0U,
 												static_cast<IOAccelDeviceRegion const*>(arguments->structureInput),
 												arguments->structureInputSize);
 	}
@@ -291,17 +296,14 @@ bool CLASS::initWithTask(task_t owningTask, void* securityToken, UInt32 type)
 
 CLASS* CLASS::withTask(task_t owningTask, void* securityToken, uint32_t type)
 {
-	CLASS* inst;
+	CLASS* inst = new CLASS;
 
-	inst = new CLASS;
-
-	if (inst && !inst->initWithTask(owningTask, securityToken, type))
-	{
+	if (inst && !inst->initWithTask(owningTask, securityToken, type)) {
 		inst->release();
 		inst = 0;
 	}
 
-	return (inst);
+	return inst;
 }
 
 #pragma mark -
@@ -311,13 +313,28 @@ CLASS* CLASS::withTask(task_t owningTask, void* securityToken, uint32_t type)
 HIDDEN
 bool CLASS::haveFrontBuffer() const
 {
-	return bHaveScreenObject != 0 || bHaveMasterSurface != 0;
+	return bHaveScreenObject != 0U || bHaveMasterSurface != 0U;
 }
 
 HIDDEN
 bool CLASS::isBackingValid() const
 {
-	return m_backing.self != 0;
+	return m_backing.self != 0 || m_backing.vtb.md != 0;
+}
+
+/*
+ * 0 - no backing
+ * 1 - backing in kernel
+ * 2 - backing in client
+ */
+HIDDEN
+int CLASS::classifyBacking() const
+{
+	if (m_backing.self)
+		return 1;
+	if (m_backing.vtb.md)
+		return m_backing.vtb.gart_ptr ? 2 : 1;
+	return 0;
 }
 
 HIDDEN
@@ -335,7 +352,7 @@ bool CLASS::isSourceValid() const
 HIDDEN
 bool CLASS::isClientBackingValid() const
 {
-	return m_client_backing.addr != 0;
+	return m_client_backing.addr != 0U;
 }
 
 HIDDEN
@@ -350,6 +367,7 @@ HIDDEN
 void CLASS::Init()
 {
 	m_log_level = LOGGING_LEVEL;
+	m_backing.vtb.init();
 	m_video.stream_id = SVGA_ID_INVALID;
 }
 
@@ -373,7 +391,7 @@ void CLASS::clearLastRegion()
 {
 	if (m_last_region) {
 		m_last_region = 0;
-		m_framebufferIndex = 0;
+		m_framebufferIndex = 0U;
 	}
 }
 
@@ -411,7 +429,7 @@ void CLASS::calculateScaleParameters(bool bFromGFB)
 		m_scale.reserved[0] = static_cast<uint32_t>(m_screenInfo.y);
 		m_scale.reserved[1] = m_screenInfo.client_row_bytes;
 	} else if (isClientBackingValid()) {
-		m_scale.reserved[0] = static_cast<uint32_t>(m_client_backing.size);
+		m_scale.reserved[0] = static_cast<uint32_t>(m_client_backing.size + page_residue(m_client_backing.addr));
 		m_scale.reserved[1] = static_cast<uint32_t>(m_client_backing.rowbytes);
 	} else {
 		m_scale.reserved[1] = static_cast<uint32_t>(m_scale.source.w) * m_bytes_per_pixel;
@@ -430,26 +448,28 @@ void CLASS::clipRegionToBuffer(IOAccelDeviceRegion* region,
 
 	if (!region || !region->num_rects)
 		return;
-	for (i = 0; i < region->num_rects; ++i) {
+	for (i = 0U; i != region->num_rects; ++i) {
 		IOAccelBounds* rect = &region->rect[i];
 		int x = rect->x + deltaX;
 		int y = rect->y + deltaY;
 		if (x < 0) {
 			rect->x = -deltaX;
+			rect->w += x;
 			x = 0;
 		}
 		if (y < 0) {
 			rect->y = -deltaY;
+			rect->h += y;
 			y = 0;
 		}
-		if (rect->w < 0)
-			rect->w = 0;
-		if (rect->h < 0)
-			rect->h = 0;
 		if (x + rect->w > m_scale.buffer.w)
 			rect->w = m_scale.buffer.w - x;
 		if (y + rect->h > m_scale.buffer.h)
 			rect->h = m_scale.buffer.h - y;
+		if (rect->w < 0)
+			rect->w = 0;
+		if (rect->h < 0)
+			rect->h = 0;
 	}
 }
 
@@ -458,29 +478,112 @@ void CLASS::clipRegionToBuffer(IOAccelDeviceRegion* region,
 #pragma mark -
 
 HIDDEN
+bool CLASS::wrapClientBacking()
+{
+	IOReturn rc;
+	IOMemoryDescriptor* md;
+
+	switch (classifyBacking()) {
+		case 1:
+			/*
+			 * Previous backing in kernel, purge it
+			 */
+			releaseBacking();
+			break;
+		case 2:
+			/*
+			 * TBD: This dumps previous backing in client,
+			 *   should make the code check if previous
+			 *   descriptor can be reused.
+			 */
+			releaseBacking();
+			break;
+	}
+	m_backing.offset = page_residue(m_client_backing.addr);
+	m_backing.size = m_scale.reserved[0];
+	md = IOMemoryDescriptor::withAddressRange(m_client_backing.addr & -PAGE_SIZE,
+											  m_backing.size,
+											  kIODirectionInOut,	// TBD: if memory is read-only in client, use Out
+											  m_owning_task);
+	if (!md) {
+		SFLog(1, "%s[%#x]: Failed to create IOMemoryDescriptor\n", __FUNCTION__, m_wID);
+		return false;
+	}
+	m_backing.vtb.md = md;
+	rc = m_backing.vtb.prepare(m_provider);
+	if (rc != kIOReturnSuccess) {
+		m_backing.vtb.md = 0;
+		md->release();
+		SFLog(1, "%s[%#x]: VendorTransferBuffer::prepare failed with status code %#x\n", __FUNCTION__, m_wID, rc);
+		return false;
+	}
+	m_backing.vtb.gart_ptr = 1U;	// mark as client descriptor
+	m_backing.vtb.fence = 0U;
+	return true;
+}
+
+HIDDEN
+bool CLASS::allocGMRBacking()
+{
+	IOReturn rc;
+	IOBufferMemoryDescriptor* bmd =
+	IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task /* 0 */,
+													 kIODirectionInOut /* | kIOMemoryPageable */,
+													 m_backing.size,
+													 0xFFFFFFFF000ULL);	// ensures 32-bit PPNs
+	if (!bmd) {
+		SFLog(1, "%s[%#x]: Failed to allocate IOBufferMemoryDescriptor\n", __FUNCTION__, m_wID);
+		return false;
+	}
+	m_backing.offset = 0U;
+	m_backing.vtb.md = bmd;
+	rc = m_backing.vtb.prepare(m_provider);
+	if (rc != kIOReturnSuccess) {
+		m_backing.vtb.md = 0;
+		bmd->release();
+		SFLog(1, "%s[%#x]: VendorTransferBuffer::prepare failed with status code %#x\n", __FUNCTION__, m_wID, rc);
+		return false;
+	}
+	m_backing.vtb.gart_ptr = 0U;	// mark as kernel descriptor
+	m_backing.vtb.fence = 0U;
+	return true;
+}
+
+HIDDEN
 bool CLASS::allocBacking()
 {
-	if (isBackingValid()) {
-		/*
-		 * We only resize the backing if it needs to grow.  The reasons for this:
-		 *   1) The Allocator hasn't been stress tested.
-		 *   2) Every reallocation needs to create/modify the memory maps in
-		 *      the owning task[s].
-		 */
-		if (!hasSourceGrown())
-			return true;
-		if (m_backing.last_DMA_fence)
-			m_provider->SyncToFence(m_backing.last_DMA_fence);
-		for (uint32_t i = 0; i < 2; ++i)
-			releaseBackingMap(i);
+	if (m_client_backing.addr)
+		return wrapClientBacking();
+	switch (classifyBacking()) {
+		case 1:	// previous in kernel
+			/*
+			 * We only resize the backing if it needs to grow.  The reasons for this:
+			 *   1) The Allocator hasn't been stress tested.
+			 *   2) Every reallocation needs to create/modify the memory maps in
+			 *      the owning task[s].
+			 */
+			if (!hasSourceGrown())
+				return true;
+			for (uint32_t i = 0U; i != 2U; ++i)
+				releaseBackingMap(i);
+			m_backing.vtb.complete(m_provider);
+			m_backing.vtb.discard();
+			break;
+		case 2:
+			/*
+			 * Previous backing was client, purge it
+			 */
+			releaseBacking();
+			break;
 	}
 	m_backing.size = m_scale.reserved[0];
 	m_backing.self = static_cast<uint8_t*>(m_provider->VRAMRealloc(m_backing.self, m_backing.size));
-	if (!isBackingValid())
-		return false;
+	if (!m_backing.self)
+		return allocGMRBacking();
 	m_backing.offset = reinterpret_cast<vm_offset_t>(m_backing.self) - CLIENT_ADDR_TO_UINTPTR_T(m_screenInfo.client_addr);
-	SFLog(2, "%s: m_backing.offset is %#lx\n", __FUNCTION__, FMT_LU(m_backing.offset));
-	m_backing.last_DMA_fence = 0;
+	SFLog(2, "%s[%#x]: m_backing.offset is %#lx\n", __FUNCTION__, m_wID, FMT_LU(m_backing.offset));
+	m_backing.vtb.gmr_id = GMR_VRAM();
+	m_backing.vtb.fence = 0U;
 	return true;
 }
 
@@ -489,30 +592,40 @@ bool CLASS::mapBacking(task_t for_task, uint32_t index)
 {
 	IOMemoryMap** m;
 
-	if (index >= 2)
+	if (index >= 2U)
 		return false;
 	m = &m_backing.map[index];
 	if (*m)
 		return true;
-	*m = m_provider->mapVRAMRangeForTask(for_task, m_backing.offset, m_backing.size);
+	if (m_backing.self)
+		*m = m_provider->mapVRAMRangeForTask(for_task, m_backing.offset, m_backing.size);
+	else if (m_backing.vtb.md)
+		*m = m_backing.vtb.md->createMappingInTask(for_task, 0U, kIOMapAnywhere);
+#if LOGGING_LEVEL >= 1
+	if (!(*m))
+		SFLog(1, "%s[%#x]: Failed to map backing in client for index %u\n", __FUNCTION__, m_wID, index);
+#endif
 	return (*m) != 0;
 }
 
 HIDDEN
 void CLASS::releaseBacking()
 {
-	for (uint32_t i = 0; i < 2; ++i)
+	for (uint32_t i = 0U; i != 2U; ++i)
 		if (m_backing.map[i])
 			m_backing.map[i]->release();
+	m_backing.vtb.complete(m_provider);
+	m_backing.vtb.discard();
 	if (m_provider != 0 && m_backing.self != 0)
 		m_provider->VRAMFree(m_backing.self);
 	bzero(&m_backing, sizeof m_backing);
+	m_backing.vtb.init();
 }
 
 HIDDEN
 void CLASS::releaseBackingMap(uint32_t index)
 {
-	if (index >= 2)
+	if (index >= 2U)
 		return;
 	if (m_backing.map[index]) {
 		m_backing.map[index]->release();
@@ -520,116 +633,27 @@ void CLASS::releaseBackingMap(uint32_t index)
 	}
 }
 
-#pragma mark -
-#pragma mark Private Support Methods - client backing
-#pragma mark -
-
 HIDDEN
-IOReturn CLASS::copy_to_client_backing()
+IOReturn CLASS::obtainKernelPtrs(IOVirtualAddress* base, IOVirtualAddress* limit, IOMemoryMap** holder)
 {
-	IOReturn rc;
-	IOByteCount bc;
-	IOMemoryDescriptor* md;
-	vm_address_t const source_addr = CLIENT_ADDR_TO_UINTPTR_T(m_screenInfo.client_addr) + m_backing.offset;
-
-	md = IOMemoryDescriptor::withAddressRange(m_client_backing.addr,
-											  m_client_backing.size,
-											  kIODirectionIn,
-											  m_owning_task);
-	if (!md)
+	if (m_backing.vtb.md) {
+		IOMemoryMap* m = m_backing.vtb.md->createMappingInTask(kernel_task, 0U, kIOMapAnywhere);
+		if (!m) {
+			SFLog(1, "%s[%#x]: Failed to map backing in kernel\n", __FUNCTION__, m_wID);
+			return kIOReturnError;
+		}
+		*holder = m;
+		*base = m->getVirtualAddress() + m_backing.offset + m_scale.reserved[2];
+		*limit = m->getVirtualAddress() + m->getLength();
 		return kIOReturnSuccess;
-	rc = md->prepare();
-	if (rc != kIOReturnSuccess) {
-		md->release();
-		return rc;
 	}
-	bc = m_client_backing.size;
-	if (m_backing.size < bc)	// Note: this should never happen
-		bc = m_backing.size;
-	bc = md->writeBytes(0, reinterpret_cast<void const*>(source_addr), bc);
-	md->complete();
-	md->release();
-	SFLog(2, "%s: copied %lu bytes\n", __FUNCTION__, FMT_LU(bc));
-	return kIOReturnSuccess;
-}
-
-HIDDEN
-IOReturn CLASS::copy_from_client_backing()
-{
-	IOReturn rc;
-	IOByteCount bc;
-	IOMemoryDescriptor* md;
-	vm_address_t const dest_addr = CLIENT_ADDR_TO_UINTPTR_T(m_screenInfo.client_addr) + m_backing.offset;
-
-	md = IOMemoryDescriptor::withAddressRange(m_client_backing.addr,
-											  m_client_backing.size,
-											  kIODirectionOut,
-											  m_owning_task);
-	if (!md)
+	if (m_backing.self) {
+		*holder = 0;
+		*base = reinterpret_cast<IOVirtualAddress>(m_backing.self) + m_scale.reserved[2];
+		*limit = reinterpret_cast<IOVirtualAddress>(m_backing.self) + m_backing.size;
 		return kIOReturnSuccess;
-	rc = md->prepare();
-	if (rc != kIOReturnSuccess) {
-		md->release();
-		return rc;
 	}
-	bc = m_client_backing.size;
-	if (m_backing.size < bc)	// Note: this should never happen
-		bc = m_backing.size;
-	bc = md->readBytes(0, reinterpret_cast<void*>(dest_addr), bc);
-	md->complete();
-	md->release();
-	SFLog(2, "%s: copied %lu bytes\n", __FUNCTION__, FMT_LU(bc));
-	return kIOReturnSuccess;
-}
-
-HIDDEN
-IOReturn CLASS::copy_from_screen_to_client_backing(uint32_t framebufferIndex,
-												   IOAccelDeviceRegion const* region,
-												   void* extra)
-{
-	VMsvga2Accel::ExtraInfo* _extra = static_cast<VMsvga2Accel::ExtraInfo*>(extra);
-	IOMemoryDescriptor* md;
-	uint32_t gmrId, fence;
-	IOReturn rc;
-
-	gmrId = m_provider->AllocGMRID();
-	if (static_cast<int>(gmrId) < 0)
-		return kIOReturnNoResources;
-	md = IOMemoryDescriptor::withAddressRange(m_client_backing.addr,
-											  m_client_backing.size,
-											  kIODirectionIn,
-											  m_owning_task);
-	if (!md) {
-		m_provider->FreeGMRID(gmrId);
-		return kIOReturnError;
-	}
-	rc = md->prepare();
-	if (rc != kIOReturnSuccess) {
-		m_provider->FreeGMRID(gmrId);
-		md->release();
-		return rc;
-	}
-	rc = m_provider->createGMR(gmrId, md);
-	if (rc != kIOReturnSuccess) {
-		m_provider->FreeGMRID(gmrId);
-		md->complete();
-		md->release();
-	}
-	_extra->mem_gmr_id = gmrId;
-	_extra->mem_offset_in_gmr = static_cast<vm_offset_t>(m_client_backing.addr & (PAGE_SIZE - 1U)) + m_scale.reserved[2];
-	_extra->mem_pitch = m_client_backing.rowbytes;
-	rc = m_provider->blitFromScreen(framebufferIndex,
-									region,
-									_extra,
-									&fence);
-	if (rc == kIOReturnSuccess)
-		m_provider->SyncToFence(fence);
-	m_provider->destroyGMR(gmrId);
-	md->complete();
-	md->release();
-	m_provider->FreeGMRID(gmrId);
-	SFLog(2, "%s: completed copy direct to client backing, rc == %#x\n", __FUNCTION__, rc);
-	return rc;
+	return kIOReturnNotReady;
 }
 
 #pragma mark -
@@ -749,7 +773,7 @@ IOReturn CLASS::DMAOutDirect(bool withFence)
 	 * Note: this code asssumes 1:1 scale (m_last_region->bounds.w == m_scale.buffer.w && m_last_region->bounds.h == m_scale.buffer.h)
 	 */
 	bzero(&extra, sizeof extra);
-	extra.mem_gmr_id = GMR_VRAM();
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
 	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	extra.srcDeltaX = -static_cast<int>(m_last_region->bounds.x);
@@ -758,7 +782,7 @@ IOReturn CLASS::DMAOutDirect(bool withFence)
 								 SVGA3D_WRITE_HOST_VRAM,
 								 m_last_region,
 								 &extra,
-								 withFence ? &m_backing.last_DMA_fence : 0) != kIOReturnSuccess)
+								 withFence ? &m_backing.vtb.fence : 0) != kIOReturnSuccess)
 		return kIOReturnDMAError;
 	return kIOReturnSuccess;
 }
@@ -788,7 +812,7 @@ IOReturn CLASS::DMAOutWithCopy(bool withFence)
 		m_provider->FreeSurfaceID(aux_sid);
 		return kIOReturnNoResources;
 	}
-	extra.mem_gmr_id = GMR_VRAM();
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
 	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	extra.srcDeltaX = deltaX;
@@ -799,7 +823,7 @@ IOReturn CLASS::DMAOutWithCopy(bool withFence)
 								  SVGA3D_WRITE_HOST_VRAM,
 								  m_last_region,
 								  &extra,
-								  withFence ? &m_backing.last_DMA_fence : 0);
+								  withFence ? &m_backing.vtb.fence : 0);
 	if (rc != kIOReturnSuccess) {
 		m_provider->destroySurface(aux_sid);
 		m_provider->FreeSurfaceID(aux_sid);
@@ -844,14 +868,14 @@ IOReturn CLASS::DMAOutStretchWithCopy(bool withFence)
 	}
 	set_region(&tmpRegion.r, 0, 0, width, height);
 	bzero(&extra, sizeof extra);
-	extra.mem_gmr_id = GMR_VRAM();
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
 	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	rc = m_provider->surfaceDMA2D(aux_sid[1],
 								  SVGA3D_WRITE_HOST_VRAM,
 								  &tmpRegion.r,
 								  &extra,
-								  withFence ? &m_backing.last_DMA_fence : 0);
+								  withFence ? &m_backing.vtb.fence : 0);
 	if (rc != kIOReturnSuccess) {
 		m_provider->destroySurface(aux_sid[1]);
 		m_provider->FreeSurfaceID(aux_sid[1]);
@@ -913,31 +937,6 @@ IOReturn CLASS::doPresent()
 	return kIOReturnSuccess;
 }
 
-#ifdef TIMED_PRESENT
-HIDDEN
-IOReturn CLASS::doTimedPresent()
-{
-	uint64_t current_time = mach_absolute_time();
-	VMsvga2Accel::ExtraInfo extra;
-	DefineRegion<1U> tmpRegion;
-
-	if (current_time < m_last_present_time + 50 * kMillisecondScale)
-		return kIOReturnSuccess;
-	bzero(&extra, sizeof extra);
-	m_last_present_time = current_time;
-	set_region(&tmpRegion.r,
-			   m_screenInfo.x,
-			   m_screenInfo.y,
-			   m_screenInfo.w,
-			   m_screenInfo.h);
-	if (m_provider->surfacePresentAutoSync(m_provider->getMasterSurfaceID(),
-										   &tmpRegion.r,
-										   &extra) != kIOReturnSuccess)
-		return kIOReturnIOError;
-	return kIOReturnSuccess;
-}
-#endif
-
 #pragma mark -
 #pragma mark Private Support Methods - Screen Object
 #pragma mark -
@@ -953,7 +952,7 @@ IOReturn CLASS::ScreenObjectOutDirect(bool withFence)
 	 * Note: this code asssumes 1:1 scale (m_last_region->bounds.w == m_scale.buffer.w && m_last_region->bounds.h == m_scale.buffer.h)
 	 */
 	bzero(&extra, sizeof extra);
-	extra.mem_gmr_id = GMR_VRAM();
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
 	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	extra.srcDeltaX = -static_cast<int>(m_last_region->bounds.x);
@@ -961,7 +960,7 @@ IOReturn CLASS::ScreenObjectOutDirect(bool withFence)
 	if (m_provider->blitToScreen(m_framebufferIndex,
 								 m_last_region,
 								 &extra,
-								 withFence ? &m_backing.last_DMA_fence : 0) != kIOReturnSuccess)
+								 withFence ? &m_backing.vtb.fence : 0) != kIOReturnSuccess)
 		return kIOReturnDMAError;
 	return kIOReturnSuccess;
 }
@@ -990,14 +989,14 @@ IOReturn CLASS::ScreenObjectOutVia3D(bool withFence)
 	}
 	set_region(&tmpRegion.r, 0, 0, width, height);
 	bzero(&extra, sizeof extra);
-	extra.mem_gmr_id = GMR_VRAM();
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
 	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	rc = m_provider->surfaceDMA2D(aux_sid,
 								  SVGA3D_WRITE_HOST_VRAM,
 								  &tmpRegion.r,
 								  &extra,
-								  withFence ? &m_backing.last_DMA_fence : 0);
+								  withFence ? &m_backing.vtb.fence : 0);
 	if (rc != kIOReturnSuccess) {
 		m_provider->destroySurface(aux_sid);
 		m_provider->FreeSurfaceID(aux_sid);
@@ -1018,6 +1017,7 @@ IOReturn CLASS::ScreenObjectOutVia3D(bool withFence)
 #pragma mark Private Support Methods - GFB
 #pragma mark -
 
+// TBD: account for MD backing [MUST]
 HIDDEN
 IOReturn CLASS::GFBOutDirect()
 {
@@ -1129,7 +1129,7 @@ IOReturn CLASS::setup_trick_buffer()
 		mem->release();
 		return kIOReturnNoMemory;
 	}
-	my_map_of_mem = mem->createMappingInTask(kernel_task, 0, kIOMapAnywhere);
+	my_map_of_mem = mem->createMappingInTask(kernel_task, 0U, kIOMapAnywhere);
 	if (!my_map_of_mem) {
 		mem->complete();
 		mem->release();
@@ -1138,8 +1138,8 @@ IOReturn CLASS::setup_trick_buffer()
 	clear_yuv_to_black(reinterpret_cast<void*>(my_map_of_mem->getVirtualAddress()), m_backing.size);
 	my_map_of_mem->release();
 	mem->complete();
-	releaseBackingMap(0);
-	m_backing.map[0] = mem->createMappingInTask(m_owning_task, 0, kIOMapAnywhere);
+	releaseBackingMap(0U);
+	m_backing.map[0] = mem->createMappingInTask(m_owning_task, 0U, kIOMapAnywhere);
 	mem->release();
 	return kIOReturnSuccess;
 }
@@ -1156,7 +1156,7 @@ bool CLASS::setVideoDest()
 	if (!m_last_region)
 		return false;
 	if (isRegionEmpty(m_last_region)) {
-		memset32(&m_video.unit.dstX, 0, 4);
+		memset32(&m_video.unit.dstX, 0U, 4U);
 		return true;
 	}
 	m_video.unit.dstX = static_cast<uint32_t>(m_last_region->bounds.x);
@@ -1182,7 +1182,7 @@ bool CLASS::setVideoRegs()
 	m_video.unit.srcHeight = static_cast<uint32_t>(m_scale.buffer.h);
 	m_video.unit.pitches[0] = m_scale.reserved[1];
 	m_video.unit.size = m_video.unit.height * m_video.unit.pitches[0];
-	m_video.unit.dataGMRId = GMR_VRAM();
+	m_video.unit.dataGMRId = m_backing.vtb.gmr_id;
 	m_video.unit.dstScreenId = m_framebufferIndex;
 	return true;
 }
@@ -1198,7 +1198,7 @@ void CLASS::videoReshape()
 									&m_video.unit,
 									SVGA_VIDEO_DST_X,
 									SVGA_VIDEO_DST_HEIGHT,
-									&m_backing.last_DMA_fence);
+									&m_backing.vtb.fence);
 }
 
 #pragma mark -
@@ -1208,7 +1208,7 @@ void CLASS::videoReshape()
 HIDDEN
 IOReturn CLASS::surface_read_lock_options(eIOAccelSurfaceLockBits options, IOAccelSurfaceInformation* info, size_t* infoSize)
 {
-	SFLog(3, "%s(%#x, %p, %lu)\n", __FUNCTION__, options, info, infoSize ? *infoSize : 0UL);
+	SFLog(3, "%s[%#x](%#x, %p, %lu)\n", __FUNCTION__, m_wID, options, info, infoSize ? *infoSize : 0UL);
 
 	if (!info || !infoSize || *infoSize < sizeof *info)
 		return kIOReturnBadArgument;
@@ -1217,11 +1217,13 @@ IOReturn CLASS::surface_read_lock_options(eIOAccelSurfaceLockBits options, IOAcc
 	bzero(info, *infoSize);
 	if (OSTestAndSet(vmSurfaceLockRead, &bIsLocked))
 		return kIOReturnCannotLock;
-	if (!allocBacking() ||
-		(!isClientBackingValid() && !mapBacking(m_owning_task, 0))) {
+	if (isClientBackingValid())
+		goto finishup;
+	if (!allocBacking() || !mapBacking(m_owning_task, 0U)) {
 		OSTestAndClear(vmSurfaceLockRead, &bIsLocked);
 		return kIOReturnNoMemory;
 	}
+finishup:
 	calculateSurfaceInformation(info);
 	return kIOReturnSuccess;
 }
@@ -1229,7 +1231,7 @@ IOReturn CLASS::surface_read_lock_options(eIOAccelSurfaceLockBits options, IOAcc
 HIDDEN
 IOReturn CLASS::surface_read_unlock_options(eIOAccelSurfaceLockBits options)
 {
-	SFLog(3, "%s(%#x)\n", __FUNCTION__, options);
+	SFLog(3, "%s[%#x](%#x)\n", __FUNCTION__, m_wID, options);
 
 	OSTestAndClear(vmSurfaceLockRead, &bIsLocked);
 	return kIOReturnSuccess;
@@ -1238,7 +1240,7 @@ IOReturn CLASS::surface_read_unlock_options(eIOAccelSurfaceLockBits options)
 HIDDEN
 IOReturn CLASS::get_state(eIOAccelSurfaceStateBits* state)
 {
-	SFLog(2, "%s(%p)\n", __FUNCTION__, state);
+	SFLog(2, "%s[%#x](%p)\n", __FUNCTION__, m_wID, state);
 
 	if (state)
 		*state = kIOAccelSurfaceStateNone;
@@ -1248,7 +1250,7 @@ IOReturn CLASS::get_state(eIOAccelSurfaceStateBits* state)
 HIDDEN
 IOReturn CLASS::surface_write_lock_options(eIOAccelSurfaceLockBits options, IOAccelSurfaceInformation* info, size_t* infoSize)
 {
-	SFLog(3, "%s(%#x, %p, %lu)\n", __FUNCTION__, options, info, infoSize ? *infoSize : 0UL);
+	SFLog(3, "%s[%#x](%#x, %p, %lu)\n", __FUNCTION__, m_wID, options, info, infoSize ? *infoSize : 0UL);
 
 	if (!info || !infoSize || *infoSize < sizeof *info)
 		return kIOReturnBadArgument;
@@ -1262,27 +1264,27 @@ IOReturn CLASS::surface_write_lock_options(eIOAccelSurfaceLockBits options, IOAc
 	if (OSTestAndSet(vmSurfaceLockWrite, &bIsLocked))
 		return kIOReturnCannotLock;
 skip:
-	if (!allocBacking() ||
-		(!isClientBackingValid() && !mapBacking(m_owning_task, 0))) {
+	if (isClientBackingValid())
+		goto finishup;
+	if (!allocBacking() || !mapBacking(m_owning_task, 0U)) {
 		OSTestAndClear(vmSurfaceLockWrite, &bIsLocked);
 		return kIOReturnNoMemory;
 	}
+finishup:
 	calculateSurfaceInformation(info);
 	/*
 	 * If we're not using packed backing, we let the Window Server run free over
 	 *   its shadow framebuffer without syncing to any pending DMA transfers.
 	 */
-	if (!m_scale.reserved[2])  {
-		if (m_backing.last_DMA_fence)
-			m_provider->SyncToFence(m_backing.last_DMA_fence);
-	}
+	if (!m_scale.reserved[2])
+		m_backing.vtb.sync(m_provider);
 	return kIOReturnSuccess;
 }
 
 HIDDEN
 IOReturn CLASS::surface_write_unlock_options(eIOAccelSurfaceLockBits options)
 {
-	SFLog(3, "%s(%#x)\n", __FUNCTION__, options);
+	SFLog(3, "%s[%#x](%#x)\n", __FUNCTION__, m_wID, options);
 
 	OSTestAndClear(vmSurfaceLockWrite, &bIsLocked);
 	return kIOReturnSuccess;
@@ -1291,7 +1293,7 @@ IOReturn CLASS::surface_write_unlock_options(eIOAccelSurfaceLockBits options)
 HIDDEN
 IOReturn CLASS::surface_read(IOAccelSurfaceReadData const* parameters, size_t parametersSize)
 {
-	SFLog(2, "%s(%p, %lu)\n", __FUNCTION__, parameters, parametersSize);
+	SFLog(2, "%s[%#x](%p, %lu)\n", __FUNCTION__, m_wID, parameters, parametersSize);
 
 	return kIOReturnUnsupported;
 }
@@ -1349,13 +1351,11 @@ IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
 			m_bytes_per_pixel = sizeof(uint16_t);
 			m_pixel_format = kIO2vuyPixelFormat;
 			break;
-		case kIOAccelSurfaceModeColorDepthYUV9:
-		case kIOAccelSurfaceModeColorDepthYUV12:
 		default:
 			return kIOReturnUnsupported;
 	}
 	m_wID = static_cast<uint32_t>(wID);
-	setProperty("CGSSurfaceID", m_wID, 32U);
+	setProperty("CGSSurfaceID", static_cast<uint64_t>(m_wID), 32U);
 	bHaveID = true;
 	return kIOReturnSuccess;
 }
@@ -1363,7 +1363,7 @@ IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
 HIDDEN
 IOReturn CLASS::set_scale(eIOAccelSurfaceScaleBits options, IOAccelSurfaceScaling const* scaling, size_t scalingSize)
 {
-	SFLog(2, "%s(%#x, %p, %lu)\n", __FUNCTION__, options, scaling, scalingSize);
+	SFLog(2, "%s[%#x](%#x, %p, %lu)\n", __FUNCTION__, m_wID, options, scaling, scalingSize);
 
 	if (!scaling || scalingSize < sizeof *scaling)
 		return kIOReturnBadArgument;
@@ -1385,25 +1385,23 @@ IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
 	int DMA_type;
 	bool withFence;
 
-	SFLog(3, "%s(%lu, %#x)\n", __FUNCTION__, framebufferMask, FMT_U(options));
+	SFLog(3, "%s[%#x](%lu, %#x)\n", __FUNCTION__, m_wID, framebufferMask, FMT_U(options));
 
 	if (!bHaveID || !m_last_region || !isBackingValid())
 		return kIOReturnNotReady;
 	if (bVideoMode)
 		return kIOReturnSuccess;
 #if 0
-	if (!(framebufferMask & static_cast<uintptr_t>(1U << m_framebufferIndex)))
+	if (!(framebufferMask & (1UL << m_framebufferIndex)))
 		return kIOReturnSuccess;	// Note: nothing to do
 #endif
-	if (isClientBackingValid())
-		copy_from_client_backing();
 	if (bHaveScreenObject) {
 		if (m_surfaceFormat == SVGA3D_X8R8G8B8 && isIdentityScale()) {
 			DMA_type = 3;	// direct
 		} else {
 			if (!m_provider->Have3D()) {
-				SFLog(1, "%s: called for SVGAScreen w/o SVGA3D, surface format == %d - unsupported\n",
-					  __FUNCTION__, m_surfaceFormat);
+				SFLog(1, "%s[%#x]: called for SVGAScreen w/o SVGA3D, surface format == %d - unsupported\n",
+					  __FUNCTION__, m_wID, m_surfaceFormat);
 				return kIOReturnUnsupported;
 			}
 			DMA_type = 4;	// via 3D
@@ -1424,8 +1422,8 @@ IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
 		}
 	} else {
 		if (m_surfaceFormat != SVGA3D_X8R8G8B8 || !isIdentityScale()) {
-			SFLog(1, "%s: called for GFB, surface format == %d - unsupported\n",
-				  __FUNCTION__, m_surfaceFormat);
+			SFLog(1, "%s[%#x]: called for GFB, surface format == %d - unsupported\n",
+				  __FUNCTION__, m_wID, m_surfaceFormat);
 			return kIOReturnUnsupported;
 		}
 		DMA_type = 5;
@@ -1462,7 +1460,7 @@ IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
 HIDDEN
 IOReturn CLASS::surface_query_lock()
 {
-	SFLog(3, "%s()\n", __FUNCTION__);
+	SFLog(3, "%s[%#x]()\n", __FUNCTION__, m_wID);
 
 	return (bIsLocked & ((128U >> vmSurfaceLockRead) | (128U >> vmSurfaceLockWrite))) != 0 ? kIOReturnCannotLock : kIOReturnSuccess;
 }
@@ -1502,18 +1500,18 @@ IOReturn CLASS::surface_control(uintptr_t selector, uintptr_t arg, uint32_t* res
 	 *   in CoreGraphics, and once from OpenGL.
 	 */
 	switch (selector) {
-		case 1:
+		case 1U:
 			/*
 			 * called from _CGXSynchronizeAcceleratedSurface, arg N/A, result ignored
 			 */
 			return kIOReturnSuccess;
-		case 4:
+		case 4U:
 			/*
 			 * called from CGLSetPBufferVolatileState, arg N/A, result passed to caller
 			 */
-			*result = 1;
+			*result = 1U;
 			return kIOReturnSuccess;
-		case 5:
+		case 5U:
 			/*
 			 * called from
 			 *   CGXBackingStorePerformCompression with arg == 1, result used
@@ -1526,7 +1524,7 @@ IOReturn CLASS::surface_control(uintptr_t selector, uintptr_t arg, uint32_t* res
 			 * remembers arg as a boolean value
 			 * sets result to either 0 or 1
 			 */
-			*result = 1;
+			*result = 1U;
 			return kIOReturnSuccess;
 	}
 	return kIOReturnBadArgument;
@@ -1559,7 +1557,8 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 #endif
 
 	SFLog(3, "%s[%#x](%#x, %lu, %#llx, %ld, %lu, %p, %lu)\n",
-		  __FUNCTION__, m_wID,
+		  __FUNCTION__,
+		  m_wID,
 		  options,
 		  framebufferIndex,
 		  backing,
@@ -1578,15 +1577,15 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 
 #if LOGGING_LEVEL >= 1
 	if (m_log_level >= 3) {
-		SFLog(3, "%s:   rgn->num_rects == %u, rgn->bounds == %u, %u, %u, %u\n",
+		SFLog(3, "%s:   rgn->num_rects == %u, rgn->bounds == %d, %d, %d, %d\n",
 			  __FUNCTION__,
 			  FMT_U(rgn->num_rects),
 			  rgn->bounds.x,
 			  rgn->bounds.y,
 			  rgn->bounds.w,
 			  rgn->bounds.h);
-		for (size_t i = 0; i < rgn->num_rects; ++i) {
-			SFLog(3, "%s:   rgn->rect[%lu] == %u, %u, %u, %u\n",
+		for (uint32_t i = 0U; i < rgn->num_rects; ++i) {
+			SFLog(3, "%s:   rgn->rect[%u] == %d, %d, %d, %d\n",
 				  __FUNCTION__,
 				  i,
 				  rgn->rect[i].x,
@@ -1609,14 +1608,14 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 		return kIOReturnSuccess;
 	if (!bHaveID)
 		return kIOReturnNotReady;
-	if (backing != 0) {
+	if (backing) {
 		size_t min_row_bytes = static_cast<size_t>(rgn->bounds.w) * m_bytes_per_pixel;
 		if (static_cast<intptr_t>(rowbytes) <= 0)
 			rowbytes = min_row_bytes;
 		else if (rowbytes < min_row_bytes)
 			return kIOReturnOverrun;
 		size_t min_size = static_cast<size_t>(rgn->bounds.h) * rowbytes;
-		if (backingLength == 0)
+		if (!backingLength)
 			backingLength = min_size;
 		else if (backingLength < min_size)
 			return kIOReturnOverrun;
@@ -1657,7 +1656,9 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 	/*
 	 * TBD: this is ad-hoc code to prevent
 	 *   a deadlock in the WindowServer
-	 *   during Window Grab.
+	 *   during Window Grab (OS 10.6).
+	 *
+	 *   Note: Window Grab works on OS 10.7, check what changed.
 	 */
 	if (m_wID == 1U && options == 0x5U)
 		bSkipWriteLockOnce = true;
@@ -1671,7 +1672,7 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 HIDDEN
 IOReturn CLASS::context_set_surface(uint32_t vmware_pixel_format, uint32_t apple_pixel_format)
 {
-	SFLog(2, "%s(%#x, %#x)\n", __FUNCTION__, vmware_pixel_format, apple_pixel_format);
+	SFLog(2, "%s[%#x](%#x, %#x)\n", __FUNCTION__, m_wID, vmware_pixel_format, apple_pixel_format);
 
 	if (!vmware_pixel_format) {
 		surface_video_off();
@@ -1707,7 +1708,7 @@ IOReturn CLASS::context_set_surface(uint32_t vmware_pixel_format, uint32_t apple
 HIDDEN
 IOReturn CLASS::context_scale_surface(IOOptionBits options, uint32_t width, uint32_t height)
 {
-	SFLog(2, "%s(%#x, %u, %u)\n", __FUNCTION__, FMT_U(options), width, height);
+	SFLog(2, "%s[%#x](%#x, %u, %u)\n", __FUNCTION__, m_wID, FMT_U(options), width, height);
 
 	if (!(options & kIOBlitFixedSource))
 		return kIOReturnSuccess;
@@ -1724,7 +1725,7 @@ IOReturn CLASS::context_scale_surface(IOOptionBits options, uint32_t width, uint
 HIDDEN
 IOReturn CLASS::context_lock_memory(task_t context_owning_task, mach_vm_address_t* address, mach_vm_size_t* rowBytes)
 {
-	SFLog(3, "%s(%p, %p, %p)\n", __FUNCTION__, context_owning_task, address, rowBytes);
+	SFLog(3, "%s[%#x](%p, %p, %p)\n", __FUNCTION__, m_wID, context_owning_task, address, rowBytes);
 
 	if (!address || !rowBytes)
 		return kIOReturnBadArgument;
@@ -1733,7 +1734,7 @@ IOReturn CLASS::context_lock_memory(task_t context_owning_task, mach_vm_address_
 	if (OSTestAndSet(vmSurfaceLockContext, &bIsLocked))
 		return kIOReturnCannotLock;
 	if (!allocBacking() ||
-		!mapBacking(context_owning_task, 1)) {
+		!mapBacking(context_owning_task, 1U)) {
 		OSTestAndClear(vmSurfaceLockContext, &bIsLocked);
 		return kIOReturnNoMemory;
 	}
@@ -1748,12 +1749,12 @@ IOReturn CLASS::context_lock_memory(task_t context_owning_task, mach_vm_address_
 HIDDEN
 IOReturn CLASS::context_unlock_memory(uint32_t* swapFlags)
 {
-	SFLog(3, "%s()\n", __FUNCTION__);
+	SFLog(3, "%s[%#x]()\n", __FUNCTION__, m_wID);
 
 	if (swapFlags)
 		*swapFlags = 0;
 	OSTestAndClear(vmSurfaceLockContext, &bIsLocked);
-	releaseBackingMap(1);
+	releaseBackingMap(1U);
 	return kIOReturnSuccess;
 }
 
@@ -1778,7 +1779,7 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 	IOReturn rc;
 	VMsvga2Accel::ExtraInfo extra;
 
-	SFLog(3, "%s(%u, %d, %d, %p, %lu)\n", __FUNCTION__, framebufferIndex, destX, destY, region, regionSize);
+	SFLog(3, "%s[%#x](%u, %d, %d, %p, %lu)\n", __FUNCTION__, m_wID, framebufferIndex, destX, destY, region, regionSize);
 
 	if (!region || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(region))
 		return kIOReturnBadArgument;
@@ -1786,11 +1787,11 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 	if (!bHaveID || !isSourceValid())
 		return kIOReturnNotReady;
 	if (bVideoMode) {
-		SFLog(1, "%s: called for YUV surface - unsupported\n", __FUNCTION__);
+		SFLog(1, "%s[%#x]: called for YUV surface - unsupported\n", __FUNCTION__, m_wID);
 		return kIOReturnUnsupported;
 	}
 	if (m_surfaceFormat != SVGA3D_X8R8G8B8) {
-		SFLog(1, "%s: called for surface format %d - unsupported\n", __FUNCTION__, m_surfaceFormat);
+		SFLog(1, "%s[%#x]: called for surface format %d - unsupported\n", __FUNCTION__, m_wID, m_surfaceFormat);
 		return kIOReturnUnsupportedMode;
 	}
 	/*
@@ -1803,12 +1804,10 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 	 *    if an attempt is made to rescale while the surface
 	 *    is locked.]
 	 */
-	if (bHaveScreenObject && isClientBackingValid())
-		;
-	else if (!allocBacking())
+	if (!allocBacking())
 		return kIOReturnNoMemory;
 	bzero(&extra, sizeof extra);
-	extra.mem_gmr_id = GMR_VRAM();
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
 	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
 	extra.mem_pitch = m_scale.reserved[1];
 	extra.dstDeltaX = destX - region->bounds.x;
@@ -1817,14 +1816,10 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 					   extra.dstDeltaX,
 					   extra.dstDeltaY);
 	if (bHaveScreenObject) {
-		if (isClientBackingValid())
-			return copy_from_screen_to_client_backing(framebufferIndex,
-													  region,
-													  &extra);
 		rc = m_provider->blitFromScreen(framebufferIndex,
 										region,
 										&extra,
-										&m_backing.last_DMA_fence);
+										&m_backing.vtb.fence);
 	} else if (bHaveMasterSurface) {
 #if 0
 		/*
@@ -1849,27 +1844,21 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 									  SVGA3D_READ_HOST_VRAM,
 									  region,
 									  &extra,
-									  &m_backing.last_DMA_fence);
+									  &m_backing.vtb.fence);
 	} else {
+		/*
+		 * TBD: support backing with MD [MUST]
+		 */
 		rc = m_provider->blitGFB(framebufferIndex,
 								 region,
 								 &extra,
 								 m_backing.offset + m_backing.size,
 								 0);
-		if (rc != kIOReturnSuccess)
-			return rc;
-		goto finishup;
+		return rc;
 	}
 	if (rc != kIOReturnSuccess)
 		return kIOReturnNotReadable;
-	m_provider->SyncToFence(m_backing.last_DMA_fence);		// Note: regrettable but necessary - even RingDoorBell didn't do the job when swinging windows around
-finishup:
-	/*
-	 * TBD: this is not clean, because it copies the entire backing,
-	 *   including what's outside the clipping area.
-	 */
-	if (isClientBackingValid())
-		copy_to_client_backing();
+	m_backing.vtb.sync(m_provider);		// Note: regrettable but necessary - even RingDoorBell didn't do the job when swinging windows around
 	return kIOReturnSuccess;
 }
 
@@ -1892,11 +1881,6 @@ IOReturn CLASS::copy_self_region_to_framebuffer(uint32_t framebufferIndex,
 	return kIOReturnUnsupported;
 }
 
-/*
- * surface-to-surface copy is not supported yet.  Due to the way the code is designed,
- *   this is really a pure guest-memory to guest-memory blit.  It can be done by two
- *   steps via the host if desired.
- */
 HIDDEN
 IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface,
 											int destX,
@@ -1904,17 +1888,19 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 											IOAccelDeviceRegion const* region,
 											size_t regionSize)
 {
+	IOReturn rc;
 	IOAccelDeviceRegion* rgn;
 	uint8_t *dst_base, *dst_limit, *dst;
 	uint8_t const *src_base, *src_limit, *src;
 	size_t dst_pitch, src_pitch;
+	IOMemoryMap* holders[2];
 	int dstDeltaX, dstDeltaY;
 	uint32_t i;
 
 	if (!source_surface)
 		return kIOReturnBadArgument;
 
-	SFLog(3, "%s(%#x, %d, %d, %p, %lu)\n", __FUNCTION__, source_surface->m_wID, destX, destY, region, regionSize);
+	SFLog(3, "%s[%#x](%#x, %d, %d, %p, %lu)\n", __FUNCTION__, m_wID, source_surface->m_wID, destX, destY, region, regionSize);
 
 	if (!region || regionSize < IOACCEL_SIZEOF_DEVICE_REGION(region))
 		return kIOReturnBadArgument;
@@ -1924,8 +1910,8 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 		return kIOReturnNotReady;
 	if (m_surfaceFormat != source_surface->m_surfaceFormat ||
 		m_bytes_per_pixel != source_surface->m_bytes_per_pixel) {
-		SFLog(1, "%s: called for source surface format %d, dest surface format %d - unsupported\n",
-			  __FUNCTION__, source_surface->m_surfaceFormat, m_surfaceFormat);
+		SFLog(1, "%s: called for source surface[%#x] format %d, dest surface[%#x] format %d - unsupported\n",
+			  __FUNCTION__, source_surface->m_wID, source_surface->m_surfaceFormat, m_wID, m_surfaceFormat);
 		return kIOReturnUnsupported;
 	}
 	/*
@@ -1942,10 +1928,20 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 					   dstDeltaY);
 	dst_pitch = m_scale.reserved[1];
 	src_pitch = source_surface->m_scale.reserved[1];
-	dst_base = m_backing.self + m_scale.reserved[2];
-	src_base = source_surface->m_backing.self + source_surface->m_scale.reserved[2];
-	dst_limit = m_backing.self + m_backing.size;
-	src_limit = source_surface->m_backing.self + source_surface->m_backing.size;
+	bzero(&holders[0], sizeof holders);
+	rc = obtainKernelPtrs(reinterpret_cast<IOVirtualAddress*>(&dst_base),
+						  reinterpret_cast<IOVirtualAddress*>(&dst_limit),
+						  &holders[0]);
+	if (rc != kIOReturnSuccess)
+		return rc;
+	rc = source_surface->obtainKernelPtrs(reinterpret_cast<IOVirtualAddress*>(&src_base),
+										  reinterpret_cast<IOVirtualAddress*>(&src_limit),
+										  &holders[1]);
+	if (rc != kIOReturnSuccess) {
+		if (holders[0])
+			holders[0]->release();
+		return rc;
+	}
 	if (!rgn->num_rects) {
 		/*
 		 * Dumbass WindowServer...
@@ -1961,15 +1957,10 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 			continue;
 		genericBlitCopy(dst, src, dst_limit, src_limit, dst_pitch, src_pitch, rect->w, rect->h, m_bytes_per_pixel);
 	}
-
-	/*
-	 * TBD: this is not clean, because it copies the entire backing,
-	 *   including what's outside the clipping area.
-	 * TBD2:
-	 *   Should really copy directly instead of two-step.
-	 */
-	if (isClientBackingValid())
-		copy_to_client_backing();
+	if (holders[1])
+		holders[1]->release();
+	if (holders[0])
+		holders[0]->release();
 	return kIOReturnSuccess;
 }
 
@@ -1981,20 +1972,21 @@ IOReturn CLASS::surface_video_off()
 	m_video.unit.enabled = 0;
 	m_provider->VideoSetReg(m_video.stream_id, SVGA_VIDEO_ENABLED, 0);
 	m_provider->FreeStreamID(m_video.stream_id);
+	m_video.stream_id = SVGA_ID_INVALID;
 	return kIOReturnSuccess;
 }
 
 HIDDEN
 IOReturn CLASS::surface_flush_video(uint32_t* swapFlags)
 {
-	SFLog(3, "%s()\n", __FUNCTION__);
+	SFLog(3, "%s[%#x]()\n", __FUNCTION__, m_wID);
 
 	if (swapFlags)
 		*swapFlags = 0;			// Note: setting *swapflags = 2 tells the client to flush the CGS surface after the swap
 	if (!bHaveID || !m_last_region || !isBackingValid())
 		return kIOReturnNotReady;
 	if (!bVideoMode) {
-		SFLog(1, "%s: called for non-YUV surface - unsupported\n", __FUNCTION__);
+		SFLog(1, "%s[%#x]: called for non-YUV surface - unsupported\n", __FUNCTION__, m_wID);
 		return kIOReturnUnsupported;
 	}
 	/*
@@ -2002,17 +1994,17 @@ IOReturn CLASS::surface_flush_video(uint32_t* swapFlags)
 	 *   while there are still outgoing video flushes in the FIFO.  This may cause some tearing.
 	 */
 	if (m_video.unit.enabled)
-		return m_provider->VideoSetRegsInRange(m_video.stream_id, 0, 0, 0, &m_backing.last_DMA_fence);
+		return m_provider->VideoSetRegsInRange(m_video.stream_id, 0, 0U, 0U, &m_backing.vtb.fence);
 	m_video.stream_id = m_provider->AllocStreamID();
 	if (!isIdValid(m_video.stream_id))
 		return kIOReturnNoResources;
 	setVideoRegs();
 	setVideoDest();
-	m_video.unit.enabled = 1;
+	m_video.unit.enabled = 1U;
 #if LOGGING_LEVEL >= 1
 	if (m_log_level >= 3)
-		for (size_t i = 0; i < SVGA_VIDEO_NUM_REGS; ++i)
+		for (size_t i = 0U; i < SVGA_VIDEO_NUM_REGS; ++i)
 			SFLog(3, "%s:   reg[%lu] == %#x\n", __FUNCTION__, i, reinterpret_cast<uint32_t const*>(&m_video.unit)[i]);
 #endif
-	return m_provider->VideoSetRegsInRange(m_video.stream_id, &m_video.unit, SVGA_VIDEO_ENABLED, SVGA_VIDEO_DST_SCREEN_ID, &m_backing.last_DMA_fence);
+	return m_provider->VideoSetRegsInRange(m_video.stream_id, &m_video.unit, SVGA_VIDEO_ENABLED, SVGA_VIDEO_DST_SCREEN_ID, &m_backing.vtb.fence);
 }

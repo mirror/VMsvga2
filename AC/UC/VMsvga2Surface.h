@@ -31,6 +31,7 @@
 
 #include <IOKit/IOUserClient.h>
 #include <IOKit/graphics/IOAccelSurfaceConnect.h>
+#include "VendorTransferBuffer.h"
 
 class VMsvga2Surface: public IOUserClient
 {
@@ -80,7 +81,7 @@ private:
 		vm_offset_t offset;
 		vm_size_t size;
 		IOMemoryMap* map[2];
-		uint32_t last_DMA_fence;
+		VendorTransferBuffer vtb;
 	} m_backing;
 
 	/*
@@ -103,13 +104,6 @@ private:
 	 * Scale stuff
 	 */
 	IOAccelSurfaceScaling m_scale;
-
-	/*
-	 * For timed presents
-	 */
-#ifdef TIMED_PRESENT
-	uint64_t m_last_present_time;
-#endif
 
 	/*
 	 * Fullscreen stuff
@@ -137,6 +131,7 @@ private:
 										  size_t rgnSize);
 	bool haveFrontBuffer() const;
 	bool isBackingValid() const;
+	int classifyBacking() const;
 	bool hasSourceGrown() const;
 	bool isSourceValid() const;
 	bool isClientBackingValid() const;
@@ -153,19 +148,13 @@ private:
 	/*
 	 * Private support methods - backing
 	 */
+	bool wrapClientBacking();
+	bool allocGMRBacking();
 	bool allocBacking();
 	bool mapBacking(task_t for_task, uint32_t index);
 	void releaseBacking();
 	void releaseBackingMap(uint32_t index);
-
-	/*
-	 * Private support methods - client backing
-	 */
-	IOReturn copy_to_client_backing();
-	IOReturn copy_from_client_backing();
-	IOReturn copy_from_screen_to_client_backing(uint32_t framebufferIndex,
-												IOAccelDeviceRegion const* region,
-												void* extra);
+	IOReturn obtainKernelPtrs(IOVirtualAddress* base, IOVirtualAddress* limit, IOMemoryMap** holder);
 
 	/*
 	 * Private support methods - 3D
@@ -177,9 +166,6 @@ private:
 	IOReturn DMAOutWithCopy(bool withFence);
 	IOReturn DMAOutStretchWithCopy(bool withFence);
 	IOReturn doPresent();
-#ifdef TIMED_PRESENT
-	IOReturn doTimedPresent();
-#endif
 
 	/*
 	 * Private support methods - Screen Object
