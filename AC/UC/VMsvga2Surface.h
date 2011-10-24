@@ -154,7 +154,7 @@ private:
 	bool mapBacking(task_t for_task, uint32_t index);
 	void releaseBacking();
 	void releaseBackingMap(uint32_t index);
-	IOReturn obtainKernelPtrs(IOVirtualAddress* base, IOVirtualAddress* limit, IOMemoryMap** holder);
+	IOReturn obtainKernelPtrs(IOVirtualAddress* base, vm_size_t* limit_from_base, IOMemoryMap** holder);
 
 	/*
 	 * Private support methods - 3D

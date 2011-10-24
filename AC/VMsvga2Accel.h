@@ -265,7 +265,8 @@ public:
 	IOReturn blitGFB(uint32_t framebufferIndex,
 					 void /* IOAccelDeviceRegion */ const* region,
 					 ExtraInfo const* extra,
-					 vm_size_t limit,
+					 IOVirtualAddress gmrPtr,
+					 vm_size_t limitFromGmrPtr,
 					 int direction);
 #if 0
 	IOReturn clearGFB(uint32_t color,
@@ -301,6 +302,15 @@ public:
 	class VMsvga2Surface* findSurfaceForID(uint32_t surface_id);
 	SVGA3D* lock3D();
 	void unlock3D();
+	static
+	IOReturn genericBlitCopy(IOVirtualAddress dst_base,
+							 SVGAGuestImage const* dst_image,
+							 SVGASignedPoint const* dst_delta,
+							 IOVirtualAddress src_base,
+							 SVGAGuestImage const* src_image,
+							 SVGASignedPoint const* src_delta,
+							 void /* IOAccelDeviceRegion */ const* region,
+							 uint8_t bytes_per_pixel);
 
 	/*
 	 * Video Support

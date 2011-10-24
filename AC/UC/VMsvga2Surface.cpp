@@ -149,28 +149,6 @@ void set_region(IOAccelDeviceRegion* rgn,
 				uint32_t w,
 				uint32_t h);
 
-HIDDEN
-void genericBlitCopy(uint8_t* dst_addr,
-					 uint8_t const* src_addr,
-					 void const* dst_limit,
-					 void const* src_limit,
-					 size_t dst_pitch,
-					 size_t src_pitch,
-					 size_t width,
-					 size_t height,
-					 size_t bytes_per_pixel)
-{
-	size_t l = width * bytes_per_pixel;
-	for (size_t j = 0U; j != height; ++j) {
-		if (dst_addr + l > dst_limit ||
-			src_addr + l > src_limit)
-			break;
-		memcpy(dst_addr, src_addr, l);
-		dst_addr += dst_pitch;
-		src_addr += src_pitch;
-	}
-}
-
 static inline
 uint32_t GMR_VRAM(void)
 {
@@ -634,8 +612,9 @@ void CLASS::releaseBackingMap(uint32_t index)
 }
 
 HIDDEN
-IOReturn CLASS::obtainKernelPtrs(IOVirtualAddress* base, IOVirtualAddress* limit, IOMemoryMap** holder)
+IOReturn CLASS::obtainKernelPtrs(IOVirtualAddress* base, vm_size_t* limit_from_base, IOMemoryMap** holder)
 {
+	vm_size_t t;
 	if (m_backing.vtb.md) {
 		IOMemoryMap* m = m_backing.vtb.md->createMappingInTask(kernel_task, 0U, kIOMapAnywhere);
 		if (!m) {
@@ -643,14 +622,16 @@ IOReturn CLASS::obtainKernelPtrs(IOVirtualAddress* base, IOVirtualAddress* limit
 			return kIOReturnError;
 		}
 		*holder = m;
-		*base = m->getVirtualAddress() + m_backing.offset + m_scale.reserved[2];
-		*limit = m->getVirtualAddress() + m->getLength();
+		t = m_backing.offset + m_scale.reserved[2];
+		*base = m->getVirtualAddress() + t;
+		*limit_from_base = m->getLength() - t;
 		return kIOReturnSuccess;
 	}
 	if (m_backing.self) {
 		*holder = 0;
-		*base = reinterpret_cast<IOVirtualAddress>(m_backing.self) + m_scale.reserved[2];
-		*limit = reinterpret_cast<IOVirtualAddress>(m_backing.self) + m_backing.size;
+		t = m_scale.reserved[2];
+		*base = reinterpret_cast<IOVirtualAddress>(m_backing.self) + t;
+		*limit_from_base = m_backing.size - t;
 		return kIOReturnSuccess;
 	}
 	return kIOReturnNotReady;
@@ -1017,11 +998,14 @@ IOReturn CLASS::ScreenObjectOutVia3D(bool withFence)
 #pragma mark Private Support Methods - GFB
 #pragma mark -
 
-// TBD: account for MD backing [MUST]
 HIDDEN
 IOReturn CLASS::GFBOutDirect()
 {
 	VMsvga2Accel::ExtraInfo extra;
+	IOVirtualAddress base;
+	vm_size_t limit_from_base;
+	IOMemoryMap* holder;
+	IOReturn rc;
 	uint32_t rect[4];
 
 	if (!m_last_region || !isBackingValid())
@@ -1029,20 +1013,27 @@ IOReturn CLASS::GFBOutDirect()
 	/*
 	 * Note: this code asssumes 1:1 scale (m_last_region->bounds.w == m_scale.buffer.w && m_last_region->bounds.h == m_scale.buffer.h)
 	 */
+	rc = obtainKernelPtrs(&base, &limit_from_base, &holder);
+	if (rc != kIOReturnSuccess)
+		return rc;
 	bzero(&extra, sizeof extra);
-	extra.mem_gmr_id = GMR_VRAM();
-	extra.mem_offset_in_gmr = m_backing.offset + m_scale.reserved[2];
+	extra.mem_gmr_id = m_backing.vtb.gmr_id;
+	extra.mem_offset_in_gmr = 0U;
 	extra.mem_pitch = m_scale.reserved[1];
 	/*
 	 * Note: dst applies to backing, src to GFB
 	 */
 	extra.dstDeltaX = -static_cast<int>(m_last_region->bounds.x);
 	extra.dstDeltaY = -static_cast<int>(m_last_region->bounds.y);
-	if (m_provider->blitGFB(m_framebufferIndex,
-							m_last_region,
-							&extra,
-							m_backing.offset + m_backing.size,
-							1) != kIOReturnSuccess)
+	rc = m_provider->blitGFB(m_framebufferIndex,
+							 m_last_region,
+							 &extra,
+							 base,
+							 limit_from_base,
+							 1);
+	if (holder)
+		holder->release();
+	if (rc != kIOReturnSuccess)
 		return kIOReturnDMAError;
 	/*
 	 * Note: we do a lazy UpdateFramebuffer on the bounds
@@ -1450,8 +1441,10 @@ IOReturn CLASS::surface_flush(uintptr_t framebufferMask, IOOptionBits options)
 			rc = DMAOutWithCopy(withFence);
 			break;
 	}
-	if (rc != kIOReturnSuccess)
+	if (rc != kIOReturnSuccess) {
+		SFLog(1, "%s[%#x]: Output Blit failed, error == %#x\n", __FUNCTION__, m_wID, rc);
 		return rc;
+	}
 	if (DMA_type <= 2)
 		return doPresent();
 	return kIOReturnSuccess;
@@ -1846,14 +1839,25 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 									  &extra,
 									  &m_backing.vtb.fence);
 	} else {
-		/*
-		 * TBD: support backing with MD [MUST]
-		 */
+		IOVirtualAddress base;
+		vm_size_t limit_from_base;
+		IOMemoryMap* holder;
+		rc = obtainKernelPtrs(&base, &limit_from_base, &holder);
+		if (rc != kIOReturnSuccess)
+			return rc;
+		extra.mem_offset_in_gmr = 0U;
 		rc = m_provider->blitGFB(framebufferIndex,
 								 region,
 								 &extra,
-								 m_backing.offset + m_backing.size,
+								 base,
+								 limit_from_base,
 								 0);
+		if (holder)
+			holder->release();
+#if LOGGING_LEVEL >= 1
+		if (rc != kIOReturnSuccess)
+			SFLog(1, "%s[%#x]: blitGFB failed, error == %#x\n", __FUNCTION__, m_wID, rc);
+#endif
 		return rc;
 	}
 	if (rc != kIOReturnSuccess)
@@ -1890,12 +1894,11 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 {
 	IOReturn rc;
 	IOAccelDeviceRegion* rgn;
-	uint8_t *dst_base, *dst_limit, *dst;
-	uint8_t const *src_base, *src_limit, *src;
-	size_t dst_pitch, src_pitch;
+	IOVirtualAddress dst_base, src_base;
+	vm_size_t dst_limit, src_limit;
+	SVGAGuestImage dst_image, src_image;
+	SVGASignedPoint dst_delta, src_delta;
 	IOMemoryMap* holders[2];
-	int dstDeltaX, dstDeltaY;
-	uint32_t i;
 
 	if (!source_surface)
 		return kIOReturnBadArgument;
@@ -1920,28 +1923,26 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 	 */
 	if (!allocBacking())
 		return kIOReturnNoMemory;
-	dstDeltaX = destX - region->bounds.x;
-	dstDeltaY = destY - region->bounds.y;
+	dst_delta.x = destX - region->bounds.x;
+	dst_delta.y = destY - region->bounds.y;
+	bzero(&src_delta, sizeof src_delta);
 	rgn = const_cast<IOAccelDeviceRegion*>(region);
 	clipRegionToBuffer(rgn,
-					   dstDeltaX,
-					   dstDeltaY);
-	dst_pitch = m_scale.reserved[1];
-	src_pitch = source_surface->m_scale.reserved[1];
-	bzero(&holders[0], sizeof holders);
-	rc = obtainKernelPtrs(reinterpret_cast<IOVirtualAddress*>(&dst_base),
-						  reinterpret_cast<IOVirtualAddress*>(&dst_limit),
-						  &holders[0]);
+					   dst_delta.x,
+					   dst_delta.y);
+	dst_image.pitch = m_scale.reserved[1];
+	src_image.pitch = source_surface->m_scale.reserved[1];
+	rc = obtainKernelPtrs(&dst_base, &dst_limit, &holders[0]);
 	if (rc != kIOReturnSuccess)
 		return rc;
-	rc = source_surface->obtainKernelPtrs(reinterpret_cast<IOVirtualAddress*>(&src_base),
-										  reinterpret_cast<IOVirtualAddress*>(&src_limit),
-										  &holders[1]);
+	rc = source_surface->obtainKernelPtrs(&src_base, &src_limit, &holders[1]);
 	if (rc != kIOReturnSuccess) {
 		if (holders[0])
 			holders[0]->release();
 		return rc;
 	}
+	dst_image.ptr.offset = static_cast<uint32_t>(dst_limit);
+	src_image.ptr.offset = static_cast<uint32_t>(src_limit);
 	if (!rgn->num_rects) {
 		/*
 		 * Dumbass WindowServer...
@@ -1949,19 +1950,23 @@ IOReturn CLASS::copy_surface_region_to_self(class VMsvga2Surface* source_surface
 		memcpy(&rgn->rect[0], &rgn->bounds, sizeof rgn->bounds);
 		++rgn->num_rects;
 	}
-	for (i = 0U; i != region->num_rects; ++i) {
-		IOAccelBounds const* rect = &region->rect[i];
-		dst = dst_base + (dstDeltaX + rect->x) * m_bytes_per_pixel + (dstDeltaY + rect->y) * dst_pitch;
-		src = src_base + rect->x * m_bytes_per_pixel + rect->y * src_pitch;
-		if (src < src_base)
-			continue;
-		genericBlitCopy(dst, src, dst_limit, src_limit, dst_pitch, src_pitch, rect->w, rect->h, m_bytes_per_pixel);
-	}
+	rc = m_provider->genericBlitCopy(dst_base,
+									 &dst_image,
+									 &dst_delta,
+									 src_base,
+									 &src_image,
+									 &src_delta,
+									 region,
+									 static_cast<uint8_t>(m_bytes_per_pixel));
 	if (holders[1])
 		holders[1]->release();
 	if (holders[0])
 		holders[0]->release();
-	return kIOReturnSuccess;
+#if LOGGING_LEVEL >= 1
+	if (rc != kIOReturnSuccess)
+		SFLog(1, "%s[%#x]: genericBlitCopy failed, error == %#x\n", __FUNCTION__, m_wID, rc);
+#endif
+	return rc;
 }
 
 HIDDEN

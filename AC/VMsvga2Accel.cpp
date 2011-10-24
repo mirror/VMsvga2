@@ -1546,69 +1546,66 @@ exit:
 #pragma mark GFB Methods
 #pragma mark -
 
+/*
+ * Note:
+ *   extra->dstDelta coords apply to GMR
+ *   extra->srcDelta coords apply to GFB
+ */
 HIDDEN
 IOReturn CLASS::blitGFB(uint32_t framebufferIndex,
 						void /* IOAccelDeviceRegion */ const* region,
 						ExtraInfo const* extra,
-						vm_size_t limit,
+						IOVirtualAddress gmrPtr,
+						vm_size_t limitFromGmrPtr,
 						int direction)
 {
-	uint32_t i, numRects;
-	int gfb_pitch, buffer_pitch;
-	int const bytes_per_pixel = sizeof(uint32_t);
-	IOVirtualAddress vram_ptr, gfb_start, gfb_end, buffer_start, buffer_end;
-	IOAccelDeviceRegion const* rgn;
+	IOVirtualAddress gfb_base, gmr_base;
+	SVGAGuestImage gfb_image, gmr_image;
+	SVGASignedPoint gfb_delta, gmr_delta;
 
 	if (!extra)
 		return kIOReturnBadArgument;
-	if (extra->mem_gmr_id != GMR_VRAM())
-		return kIOReturnUnsupported;
-	if (!m_framebuffer)
+	if (!m_framebuffer || !m_vram_kernel_map)
 		return kIOReturnNotReady;
-	rgn = static_cast<IOAccelDeviceRegion const*>(region);
-	numRects = rgn ? rgn->num_rects : 0;
+	gfb_base = m_vram_kernel_map->getVirtualAddress();
+	if (!gmrPtr) {
+		if (extra->mem_gmr_id == GMR_VRAM())
+			gmrPtr = gfb_base;
+		else
+			return kIOReturnBadArgument;
+	}
 	m_framebuffer->lockDevice();
-	vram_ptr = m_vram_kernel_map->getVirtualAddress();
-	gfb_start = vram_ptr + m_svga->getCurrentFBOffset();
-	gfb_pitch = m_svga->getCurrentPitch();
-	gfb_end = gfb_start + m_svga->getCurrentFBSize();
+	gfb_base += m_svga->getCurrentFBOffset();
+	gfb_image.pitch = m_svga->getCurrentPitch();
+	gfb_image.ptr.offset = m_svga->getCurrentFBSize();
 	/*
 	 * TBD: should we lock for the entire blit?
 	 */
 	m_framebuffer->unlockDevice();
-	/*
-	 * TBD: support GMRs other than VRAM
-	 */
-	buffer_start = vram_ptr + extra->mem_offset_in_gmr;
-	buffer_end = vram_ptr + limit;
-	buffer_pitch = static_cast<int>(extra->mem_pitch);
-	for (i = 0; i < numRects; ++i) {
-		IOAccelBounds const* rect = &rgn->rect[i];
-		IOVirtualAddress addr1 = gfb_start +
-			(rect->y + extra->srcDeltaY) * gfb_pitch +
-			(rect->x + extra->srcDeltaX) * bytes_per_pixel;
-		IOVirtualAddress addr2 = buffer_start +
-			(rect->y + extra->dstDeltaY) * buffer_pitch +
-			(rect->x + extra->dstDeltaX) * bytes_per_pixel;
-		size_t l = static_cast<size_t>(rect->w * bytes_per_pixel);
-		for (int16_t j = 0; j < rect->h; ++j) {
-			if (addr1 < gfb_start || addr1 + l > gfb_end)
-				continue;
-			if (addr2 < buffer_start || addr2 + l > buffer_end)
-				continue;
-			if (direction)
-				memcpy(reinterpret_cast<void*>(addr1),
-					   reinterpret_cast<void const*>(addr2),
-					   l);
-			else
-				memcpy(reinterpret_cast<void*>(addr2),
-					   reinterpret_cast<void const*>(addr1),
-					   l);
-			addr1 += gfb_pitch;
-			addr2 += buffer_pitch;
-		}
-	}
-	return kIOReturnSuccess;
+	gmr_base = gmrPtr + extra->mem_offset_in_gmr;
+	gmr_image.pitch = static_cast<uint32_t>(extra->mem_pitch);
+	gmr_image.ptr.offset = static_cast<uint32_t>(limitFromGmrPtr - extra->mem_offset_in_gmr);
+	gmr_delta.x = extra->dstDeltaX;
+	gmr_delta.y = extra->dstDeltaY;
+	gfb_delta.x = extra->srcDeltaX;
+	gfb_delta.y = extra->srcDeltaY;
+	if (direction)
+		return genericBlitCopy(gfb_base,
+							   &gfb_image,
+							   &gfb_delta,
+							   gmr_base,
+							   &gmr_image,
+							   &gmr_delta,
+							   region,
+							   sizeof(uint32_t));
+	return genericBlitCopy(gmr_base,
+						   &gmr_image,
+						   &gmr_delta,
+						   gfb_base,
+						   &gfb_image,
+						   &gfb_delta,
+						   region,
+						   sizeof(uint32_t));
 }
 
 #if 0
@@ -1786,6 +1783,56 @@ void CLASS::unlock3D()
 	if (!m_framebuffer)
 		return;
 	m_framebuffer->unlockDevice();
+}
+
+/*
+ * Note:
+ *   The ptr.offset field in SVGAGuestImage is used to hold the limit
+ *     relative to the base address of the blit area.
+ *   The ptr.gmrId field in SVGAGuestImage is ignored.
+ */
+HIDDEN
+IOReturn CLASS::genericBlitCopy(IOVirtualAddress dst_base,
+								SVGAGuestImage const* dst_image,
+								SVGASignedPoint const* dst_delta,
+								IOVirtualAddress src_base,
+								SVGAGuestImage const* src_image,
+								SVGASignedPoint const* src_delta,
+								void /* IOAccelDeviceRegion */ const* region,
+								uint8_t bytes_per_pixel)
+{
+	uint32_t numRects;
+	IOVirtualAddress dst_limit, src_limit;
+	IOAccelDeviceRegion const* rgn;
+
+	if (!dst_base || !dst_image || !dst_delta ||
+		!src_base || !src_image || !src_delta)
+		return kIOReturnBadArgument;
+	rgn = static_cast<IOAccelDeviceRegion const*>(region);
+	numRects = rgn ? rgn->num_rects : 0U;
+	if (!numRects)
+		return kIOReturnSuccess;
+	dst_limit = dst_base + dst_image->ptr.offset;
+	src_limit = src_base + src_image->ptr.offset;
+	for (uint32_t i = 0U; i != numRects; ++i) {
+		IOAccelBounds const* rect = &rgn->rect[i];
+		if (rect->w <= 0 || rect->h <= 0)
+			continue;
+		IOVirtualAddress addr1 = dst_base + (rect->y + dst_delta->y) * dst_image->pitch + (rect->x + dst_delta->x) * bytes_per_pixel;
+		IOVirtualAddress addr2 = src_base + (rect->y + src_delta->y) * src_image->pitch + (rect->x + src_delta->x) * bytes_per_pixel;
+		size_t l = static_cast<size_t>(rect->w) * bytes_per_pixel;
+		for (int16_t j = 0; j != rect->h; ++j) {
+			if (addr1 < dst_base || addr1 + l > dst_limit ||
+				addr2 < src_base || addr2 + l > src_limit)
+				continue;
+			memcpy(reinterpret_cast<void*>(addr1),
+				   reinterpret_cast<void const*>(addr2),
+				   l);
+			addr1 += dst_image->pitch;
+			addr2 += src_image->pitch;
+		}
+	}
+	return kIOReturnSuccess;
 }
 
 #pragma mark -
