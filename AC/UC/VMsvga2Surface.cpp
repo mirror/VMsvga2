@@ -470,10 +470,10 @@ bool CLASS::wrapClientBacking()
 			break;
 		case 2:
 			/*
-			 * TBD: This dumps previous backing in client,
-			 *   should make the code check if previous
-			 *   descriptor can be reused.
+			 * Reuse existing descriptor if possible
 			 */
+			if (m_backing.vtb.gart_ptr == 1U)	// client backing hasn't reconfigured
+				return true;
 			releaseBacking();
 			break;
 	}
@@ -1615,6 +1615,8 @@ IOReturn CLASS::set_shape_backing_length_ext(eIOAccelSurfaceShapeBits options,
 		m_client_backing.addr = backing;
 		m_client_backing.rowbytes = rowbytes;
 		m_client_backing.size = backingLength;
+		if (m_backing.vtb.gart_ptr)		// mark client backing changed
+			m_backing.vtb.gart_ptr = 2U;
 	}
 	if (!m_last_shape) {
 		m_last_shape = OSData::withBytes(rgn, static_cast<unsigned>(rgnSize));
