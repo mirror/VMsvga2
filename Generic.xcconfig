@@ -2,10 +2,11 @@
 //  Generic.xcconfig
 //
 //  Created by Zenith432 on November 18th 2009.
-//  Copyright 2009-2011 Zenith432. All rights reserved.
+//  Copyright 2009-2012 Zenith432. All rights reserved.
 //
 
 ALWAYS_SEARCH_USER_PATHS = NO;
+COMBINE_HIDPI_IMAGES = YES;
 DEBUG_INFORMATION_FORMAT = dwarf-with-dsym;
 DEPLOYMENT_POSTPROCESSING = YES;
 GCC_ENABLE_CPP_EXCEPTIONS = NO;

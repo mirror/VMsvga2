@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009-2011 Zenith432. All rights reserved.
+ *  Copyright 2009-2012 Zenith432. All rights reserved.
  *
  */
 
@@ -72,7 +72,7 @@ OSDefineMetaClassAndStructors(VMsvga2, IOFramebuffer);
 
 typedef unsigned long long __m64 __attribute__((vector_size(8), may_alias));
 
-static __attribute__((used)) char const copyright[] = "Copyright 2009-2011 Zenith432";
+static __attribute__((used)) char const copyright[] = "Copyright 2009-2012 Zenith432";
 
 static char const pixelFormatStrings[] = IO32BitDirectPixels "\0";
 
@@ -181,6 +181,14 @@ IOReturn CLASS::setCursorState(SInt32 x, SInt32 y, bool visible)
 	return kIOReturnSuccess;
 }
 
+__attribute__((visibility("hidden"), always_inline))
+static inline
+__m64 _my_pinsrw(__m64 a, int d, int n)
+{
+	__asm__ volatile ("pinsrw %2, %1, %0" : "+y"(a) : "r"(d), "K"(n));
+	return a;
+}
+
 __attribute__((visibility("hidden")))
 void CLASS::ConvertAlphaCursor(uint32_t* cursor, uint32_t width, uint32_t height)
 {
@@ -199,7 +207,7 @@ void CLASS::ConvertAlphaCursor(uint32_t* cursor, uint32_t width, uint32_t height
 		mm0 = __builtin_ia32_punpcklbw((__m64){*cursor}, mm_zero);
 		*cursor = __builtin_ia32_vec_ext_v2si(
 			__builtin_ia32_packuswb(
-			__builtin_ia32_vec_set_v4hi(
+			_my_pinsrw(
 			__builtin_ia32_psrlwi(
 			__builtin_ia32_pmulhuw(
 			__builtin_ia32_pmullw(
