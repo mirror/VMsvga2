@@ -513,6 +513,8 @@ void CLASS::cleanupPrimaryScreen()
 		m_primary_screen.backing = 0;
 	}
 #endif
+	m_primary_screen.w = static_cast<uint32_t>(-1);
+	m_primary_screen.h = static_cast<uint32_t>(-1);
 }
 
 #pragma mark -

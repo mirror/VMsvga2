@@ -1309,11 +1309,15 @@ IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
 	 * wID == 1U is used by Mac OS X's WindowServer
 	 * Let the WindowServer know if we support SVGAScreen or SVGA3D
 	 */
-	if (wID == 1U && !haveFrontBuffer())
-		return kIOReturnUnsupported;
-
-	if (wID == 1U && bHaveScreenObject)
-		m_provider->createPrimaryScreen(m_screenInfo.w, m_screenInfo.h);	// Note: Ignores Error
+	if (wID == 1U) {
+		if (!haveFrontBuffer())
+			return kIOReturnUnsupported;
+		if (bHaveScreenObject) {
+			IOReturn rc = m_provider->createPrimaryScreen(m_screenInfo.w, m_screenInfo.h);
+			if (rc != kIOReturnSuccess)
+				return rc;
+		}
+	}
 
 	if (modebits & ~(kIOAccelSurfaceModeColorDepthBits | kIOAccelSurfaceModeWindowedBit))
 		return kIOReturnUnsupported;
