@@ -1477,8 +1477,8 @@ IOReturn CLASS::createPrimaryScreen(uint32_t width,
 		new_screen.backingStore.pitch = static_cast<uint32_t>(pitch);
 		backing_size = (pitch * height + PAGE_SIZE - 1U) & -PAGE_SIZE;
 #ifdef USE_LOCAL_SCREEN
-		bmd = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task /* 0 */,
-															   kIODirectionInOut,
+		bmd = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(0,
+															   kIODirectionInOut | kIOMemoryPageable,
 															   backing_size,
 															   0xFFFFFFFF000ULL);	// ensures 32-bit PPNs
 		if (!bmd) {
