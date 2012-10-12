@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009-2011 Zenith432. All rights reserved.
+ *  Copyright 2009-2012 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -1311,6 +1311,9 @@ IOReturn CLASS::set_id_mode(uintptr_t wID, eIOAccelSurfaceModeBits modebits)
 	 */
 	if (wID == 1U && !haveFrontBuffer())
 		return kIOReturnUnsupported;
+
+	if (wID == 1U && bHaveScreenObject)
+		m_provider->createPrimaryScreen(m_screenInfo.w, m_screenInfo.h);	// Note: Ignores Error
 
 	if (modebits & ~(kIOAccelSurfaceModeColorDepthBits | kIOAccelSurfaceModeWindowedBit))
 		return kIOReturnUnsupported;

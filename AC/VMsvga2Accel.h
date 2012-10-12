@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009-2011 Zenith432. All rights reserved.
+ *  Copyright 2009-2012 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -33,6 +33,9 @@
 #include "SVGA3D.h"
 #include "SVGAScreen.h"
 #include "FenceTracker.h"
+#ifdef USE_LOCAL_SCREEN
+#include "VendorTransferBuffer.h"
+#endif
 
 #define kIOMessageFindSurface iokit_vendor_specific_msg(0x10)
 
@@ -82,6 +85,14 @@ private:
 	int volatile m_master_surface_retain_count;
 	uint32_t m_master_surface_id;
 	IOReturn m_blitbug_result;
+	struct {
+		uint32_t w, h;
+#ifdef USE_LOCAL_SCREEN
+		VendorTransferBuffer vtb;
+#else
+		uint8_t* backing;
+#endif
+	} m_primary_screen;
 
 	/*
 	 * AutoSync area
@@ -119,6 +130,8 @@ private:
 								   SInt32 event,
 								   void* info);
 #endif
+	void initPrimaryScreen();
+	void cleanupPrimaryScreen();
 
 public:
 	/*
@@ -247,6 +260,8 @@ public:
 	/*
 	 * Screen Methods
 	 */
+	IOReturn createPrimaryScreen(uint32_t width,
+								 uint32_t height);
 	IOReturn blitFromScreen(uint32_t srcScreenId,
 							void /* IOAccelDeviceRegion */ const* region,
 							ExtraInfo const* extra,

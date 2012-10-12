@@ -3,7 +3,7 @@
  *  VMsvga2Accel
  *
  *  Created by Zenith432 on July 29th 2009.
- *  Copyright 2009-2011 Zenith432. All rights reserved.
+ *  Copyright 2009-2012 Zenith432. All rights reserved.
  *
  *  Permission is hereby granted, free of charge, to any person
  *  obtaining a copy of this software and associated documentation
@@ -50,7 +50,7 @@ OSDefineMetaClassAndStructors(VMsvga2Accel, IOAccelerator);
 
 #define HIDDEN __attribute__((visibility("hidden")))
 
-static __attribute__((used)) char const copyright[] = "Copyright 2009-2011 Zenith432";
+static __attribute__((used)) char const copyright[] = "Copyright 2009-2012 Zenith432";
 
 HIDDEN
 unsigned vmw_options_ac = 0U;
@@ -260,6 +260,7 @@ void CLASS::Cleanup()
 		svga3d.Init(0);
 	}
 	if (bHaveScreenObject) {
+		cleanupPrimaryScreen();
 		bHaveScreenObject = false;
 		screen.Init(0);
 	}
@@ -488,6 +489,32 @@ IOReturn CLASS::fbNotificationHandler(void* ref,
 }
 #endif
 
+HIDDEN
+void CLASS::initPrimaryScreen()
+{
+	m_primary_screen.w = static_cast<uint32_t>(-1);
+	m_primary_screen.h = static_cast<uint32_t>(-1);
+#ifdef USE_LOCAL_SCREEN
+	m_primary_screen.vtb.init();
+#endif
+}
+
+HIDDEN
+void CLASS::cleanupPrimaryScreen()
+{
+#ifdef USE_LOCAL_SCREEN
+#if 0
+	m_primary_screen.vtb.complete(this);
+#endif
+	m_primary_screen.vtb.discard();
+#else
+	if (m_primary_screen.backing) {
+		VRAMFree(m_primary_screen.backing);
+		m_primary_screen.backing = 0;
+	}
+#endif
+}
+
 #pragma mark -
 #pragma mark Methods from IOService
 #pragma mark -
@@ -504,6 +531,7 @@ bool CLASS::init(OSDictionary* dictionary)
 	m_master_surface_id = SVGA_ID_INVALID;
 	m_blitbug_result = kIOReturnNotFound;
 	m_present_tracker.init();
+	initPrimaryScreen();
 	return true;
 }
 
@@ -1417,6 +1445,78 @@ exit:
 #pragma mark -
 #pragma mark Screen Support Methods
 #pragma mark -
+
+HIDDEN
+IOReturn CLASS::createPrimaryScreen(uint32_t width,
+									uint32_t height)
+{
+	SVGAScreenObject new_screen;
+
+	if (!bHaveScreenObject)
+		return kIOReturnNoDevice;
+	if (width == m_primary_screen.w && height == m_primary_screen.h)
+		return kIOReturnSuccess;
+	bzero(&new_screen, sizeof new_screen);
+	new_screen.structSize = sizeof new_screen;
+	new_screen.flags = SVGA_SCREEN_HAS_ROOT | SVGA_SCREEN_IS_PRIMARY;
+	new_screen.size.width = width;
+	new_screen.size.height = height;
+	if (m_svga->HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT)) {
+		new_screen.backingStore.ptr.gmrId = static_cast<uint32_t>(-1) /* SVGA_GMR_NULL */;
+	} else {
+		/*
+		 * screen object 2 must allocate own backing for screen
+		 */
+		vm_size_t pitch, backing_size;
+#ifdef USE_LOCAL_SCREEN
+		IOReturn rc;
+		IOBufferMemoryDescriptor* bmd;
+#endif
+
+		pitch = (width * sizeof(uint32_t) + 7U) & -8;
+		new_screen.backingStore.pitch = static_cast<uint32_t>(pitch);
+		backing_size = (pitch * height + PAGE_SIZE - 1U) & -PAGE_SIZE;
+#ifdef USE_LOCAL_SCREEN
+		bmd = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task /* 0 */,
+															   kIODirectionInOut,
+															   backing_size,
+															   0xFFFFFFFF000ULL);	// ensures 32-bit PPNs
+		if (!bmd) {
+			ACLog(1, "%s: Failed to allocate IOBufferMemoryDescriptor\n", __FUNCTION__);
+			return kIOReturnNoMemory;
+		}
+		m_primary_screen.vtb.complete(this);
+		m_primary_screen.vtb.discard();
+		m_primary_screen.vtb.md = bmd;
+		rc = m_primary_screen.vtb.prepare(this);
+		if (rc != kIOReturnSuccess) {
+			m_primary_screen.vtb.md = 0;
+			bmd->release();
+			m_primary_screen.w = static_cast<uint32_t>(-1);
+			m_primary_screen.h = static_cast<uint32_t>(-1);
+			ACLog(1, "%s VendorTransferBuffer::prepare failed with status code %#x\n", __FUNCTION__, rc);
+			return rc;
+		}
+		new_screen.backingStore.ptr.gmrId = m_primary_screen.vtb.gmr_id;
+#else
+		m_primary_screen.backing = static_cast<uint8_t*>(VRAMRealloc(m_primary_screen.backing, backing_size));
+		if (!m_primary_screen.backing) {
+			ACLog(1, "%s: Failed to allocate %lu bytes of VRAM Memory\n", __FUNCTION__, FMT_LU(backing_size));
+			return kIOReturnNoMemory;
+		}
+		pitch = reinterpret_cast<vm_size_t>(m_primary_screen.backing) - m_vram_kernel_map->getVirtualAddress();
+		new_screen.backingStore.ptr.offset = static_cast<uint32_t>(pitch);
+		new_screen.backingStore.ptr.gmrId = GMR_VRAM();
+		ACLog(2, "%s: m_primary_screen.backing is %#lx\n", __FUNCTION__, FMT_LU(pitch));
+#endif
+	}
+	m_framebuffer->lockDevice();
+	screen.DefineScreen(&new_screen);
+	m_framebuffer->unlockDevice();
+	m_primary_screen.w = width;
+	m_primary_screen.h = height;
+	return kIOReturnSuccess;
+}
 
 HIDDEN
 IOReturn CLASS::blitFromScreen(uint32_t srcScreenId,
