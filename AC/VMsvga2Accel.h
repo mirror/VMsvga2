@@ -33,9 +33,6 @@
 #include "SVGA3D.h"
 #include "SVGAScreen.h"
 #include "FenceTracker.h"
-#ifdef USE_LOCAL_SCREEN
-#include "VendorTransferBuffer.h"
-#endif
 
 #define kIOMessageFindSurface iokit_vendor_specific_msg(0x10)
 
@@ -87,11 +84,6 @@ private:
 	IOReturn m_blitbug_result;
 	struct {
 		uint32_t w, h;
-#ifdef USE_LOCAL_SCREEN
-		VendorTransferBuffer vtb;
-#else
-		uint8_t* backing;
-#endif
 	} m_primary_screen;
 
 	/*
@@ -357,7 +349,7 @@ public:
 	 * Memory Support
 	 */
 	void* VRAMMalloc(size_t bytes);
-	void* VRAMRealloc(void* ptr, size_t bytes, bool retain);
+	void* VRAMRealloc(void* ptr, size_t bytes);
 	void VRAMFree(void* ptr);
 	IOMemoryMap* mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_vram, vm_size_t size);
 

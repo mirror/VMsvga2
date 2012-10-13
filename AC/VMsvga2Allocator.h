@@ -101,7 +101,7 @@ public:
 	IOReturn Rebase(void* newStartAddress);
 	IOReturn Release(size_t startOffsetBytes, size_t endOffsetBytes);
 	IOReturn Malloc(size_t bytes, void** newStore);
-	IOReturn Realloc(void* ptrv, size_t size, void** newPtr, bool retain);
+	IOReturn Realloc(void* ptrv, size_t size, void** newPtr);
 	IOReturn Free(void* storage2);
 	IOReturn Available(size_t* bytesFree);
 	IOReturn Check(size_t* counts);
