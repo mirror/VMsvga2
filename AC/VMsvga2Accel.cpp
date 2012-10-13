@@ -1937,6 +1937,14 @@ IOReturn CLASS::genericBlitCopy(IOVirtualAddress dst_base,
 	return kIOReturnSuccess;
 }
 
+HIDDEN
+bool CLASS::isPrimaryScreenActive() const
+{
+	if (!bHaveScreenObject)
+		return false;
+	return static_cast<int>(m_primary_screen.w) > 0 && static_cast<int>(m_primary_screen.h) > 0;
+}
+
 #pragma mark -
 #pragma mark Video Methods
 #pragma mark -

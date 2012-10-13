@@ -1817,7 +1817,7 @@ IOReturn CLASS::copy_framebuffer_region_to_self(uint32_t framebufferIndex,
 	clipRegionToBuffer(const_cast<IOAccelDeviceRegion*>(region),
 					   extra.dstDeltaX,
 					   extra.dstDeltaY);
-	if (bHaveScreenObject) {
+	if (m_provider->isPrimaryScreenActive()) {
 		rc = m_provider->blitFromScreen(framebufferIndex,
 										region,
 										&extra,

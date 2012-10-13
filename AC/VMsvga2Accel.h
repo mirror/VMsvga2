@@ -326,6 +326,7 @@ public:
 							 SVGASignedPoint const* src_delta,
 							 void /* IOAccelDeviceRegion */ const* region,
 							 uint8_t bytes_per_pixel);
+	bool isPrimaryScreenActive() const;
 
 	/*
 	 * Video Support
