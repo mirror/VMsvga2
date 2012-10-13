@@ -555,7 +555,7 @@ bool CLASS::allocBacking()
 			break;
 	}
 	m_backing.size = m_scale.reserved[0];
-	m_backing.self = static_cast<uint8_t*>(m_provider->VRAMRealloc(m_backing.self, m_backing.size));
+	m_backing.self = static_cast<uint8_t*>(m_provider->VRAMRealloc(m_backing.self, m_backing.size, true));
 	if (!m_backing.self)
 		return allocGMRBacking();
 	m_backing.offset = reinterpret_cast<vm_offset_t>(m_backing.self) - CLIENT_ADDR_TO_UINTPTR_T(m_screenInfo.client_addr);

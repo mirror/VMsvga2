@@ -356,7 +356,7 @@ public:
 	 * Memory Support
 	 */
 	void* VRAMMalloc(size_t bytes);
-	void* VRAMRealloc(void* ptr, size_t bytes);
+	void* VRAMRealloc(void* ptr, size_t bytes, bool retain);
 	void VRAMFree(void* ptr);
 	IOMemoryMap* mapVRAMRangeForTask(task_t task, vm_offset_t offset_in_vram, vm_size_t size);
 

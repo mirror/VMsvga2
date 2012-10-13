@@ -1501,7 +1501,7 @@ IOReturn CLASS::createPrimaryScreen(uint32_t width,
 		}
 		new_screen.backingStore.ptr.gmrId = m_primary_screen.vtb.gmr_id;
 #else
-		m_primary_screen.backing = static_cast<uint8_t*>(VRAMRealloc(m_primary_screen.backing, backing_size));
+		m_primary_screen.backing = static_cast<uint8_t*>(VRAMRealloc(m_primary_screen.backing, backing_size, false));
 		if (!m_primary_screen.backing) {
 			ACLog(1, "%s: Failed to allocate %lu bytes of VRAM Memory\n", __FUNCTION__, FMT_LU(backing_size));
 			return kIOReturnNoMemory;
@@ -2117,7 +2117,7 @@ void* CLASS::VRAMMalloc(size_t bytes)
 }
 
 HIDDEN
-void* CLASS::VRAMRealloc(void* ptr, size_t bytes)
+void* CLASS::VRAMRealloc(void* ptr, size_t bytes, bool retain)
 {
 	IOReturn rc;
 	void* newp = 0;
@@ -2125,7 +2125,7 @@ void* CLASS::VRAMRealloc(void* ptr, size_t bytes)
 	if (!m_allocator)
 		return 0;
 	lockAccel();
-	rc = m_allocator->Realloc(ptr, bytes, &newp);
+	rc = m_allocator->Realloc(ptr, bytes, &newp, retain);
 	unlockAccel();
 	if (rc != kIOReturnSuccess)
 		ACLog(1, "%s(%p, %lu) failed\n", __FUNCTION__, ptr, bytes);

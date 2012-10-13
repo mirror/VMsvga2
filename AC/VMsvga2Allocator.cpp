@@ -590,7 +590,7 @@ IOReturn CLASS::Malloc(size_t bytes, void** newStore)
 	return BuddyMalloc(bits, newStore);
 }
 
-IOReturn CLASS::Realloc(void* ptrv, size_t size, void** newPtr)
+IOReturn CLASS::Realloc(void* ptrv, size_t size, void** newPtr, bool retain)
 {
 	int canBits, bits, lg2Bytes;
 	pool_size_t blockNo, oldBlocks, newBlocks;
@@ -605,14 +605,21 @@ IOReturn CLASS::Realloc(void* ptrv, size_t size, void** newPtr)
 		return error;
 	lg2Bytes = bits + minBits;
 	if ((1UL << lg2Bytes) < size) {
-		error = Malloc(size, newPtr);
-		if (error != kIOReturnSuccess)
+		if (retain) {
+			error = Malloc(size, newPtr);
+			if (error != kIOReturnSuccess)
+				return error;
+			memcpy(*newPtr, ptr, 1UL << lg2Bytes);
+			error = Free(ptr);
+			if (error != kIOReturnSuccess)
+				Free(*newPtr);
 			return error;
-		memcpy(*newPtr, ptr, 1UL << lg2Bytes);
-		error = Free(ptr);
-		if (error != kIOReturnSuccess)
-			Free(*newPtr);
-		return error;
+		} else {
+			error = Free(ptr);
+			if (error != kIOReturnSuccess)
+				return error;
+			return Malloc(size, newPtr);
+		}
 	}
 	*newPtr = ptr;
 	for (canBits = minBits; (1UL << canBits) < size; ++canBits);
