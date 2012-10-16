@@ -391,7 +391,7 @@ IOItemCount CLASS::getDisplayModeCount()
 {
 	IOItemCount r;
 	r = m_custom_switch ? 1 : m_num_active_modes;
-	LogPrintf(2, "%s: mode count=%u\n", __FUNCTION__, FMT_U(r));
+	LogPrintf(3, "%s: mode count=%u\n", __FUNCTION__, FMT_U(r));
 	return r;
 }
 
@@ -758,9 +758,9 @@ void CLASS::CustomSwitchStepSet(uint32_t value)
 __attribute__((visibility("hidden")))
 void CLASS::EmitConnectChangedEvent()
 {
-#if 0	/* VMwareGfx 4.x */
+#if 0	/* VMwareGfx 5.x */
 	while (!m_intr.proc) {
-		LogPrintf(2, "%s: Waiting for WindowServer.\n", __FUNCTION__);
+		LogPrintf(3, "%s: Waiting for WindowServer.\n", __FUNCTION__);
 		IOSleep(1000);
 	}
 	if (!m_intr_enabled)
@@ -769,9 +769,9 @@ void CLASS::EmitConnectChangedEvent()
 	if (!m_intr.proc || !m_intr_enabled)
 		return;
 #endif
-	LogPrintf(2, "%s: Before call.\n", __FUNCTION__);
+	LogPrintf(3, "%s: Before call.\n", __FUNCTION__);
 	m_intr.proc(m_intr.target, m_intr.ref);
-	LogPrintf(2, "%s: After call.\n", __FUNCTION__);
+	LogPrintf(3, "%s: After call.\n", __FUNCTION__);
 }
 
 __attribute__((visibility("hidden")))
@@ -782,8 +782,10 @@ void CLASS::RestoreAllModes()
 	DisplayModeEntry const* dme1;
 	DisplayModeEntry const* dme2 = 0;
 
-	if (m_custom_switch != 2U)
+	if (m_custom_switch != 2U) {
+		LogPrintf(3, "%s: The user client set another custom resolution (%d)\n", __FUNCTION__, m_custom_switch);
 		return;
+	}
 
 	dme1 = GetDisplayMode(CUSTOM_MODE_ID);
 	if (!dme1)
@@ -800,7 +802,7 @@ found_slot:
 	t = m_modes[0];
 	m_modes[0] = m_modes[i];
 	m_modes[i] = t;
-	LogPrintf(2, "%s: Swapped mode IDs in slots 0 and %u.\n", __FUNCTION__, i);
+	LogPrintf(3, "%s: Swapped mode IDs in slots 0 and %u.\n", __FUNCTION__, i);
 	m_custom_mode_switched = true;
 	CustomSwitchStepSet(0U);
 	EmitConnectChangedEvent();
@@ -1017,6 +1019,11 @@ bool CLASS::start(IOService* provider)
 	max_w = svga.getMaxWidth();
 	max_h = svga.getMaxHeight();
 	m_num_active_modes = 0U;
+	/*
+	 * Note: VMwareGfx 5.x also checks that
+	 *   ((modeList[i].width + 7U) & -8) * modeList[i].height <= (1U << 22)
+	 *   {limiting to GFB area <= 16MiB}
+	 */
 	for (uint32_t i = 0U; i != NUM_DISPLAY_MODES; ++i)
 		if (modeList[i].width <= max_w &&
 			modeList[i].height <= max_h)

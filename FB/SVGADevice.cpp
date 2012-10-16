@@ -3,7 +3,7 @@
  *  VMsvga2
  *
  *  Created by Zenith432 on July 2nd 2009.
- *  Copyright 2009-2011 Zenith432. All rights reserved.
+ *  Copyright 2009-2012 Zenith432. All rights reserved.
  *
  */
 
@@ -159,6 +159,7 @@ bool CLASS::Start(IOPCIDevice* provider)
 
 	LogPrintf(2, "%s: \n", __FUNCTION__);
 	m_provider = provider;
+	m_bounce_buffer = 0;
 	if (logLevelFB >= 3) {
 		LogPrintf(3, "%s: PCI bus %u device %u function %u\n", __FUNCTION__,
 				  provider->getBusNumber(),
@@ -181,6 +182,9 @@ bool CLASS::Start(IOPCIDevice* provider)
 		return false;
 	}
 	m_io_base = static_cast<uint16_t>(bar->getPhysicalAddress());
+#if 0	/* VMwareGfx 5.x */
+	WriteReg(SVGA_REG_ENABLE, 0U);
+#endif
 	WriteReg(SVGA_REG_ID, SVGA_ID_2);
 	reg_id = ReadReg(SVGA_REG_ID);
 	LogPrintf(3, "%s: REG_ID=%#08x\n", __FUNCTION__, reg_id);
@@ -189,11 +193,25 @@ bool CLASS::Start(IOPCIDevice* provider)
 		Cleanup();
 		return false;
 	}
+#if 0	/* VMwareGfx 5.x */
+	WriteReg(SVGA_REG_CONFIG_DONE, 0U);
+	WriteReg(SVGA_REG_ENABLE, 1U);
+#endif
 	m_capabilities = ReadReg(SVGA_REG_CAPABILITIES);
 	LogPrintf(3, "%s: caps=%#08x\n", __FUNCTION__, m_capabilities);
 #ifdef REQUIRE_TRACING
 	if (!HasCapability(SVGA_CAP_TRACES)) {
 		LogPrintf(1, "%s: CAP_TRACES failed\n", __FUNCTION__);
+		Cleanup();
+		return false;
+	}
+#endif
+#if 0
+	/*
+	 * VMwareGfx 5.x moved here from FIFOInit()
+	 */
+	if (!HasCapability(SVGA_CAP_EXTENDED_FIFO)) {
+		LogPrintf(1, "%s: CAP_EXTENDED_FIFO failed\n", __FUNCTION__);
 		Cleanup();
 		return false;
 	}
@@ -210,6 +228,16 @@ bool CLASS::Start(IOPCIDevice* provider)
 	if (!m_bar2_map)
 		goto bar2_error;
 	m_fifo_ptr = reinterpret_cast<uint32_t*>(m_bar2_map->getVirtualAddress());
+#if 0
+	/*
+	 * VMwareGfx 5.x
+	 */
+	if (!m_fifo_ptr) {
+		LogPrintf(1, "%s: Failed to get VA for FIFO.\n", __FUNCTION__);
+		Cleanup();
+		return false;
+	}
+#endif
 	m_fb_offset = ReadReg(SVGA_REG_FB_OFFSET);
 	m_fb_size = ReadReg(SVGA_REG_FB_SIZE);
 	m_vram_size = ReadReg(SVGA_REG_VRAM_SIZE);
@@ -228,6 +256,10 @@ bool CLASS::Start(IOPCIDevice* provider)
 		m_max_gmr_pages = ReadReg(SVGA_REG_GMRS_MAX_PAGES);
 		m_total_memory = ReadReg(SVGA_REG_MEMORY_SIZE);
 	}
+	/*
+	 * Note: in VMwareGfx 5.x logLevel of following printouts is 0
+	 *   Additionally, num_displays is printed after bpp, from ReadReg(SVGA_REG_NUM_DISPLAYS)
+	 */
 	LogPrintf(3, "%s: SVGA max w, h=%u, %u : host_bpp=%u, bpp=%u\n", __FUNCTION__, m_max_width, m_max_height, host_bpp, guest_bpp);
 	LogPrintf(3, "%s: SVGA VRAM size=%u FB size=%u, FIFO size=%u\n", __FUNCTION__, m_vram_size, m_fb_size, m_fifo_size);
 	if (HasCapability(SVGA_CAP_GMR))
@@ -235,21 +267,28 @@ bool CLASS::Start(IOPCIDevice* provider)
 	if (HasCapability(SVGA_CAP_GMR2))
 		LogPrintf(3, "%s: SVGA max GMR Pages == %u, total dedicated device memory == %u\n", __FUNCTION__,
 				  m_max_gmr_pages, m_total_memory);
-	if (HasCapability(SVGA_CAP_TRACES))
-		WriteReg(SVGA_REG_TRACES, 1);
-	m_bounce_buffer = static_cast<uint8_t*>(IOMalloc(BOUNCE_BUFFER_SIZE));
-	if (!m_bounce_buffer) {
-		LogPrintf(1, "%s: Failed to allocate the bounce buffer.\n", __FUNCTION__);
-		Cleanup();
-		return false;
-	}
-#if 0	/* VMwareGfx 4.x */
+#if 0	/* VMwareGfx 5.x */
+	WriteReg(SVGA_REG_DISPLAY_ID, 0U);
 	if (!FIFOInit()) {
 		LogPrintf(1, "%s: Failed FIFOInit.\n", __FUNCTION__);
 		Cleanup();
 		return false;
 	}
 #endif
+	if (HasCapability(SVGA_CAP_TRACES))
+		WriteReg(SVGA_REG_TRACES, 1);
+#if 0
+	/*
+	 * VMwareGfx 5.x
+	 */
+	SetMode(1024U, 768U, 32U);
+#endif
+	m_bounce_buffer = static_cast<uint8_t*>(IOMalloc(BOUNCE_BUFFER_SIZE));
+	if (!m_bounce_buffer) {
+		LogPrintf(1, "%s: Failed to allocate the bounce buffer.\n", __FUNCTION__);
+		Cleanup();
+		return false;
+	}
 	m_cursor_ptr = 0;
 	provider->setProperty("VMwareSVGACapabilities", static_cast<uint64_t>(m_capabilities), 32U);
 	return true;
@@ -280,6 +319,9 @@ bool CLASS::FIFOInit()
 
 	LogPrintf(2, "%s: FIFO: min=%u, size=%u\n", __FUNCTION__,
 			  static_cast<unsigned>(SVGA_FIFO_NUM_REGS * sizeof(uint32_t)), m_fifo_size);
+	/*
+	 * Moved to Start() in VMwareGfx 5.x
+	 */
 	if (!HasCapability(SVGA_CAP_EXTENDED_FIFO)) {
 		LogPrintf(1, "%s: SVGA_CAP_EXTENDED_FIFO failed\n", __FUNCTION__);
 		return false;
@@ -587,6 +629,9 @@ bool CLASS::EndDefineAlphaCursor(uint32_t width, uint32_t height, uint32_t bytes
 
 void CLASS::SetMode(uint32_t width, uint32_t height, uint32_t bpp)
 {
+	/*
+	 * LogLevel 0 in VMwareGfx 5.x
+	 */
 	LogPrintf(2, "%s: mode w,h=%u, %u bpp=%u\n", __FUNCTION__, width, height, bpp);
 	SyncFIFO();
 	WriteReg(SVGA_REG_WIDTH, width);
