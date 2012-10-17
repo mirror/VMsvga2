@@ -605,10 +605,6 @@
 				);
 				INFOPLIST_FILE = "Info-FB.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2;
-				OTHER_LDFLAGS = (
-					"-Xlinker",
-					"-no_function_starts",
-				);
 				PRODUCT_NAME = VMsvga2;
 				STRIP_STYLE = "non-global";
 				WRAPPER_EXTENSION = kext;
@@ -627,6 +623,12 @@
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
+				OTHER_LDFLAGS = (
+					"-Xlinker",
+					"-no_function_starts",
+					"-Xlinker",
+					"-no_data_in_code_info",
+				);
 				SDKROOT = macosx;
 				STRIPFLAGS = "-no_uuid";
 			};
@@ -642,10 +644,6 @@
 				);
 				INFOPLIST_FILE = "Info-AC.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2Accel;
-				OTHER_LDFLAGS = (
-					"-Xlinker",
-					"-no_function_starts",
-				);
 				PRODUCT_NAME = VMsvga2Accel;
 				STRIP_STYLE = "non-global";
 				WRAPPER_EXTENSION = kext;
@@ -680,6 +678,12 @@
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
+				OTHER_LDFLAGS = (
+					"-Xlinker",
+					"-no_function_starts",
+					"-Xlinker",
+					"-no_data_in_code_info",
+				);
 				SDKROOT = macosx;
 				STRIPFLAGS = "-no_uuid";
 			};
@@ -695,10 +699,6 @@
 				);
 				INFOPLIST_FILE = "Info-FB.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2;
-				OTHER_LDFLAGS = (
-					"-Xlinker",
-					"-no_function_starts",
-				);
 				PRODUCT_NAME = VMsvga2;
 				STRIP_STYLE = "non-global";
 				WRAPPER_EXTENSION = kext;
@@ -715,10 +715,6 @@
 				);
 				INFOPLIST_FILE = "Info-AC.plist";
 				MODULE_NAME = net.osx86.driver.VMsvga2Accel;
-				OTHER_LDFLAGS = (
-					"-Xlinker",
-					"-no_function_starts",
-				);
 				PRODUCT_NAME = VMsvga2Accel;
 				STRIP_STYLE = "non-global";
 				WRAPPER_EXTENSION = kext;
