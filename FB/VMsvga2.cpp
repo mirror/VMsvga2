@@ -684,6 +684,13 @@ IOReturn CLASS::setDisplayMode(IODisplayModeID displayMode, IOIndex depth)
 		m_depth_mode = 0;
 		return kIOReturnSuccess;
 	}
+#if 0
+	/*
+	 * VMwareGfx 5.x
+	 */
+	LogPrintf(0, "%s: (%u) wxh=%ux%u, %u %u\n", __FUNCTION__,
+			  displayMode, dme->width, dme->height, 32U, ((dme->width * 4U) + 28U) & 0x1FFFFFE0U);
+#endif
 	if (!m_accel_updates)
 		cancelRefreshTimer();	// Added
 	IOLockLock(m_iolock);
@@ -844,7 +851,7 @@ IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData
 	if (!dme1)
 		return kIOReturnUnsupported;
 	if (inData->flags & 1U) {
-		LogPrintf(3, "%s: Set resolution to %ux%u.\n", __FUNCTION__, inData->width, inData->height);
+		LogPrintf(3, "%s: Requested custom resolution %ux%u.\n", __FUNCTION__, inData->width, inData->height);
 		w = inData->width;
 		if (w < 800U)
 			w = 800U;
@@ -855,13 +862,36 @@ IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData
 			h = 600U;
 		else if (h > svga.getMaxHeight())
 			h = svga.getMaxHeight();
+#if 0	/* VMwareGfx 5.x */
+		if (((w + 7U) & -8) * h > (1U << 22)) {
+			/*
+			 * finds max new_w:new_h with same aspect ratio as w:h
+			 * such that new_w * new_h <= 1U << 22.
+			 */
+			uint64_t U; uint32_t M;
+			U = (uint64_t) w * (1ULL << 22) / h;
+			/* find max M such that (uint64_t) M * M <= U; */
+			new_w = M & -8;
+			new_h = (new_u * h / w) & -2;
+			w = new_w; h = new_h;
+		}
+#endif
 		if (w == dme1->width && h == dme1->height)
+#if 0	/* VMwareGfx 5.x */
+			LogPrintf(3, "%s: Set resolution to %ux%u already set\n", __FUNCTION__, w, h);
+#endif
 			goto finish_up;
 		customMode.width = w;
 		customMode.height = h;
+#if 0	/* VMwareGfx 5.x */
+		LogPrintf(3, "s: Setting custom resolution to %ux%u.\n", __FUNCTION__, w, h);
+#endif
 		CustomSwitchStepSet(1U);
 		EmitConnectChangedEvent();
 		CustomSwitchStepWait(2U);	// TBD: this wait for the WindowServer should be time-bounded
+		/*
+		 * Following log eliminated in VMwareGfx 5.x
+		 */
 		LogPrintf(3, "%s: Scheduling RestoreAllModes().\n", __FUNCTION__);
 		clock_interval_to_deadline(2000U, kMillisecondScale, &deadline);
 		thread_call_enter_delayed(m_restore_call, deadline);
