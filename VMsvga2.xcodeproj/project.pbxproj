@@ -487,9 +487,6 @@
 /* Begin PBXProject section */
 		089C1669FE841209C02AAC07 /* Project object */ = {
 			isa = PBXProject;
-			attributes = {
-				LastUpgradeCheck = 0450;
-			};
 			buildConfigurationList = 1DEB91DD08733DB10010E9CD /* Build configuration list for PBXProject "VMsvga2" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
@@ -617,8 +614,8 @@
 			buildSettings = {
 				ARCHS = i386;
 				COPYRIGHT_NOTICE = "Copyright 2009-2012 Zenith432";
-				CURRENT_PROJECT_VERSION = 1.2.5d7;
-				DYLIB_COMPATIBILITY_VERSION = 1.2.5d7;
+				CURRENT_PROJECT_VERSION = 1.2.5;
+				DYLIB_COMPATIBILITY_VERSION = 1.2.5;
 				DYLIB_CURRENT_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
@@ -628,6 +625,8 @@
 					"-no_function_starts",
 					"-Xlinker",
 					"-no_data_in_code_info",
+					"-Xlinker",
+					"-no_version_load_command",
 				);
 				SDKROOT = macosx;
 				STRIPFLAGS = "-no_uuid";
@@ -672,8 +671,8 @@
 					i386,
 				);
 				COPYRIGHT_NOTICE = "Copyright 2009-2012 Zenith432";
-				CURRENT_PROJECT_VERSION = 1.2.5d7;
-				DYLIB_COMPATIBILITY_VERSION = 1.2.5d7;
+				CURRENT_PROJECT_VERSION = 1.2.5;
+				DYLIB_COMPATIBILITY_VERSION = 1.2.5;
 				DYLIB_CURRENT_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
@@ -683,6 +682,8 @@
 					"-no_function_starts",
 					"-Xlinker",
 					"-no_data_in_code_info",
+					"-Xlinker",
+					"-no_version_load_command",
 				);
 				SDKROOT = macosx;
 				STRIPFLAGS = "-no_uuid";
