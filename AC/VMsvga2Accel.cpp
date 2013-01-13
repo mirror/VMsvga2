@@ -627,6 +627,7 @@ bool CLASS::start(IOService* provider)
 	 *   if it can't find this property.
 	 */
 	setProperty("IODVDBundleName", "AppleVADriver");
+	registerService();
 	return true;
 }
 
