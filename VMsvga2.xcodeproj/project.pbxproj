@@ -612,22 +612,14 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E52B43CA10B5B37F002470B4 /* Generic.xcconfig */;
 			buildSettings = {
-				ARCHS = i386;
-				COPYRIGHT_NOTICE = "Copyright 2009-2012 Zenith432";
+				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
+				COPYRIGHT_NOTICE = "Copyright 2009-2013 Zenith432";
 				CURRENT_PROJECT_VERSION = 1.2.5;
 				DYLIB_COMPATIBILITY_VERSION = 1.2.5;
 				DYLIB_CURRENT_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MACOSX_DEPLOYMENT_TARGET = 10.5;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
-				OTHER_LDFLAGS = (
-					"-Xlinker",
-					"-no_function_starts",
-					"-Xlinker",
-					"-no_data_in_code_info",
-					"-Xlinker",
-					"-no_version_load_command",
-				);
 				SDKROOT = macosx;
 				STRIPFLAGS = "-no_uuid";
 			};
@@ -666,25 +658,14 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = E52B43CA10B5B37F002470B4 /* Generic.xcconfig */;
 			buildSettings = {
-				ARCHS = (
-					x86_64,
-					i386,
-				);
-				COPYRIGHT_NOTICE = "Copyright 2009-2012 Zenith432";
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				COPYRIGHT_NOTICE = "Copyright 2009-2013 Zenith432";
 				CURRENT_PROJECT_VERSION = 1.2.5;
 				DYLIB_COMPATIBILITY_VERSION = 1.2.5;
 				DYLIB_CURRENT_VERSION = "$(CURRENT_PROJECT_VERSION)";
 				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Extensions";
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
-				OTHER_LDFLAGS = (
-					"-Xlinker",
-					"-no_function_starts",
-					"-Xlinker",
-					"-no_data_in_code_info",
-					"-Xlinker",
-					"-no_version_load_command",
-				);
 				SDKROOT = macosx;
 				STRIPFLAGS = "-no_uuid";
 			};
@@ -752,10 +733,7 @@
 		E5CC19B110CC0DA100EC0343 /* ReleaseLeo */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = (
-					x86_64,
-					i386,
-				);
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				GCC_PREPROCESSOR_DEFINITIONS = "LOGGING_LEVEL=1";
 				INFOPLIST_FILE = "Info-GLD.plist";
 				MODULE_NAME = net.osx86.VMsvga2GLDriver;
