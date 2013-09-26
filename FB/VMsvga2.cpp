@@ -36,6 +36,7 @@
 #include <IOKit/pci/IOPCIDevice.h>
 #include <IOKit/IOTimerEventSource.h>
 #include <IOKit/IODeviceTreeSupport.h>
+#include <libkern/version.h>
 #include "VMsvga2.h"
 #include "vmw_options_fb.h"
 #include "VLog.h"
@@ -452,6 +453,7 @@ IOReturn CLASS::getAttribute(IOSelect attribute, uintptr_t* value)
 	 * Also called from base class:
 	 *   kIOMirrorDefaultAttribute
 	 *   kIOVRAMSaveAttribute
+	 *   kIOClamshellStateAttribute
 	 */
 	if (attribute == kIOHardwareCursorAttribute) {
 		if (value)
@@ -540,7 +542,7 @@ IOReturn CLASS::setAttribute(IOSelect attribute, uintptr_t value)
 		!value &&
 		m_custom_switch == 1U &&
 		m_display_mode == CUSTOM_MODE_ID) {
-		CustomSwitchStepSet(2U);
+		CustomSwitchStepSet(version_major >= 13 ? 0U : 2U);
 	}
 	return r;
 }
@@ -550,6 +552,12 @@ IOReturn CLASS::setAttributeForConnection(IOIndex connectIndex, IOSelect attribu
 	IOReturn r;
 	char attr[5];
 
+	/*
+	 * Also called from base class:
+	 *   kConnectionColorModesSupported
+	 *   kConnectionColorDepthsSupported
+	 *   kConnectionDisplayFlags
+	 */
 	switch (attribute) {
 		case kConnectionFlags:
 			LogPrintf(2, "%s: kConnectionFlags %lu\n", __FUNCTION__, value);
@@ -888,6 +896,10 @@ IOReturn CLASS::CustomMode(CustomModeData const* inData, CustomModeData* outData
 #endif
 		CustomSwitchStepSet(1U);
 		EmitConnectChangedEvent();
+		if (version_major >= 13) {
+			CustomSwitchStepWait(0);
+			goto finish_up;
+		}
 		CustomSwitchStepWait(2U);	// TBD: this wait for the WindowServer should be time-bounded
 		/*
 		 * Following log eliminated in VMwareGfx 5.x
